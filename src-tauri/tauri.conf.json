@@ -25,15 +25,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; worker-src 'self' blob:; script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline'; connect-src 'self' https: wss: ws:; img-src 'self' asset: http://asset.localhost https://asset.localhost data: blob: https://twemoji.maxcdn.com; media-src 'self' asset: http://asset.localhost https://asset.localhost data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' https: data:",
-      "assetProtocol": {
-        "enable": true,
-        "scope": [
-          "$HOME/**",
-          "$APPDATA/**",
-          "$RESOURCE/**"
-        ]
-      }
+      "csp": null
     }
   },
   "bundle": {
