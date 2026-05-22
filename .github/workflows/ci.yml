@@ -80,7 +80,7 @@ jobs:
   publish-tauri:
     name: Publish ${{ matrix.platform }}
     needs: [frontend-check, rust-check]
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     permissions:
       contents: write
     strategy:
