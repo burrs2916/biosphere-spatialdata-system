@@ -1,124 +1,179 @@
-name: CI
+name: CI / Release
 
 on:
   push:
-    branches:
-      - main
-      - develop
+    branches: [main, develop]
+    tags:
+      - 'v*'
   pull_request:
-    branches:
-      - main
-      - develop
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
 
 jobs:
-  test:
-    strategy:
-      fail-fast: false
-      matrix:
-        platform:
-          - macos-latest
-          - ubuntu-22.04
-          - windows-latest
-
-    runs-on: ${{ matrix.platform }}
+  frontend-check:
+    name: Frontend Check
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install dependencies (Ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev \
-            build-essential \
-            curl \
-            wget \
-            file \
-            libssl-dev \
-            libgtk-3-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 20
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v3
+      - uses: pnpm/action-setup@v3
         with:
           version: 8
 
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
+      - run: pnpm install
+      - run: pnpm exec tsc --noEmit
 
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: './src-tauri -> target'
-
-      - name: Install frontend dependencies
-        run: pnpm install
-
-      - name: Check frontend build
-        run: pnpm build
-
-      - name: Check Rust code
-        run: |
-          cd src-tauri
-          cargo check --all-features
-
-      - name: Run Rust tests
-        run: |
-          cd src-tauri
-          cargo test --all-features
-
-  lint:
+  rust-check:
+    name: Rust Check
     runs-on: ubuntu-22.04
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install dependencies (Ubuntu only)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev \
-            build-essential \
-            curl \
-            wget \
-            file \
-            libssl-dev \
-            libgtk-3-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: 8
-
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
 
-      - name: Install frontend dependencies
-        run: pnpm install
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ./src-tauri -> target
+          key: spatialdata-v1
 
-      - name: Check TypeScript
-        run: pnpm exec tsc --noEmit
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libssl-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
 
-      - name: Check Rust formatting
+      - name: Cargo fmt
         run: |
           cd src-tauri
           cargo fmt -- --check
 
-      - name: Run Clippy
+      - name: Cargo clippy
         run: |
           cd src-tauri
           cargo clippy --all-features -- -W clippy::all
+
+      - name: Cargo test
+        run: |
+          cd src-tauri
+          cargo test --all-features
+
+  publish-tauri:
+    name: Publish ${{ matrix.platform }}
+    needs: [frontend-check, rust-check]
+    if: github.event_name == 'push'
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macOS-arm64
+            runner: macos-latest
+            args: --target aarch64-apple-darwin
+          - platform: macOS-x64
+            runner: macos-latest
+            args: --target x86_64-apple-darwin
+          - platform: Linux
+            runner: ubuntu-22.04
+            args: ''
+          - platform: Windows
+            runner: windows-latest
+            args: ''
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies (Linux)
+        if: matrix.platform == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libssl-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+
+      - name: Install Strawberry Perl (Windows)
+        if: matrix.platform == 'Windows'
+        run: choco install strawberryperl -y
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 8
+
+      - run: pnpm install
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macOS-arm64' && 'aarch64-apple-darwin' || matrix.platform == 'macOS-x64' && 'x86_64-apple-darwin' || '' }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ./src-tauri -> target
+          key: spatialdata-v1
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: app-v__VERSION__
+          releaseName: 'SpatialData System v__VERSION__'
+          releaseBody: |
+            ## 📦 SpatialData System v__VERSION__
+
+            ### 🍎 macOS 用户（重要！）
+            由于未使用 Apple Developer 证书签名，**首次打开可能提示"已损坏"**。
+            请在终端执行以下命令移除隔离属性：
+
+            ```bash
+            # 方式1：对 .dmg 文件移除隔离
+            xattr -cr ~/Downloads/SpatialData.System*.dmg
+            # 然后重新打开 .dmg，将 app 拖入 Applications
+
+            # 方式2：如果已拖入 Applications
+            xattr -cr /Applications/SpatialData\ System.app
+            ```
+
+            > 💡 **提示**：只需要执行一次。之后正常双击打开即可。
+
+            ### 🪟 Windows
+            直接运行 `.msi` 或 `.exe` 安装程序即可。
+
+            ### 🐧 Linux
+            ```bash
+            chmod +x SpatialData.System*_amd64.AppImage
+            ./SpatialData.System*_amd64.AppImage
+            ```
+          releaseDraft: false
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+          args: ${{ matrix.args }}
