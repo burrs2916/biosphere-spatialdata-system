@@ -15,6 +15,7 @@ pub struct CadSpatialIndex {
 
 const ENTRY_SIZE: usize = 4 + 8 + 8 + 8 + 8;
 
+#[allow(dead_code)]
 impl CadSpatialIndex {
     pub fn new() -> Self {
         CadSpatialIndex {

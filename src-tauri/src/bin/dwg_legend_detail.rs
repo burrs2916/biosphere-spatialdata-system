@@ -34,7 +34,7 @@ fn main() {
     }
     v_lines.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
     v_lines.dedup_by(|a, b| (a.0 - b.0).abs() < 0.5);
-    for vl in &v_lines {}
+    for _vl in &v_lines {}
 
     let mut h_lines: Vec<(f64, f64, f64)> = Vec::new();
     for entity in doc.entities() {
@@ -56,7 +56,7 @@ fn main() {
     }
     h_lines.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
     h_lines.dedup_by(|a, b| (a.0 - b.0).abs() < 0.5);
-    for hl in &h_lines {}
+    for _hl in &h_lines {}
 
     for entity in doc.entities() {
         match entity {
@@ -67,7 +67,7 @@ fn main() {
                     && p.y >= legend_y_min
                     && p.y <= legend_y_max
                 {
-                    let h_align: u8 = match t.horizontal_alignment {
+                    let _h_align: u8 = match t.horizontal_alignment {
                         TextHorizontalAlignment::Left => 0,
                         TextHorizontalAlignment::Center => 1,
                         TextHorizontalAlignment::Right => 2,
@@ -75,7 +75,7 @@ fn main() {
                         TextHorizontalAlignment::Middle => 4,
                         TextHorizontalAlignment::Fit => 5,
                     };
-                    let v_align: u8 = match t.vertical_alignment {
+                    let _v_align: u8 = match t.vertical_alignment {
                         TextVerticalAlignment::Baseline => 0,
                         TextVerticalAlignment::Bottom => 1,
                         TextVerticalAlignment::Middle => 2,
@@ -90,7 +90,7 @@ fn main() {
                     && p.y >= legend_y_min
                     && p.y <= legend_y_max
                 {
-                    let ap: u8 = match mt.attachment_point {
+                    let _ap: u8 = match mt.attachment_point {
                         AttachmentPoint::TopLeft => 1,
                         AttachmentPoint::TopCenter => 2,
                         AttachmentPoint::TopRight => 3,
@@ -113,7 +113,7 @@ fn main() {
                         }
                     }
 
-                    let cell_info =
+                    let _cell_info =
                         if nearest_left_x > f64::NEG_INFINITY && nearest_right_x < f64::INFINITY {
                             let cell_w = nearest_right_x - nearest_left_x;
                             let cell_center = (nearest_left_x + nearest_right_x) / 2.0;
@@ -158,7 +158,7 @@ fn main() {
     }
     v_lines2.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
     v_lines2.dedup_by(|a, b| (a.0 - b.0).abs() < 0.5);
-    for vl in &v_lines2 {}
+    for _vl in &v_lines2 {}
 
     for entity in doc.entities() {
         if let acadrust::EntityType::MText(mt) = entity {
@@ -168,7 +168,7 @@ fn main() {
                 && p.y >= legend2_y_min
                 && p.y <= legend2_y_max
             {
-                let ap: u8 = match mt.attachment_point {
+                let _ap: u8 = match mt.attachment_point {
                     AttachmentPoint::TopLeft => 1,
                     AttachmentPoint::TopCenter => 2,
                     AttachmentPoint::TopRight => 3,
@@ -191,7 +191,7 @@ fn main() {
                     }
                 }
 
-                let cell_info =
+                let _cell_info =
                     if nearest_left_x > f64::NEG_INFINITY && nearest_right_x < f64::INFINITY {
                         let cell_w = nearest_right_x - nearest_left_x;
                         let cell_center = (nearest_left_x + nearest_right_x) / 2.0;

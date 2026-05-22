@@ -172,7 +172,7 @@ fn median_sorted(sorted: &[f64]) -> f64 {
         return 0.0;
     }
     let n = sorted.len();
-    if n % 2 == 0 {
+    if n.is_multiple_of(2) {
         (sorted[n / 2 - 1] + sorted[n / 2]) / 2.0
     } else {
         sorted[n / 2]
@@ -180,12 +180,12 @@ fn median_sorted(sorted: &[f64]) -> f64 {
 }
 
 fn analyze_file(path: &std::path::Path) {
-    let file_name = path.file_name().unwrap().to_string_lossy();
+    let _file_name = path.file_name().unwrap().to_string_lossy();
     let file_size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
 
     let data = match std::fs::read(path) {
         Ok(d) => d,
-        Err(e) => {
+        Err(_e) => {
             return;
         }
     };
@@ -193,7 +193,7 @@ fn analyze_file(path: &std::path::Path) {
     let result = DwgReader::from_stream(std::io::Cursor::new(data)).read();
     let doc = match result {
         Ok(d) => d,
-        Err(e) => {
+        Err(_e) => {
             return;
         }
     };
@@ -224,7 +224,7 @@ fn analyze_file(path: &std::path::Path) {
             continue;
         }
 
-        collect_coord(&entity, &mut all_xs, &mut all_ys);
+        collect_coord(entity, &mut all_xs, &mut all_ys);
 
         match &entity {
             EntityType::LwPolyline(lw) => {
@@ -313,7 +313,7 @@ fn analyze_file(path: &std::path::Path) {
         problem_count += 1;
     }
 
-    let current_profile = if entity_count == 0 {
+    let _current_profile = if entity_count == 0 {
         "Unparseable(空文件)".to_string()
     } else if problem_count == 0 && !has_heavy_entity {
         "Simple".to_string()
@@ -369,7 +369,7 @@ fn analyze_file(path: &std::path::Path) {
         + (if has_extreme_text { 1 } else { 0 })
         + (if has_distributed_coords_new { 1 } else { 0 });
 
-    let new_profile = if entity_count == 0 {
+    let _new_profile = if entity_count == 0 {
         "Unparseable".to_string()
     } else if new_problem_count == 0 && !has_medium_entity && !has_heavy_entity_new {
         "Simple".to_string()
@@ -402,16 +402,16 @@ fn analyze_file(path: &std::path::Path) {
         "Simple".to_string()
     };
     if !x_clusters.is_empty() {
-        for (i, (cmin, cmax, count)) in x_clusters.iter().enumerate() {
-            let span = cmax - cmin;
-            let pct = *count as f64 / all_xs.len() as f64 * 100.0;
+        for (_i, (cmin, cmax, count)) in x_clusters.iter().enumerate() {
+            let _span = cmax - cmin;
+            let _pct = *count as f64 / all_xs.len() as f64 * 100.0;
         }
         if x_clusters.len() >= 2 {
             let gap = x_clusters[0].0 - x_clusters[1].0;
             let gap_abs = gap.abs();
             let max_span =
                 (x_clusters[0].1 - x_clusters[0].0).max(x_clusters[1].1 - x_clusters[1].0);
-            let gap_ratio = if max_span > 0.0 {
+            let _gap_ratio = if max_span > 0.0 {
                 gap_abs / max_span
             } else {
                 0.0
@@ -419,16 +419,16 @@ fn analyze_file(path: &std::path::Path) {
         }
     }
     if !y_clusters.is_empty() {
-        for (i, (cmin, cmax, count)) in y_clusters.iter().enumerate() {
-            let span = cmax - cmin;
-            let pct = *count as f64 / all_ys.len() as f64 * 100.0;
+        for (_i, (cmin, cmax, count)) in y_clusters.iter().enumerate() {
+            let _span = cmax - cmin;
+            let _pct = *count as f64 / all_ys.len() as f64 * 100.0;
         }
         if y_clusters.len() >= 2 {
             let gap = y_clusters[0].0 - y_clusters[1].0;
             let gap_abs = gap.abs();
             let max_span =
                 (y_clusters[0].1 - y_clusters[0].0).max(y_clusters[1].1 - y_clusters[1].0);
-            let gap_ratio = if max_span > 0.0 {
+            let _gap_ratio = if max_span > 0.0 {
                 gap_abs / max_span
             } else {
                 0.0
@@ -477,7 +477,7 @@ fn analyze_file(path: &std::path::Path) {
             }
         }
 
-        let retained_pct = if !all_xs.is_empty() {
+        let _retained_pct = if !all_xs.is_empty() {
             retained_xs.len() as f64 / all_xs.len() as f64 * 100.0
         } else {
             0.0
@@ -486,39 +486,35 @@ fn analyze_file(path: &std::path::Path) {
         retained_xs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         retained_ys.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
-        let offset_x = median_sorted(&retained_xs);
-        let offset_y = median_sorted(&retained_ys);
+        let _offset_x = median_sorted(&retained_xs);
+        let _offset_y = median_sorted(&retained_ys);
 
-        if x_clusters.len() >= 2 || y_clusters.len() >= 2 {
-            if y_clusters.len() >= 2 {
-                let c1_pct = y_clusters[0].2 as f64 / all_ys.len() as f64 * 100.0;
-                let c2_pct = y_clusters[1].2 as f64 / all_ys.len() as f64 * 100.0;
-                if (main_y_min..=main_y_max).contains(&y_clusters[1].0)
-                    || y_clusters[1].0 >= reject_min_y && y_clusters[1].1 <= reject_max_y
-                {
-                } else {
-                }
-            }
+        if (x_clusters.len() >= 2 || y_clusters.len() >= 2) && y_clusters.len() >= 2 {
+            let _c1_pct = y_clusters[0].2 as f64 / all_ys.len() as f64 * 100.0;
+            let _c2_pct = y_clusters[1].2 as f64 / all_ys.len() as f64 * 100.0;
+            if (main_y_min..=main_y_max).contains(&y_clusters[1].0)
+                || y_clusters[1].0 >= reject_min_y && y_clusters[1].1 <= reject_max_y
+            {}
         }
     }
     if !insert_neg_names.is_empty() {
         let mut sorted: Vec<_> = insert_neg_names.iter().collect();
         sorted.sort_by(|a, b| b.1.cmp(a.1));
-        for (name, count) in sorted.iter().take(5) {}
+        for (_name, _count) in sorted.iter().take(5) {}
     }
     if !text_heights.is_empty() {
-        let min_h = text_heights.iter().cloned().fold(f64::INFINITY, f64::min);
-        let max_h = text_heights
+        let _min_h = text_heights.iter().cloned().fold(f64::INFINITY, f64::min);
+        let _max_h = text_heights
             .iter()
             .cloned()
             .fold(f64::NEG_INFINITY, f64::max);
-        let avg_h = text_heights.iter().sum::<f64>() / text_heights.len() as f64;
+        let _avg_h = text_heights.iter().sum::<f64>() / text_heights.len() as f64;
         let tiny_count = text_heights.iter().filter(|&&h| h < 0.5).count();
         let tiny_pct = tiny_count as f64 / text_heights.len() as f64 * 100.0;
         if tiny_pct > 10.0 {}
     }
     let mut risks: Vec<String> = Vec::new();
-    if entity_count >= 10000 && entity_count < 30000 {
+    if (10000..30000).contains(&entity_count) {
         risks.push(format!(
             "中等实体数({})→当前Simple,建议MediumEntity",
             entity_count
@@ -594,7 +590,7 @@ fn analyze_file(path: &std::path::Path) {
 
     if risks.is_empty() {
     } else {
-        for (i, risk) in risks.iter().enumerate() {}
+        for (_i, _risk) in risks.iter().enumerate() {}
     }
 }
 

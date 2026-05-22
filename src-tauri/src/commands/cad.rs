@@ -21,7 +21,7 @@ fn decode_dxf_unicode(s: &str) -> String {
             && i + 2 < chars.len()
             && chars[i + 2] == '+'
         {
-            let mut hex_start = i + 3;
+            let hex_start = i + 3;
             let mut hex_end = hex_start;
             while hex_end < chars.len() && hex_end - hex_start < 6 {
                 let c = chars[hex_end];
@@ -1078,6 +1078,7 @@ fn collect_raw_coords(entities: &[CadEntity], xs: &mut Vec<f64>, ys: &mut Vec<f6
     }
 }
 
+#[allow(dead_code)]
 fn median_sorted(sorted: &[f64]) -> f64 {
     if sorted.is_empty() {
         return 0.0;
@@ -1223,7 +1224,7 @@ fn is_block_definition(common: &acadrust::entities::EntityCommon) -> bool {
 fn profile_dwg(doc: &AcadDocument, file_size: u64) -> CadProfile {
     let mut entity_count = 0;
     let mut lwpoly_huge = 0;
-    let mut lwpoly_total_verts = 0;
+    let mut _lwpoly_total_verts = 0;
     let mut lwpoly_max_verts = 0;
     let mut hatch_count = 0;
     let mut hatch_max_edges = 0;
@@ -1238,7 +1239,7 @@ fn profile_dwg(doc: &AcadDocument, file_size: u64) -> CadProfile {
         match &entity {
             EntityType::LwPolyline(lw) => {
                 let n = lw.vertices.len();
-                lwpoly_total_verts += n;
+                _lwpoly_total_verts += n;
                 lwpoly_max_verts = lwpoly_max_verts.max(n);
                 if n > 1000 {
                     lwpoly_huge += 1;
@@ -1585,7 +1586,7 @@ fn apply_lwpolyline_decimation(entities: &mut Vec<CadEntity>) {
                         }
                     }
                 }
-                let original = vertices.len();
+                let _original = vertices.len();
                 *vertices = decimated;
             }
         }
@@ -1893,8 +1894,6 @@ fn convert_document(
             locked: layer.is_locked(),
         })
         .collect();
-    if let Some(ref ext) = extents {}
-
     let unsupported_skipped: usize = unsupported_types.values().sum();
 
     let cad_doc = CadDocument {
@@ -2672,10 +2671,7 @@ pub fn parse_cad_file_sync(file_path: String) -> ParseResult {
 
     match result {
         Ok(doc) => {
-            let entity_count_before = doc.entities().count();
-            let layer_count = doc.layers.len();
             let (cad_doc, diagnostics) = convert_document(doc, file_name, file_size);
-            if cad_doc.entity_count == 0 {}
             ParseResult {
                 success: true,
                 document: Some(cad_doc),
@@ -2720,10 +2716,7 @@ pub fn parse_cad_from_bytes_sync(data: Vec<u8>, file_name: String) -> ParseResul
 
     match result {
         Ok(doc) => {
-            let entity_count_before = doc.entities().count();
-            let layer_count = doc.layers.len();
             let (cad_doc, diagnostics) = convert_document(doc, file_name, file_size);
-            if cad_doc.entity_count == 0 {}
             ParseResult {
                 success: true,
                 document: Some(cad_doc),
@@ -2787,7 +2780,7 @@ pub async fn read_cadbin_file(file_path: String) -> Result<Vec<u8>, String> {
     let data =
         std::fs::read(&file_path).map_err(|e| format!("Failed to read cadbin file: {}", e))?;
 
-    let info = crate::cad_runtime::cadbin_writer::CadbinReader::read_header(&data)
+    let _info = crate::cad_runtime::cadbin_writer::CadbinReader::read_header(&data)
         .map_err(|e| format!("Invalid cadbin file: {}", e))?;
 
     Ok(data)

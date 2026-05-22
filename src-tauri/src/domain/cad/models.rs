@@ -383,6 +383,7 @@ pub enum CadProfile {
     },
 }
 
+#[allow(dead_code)]
 impl CadProfile {
     pub fn entity_count(&self) -> usize {
         match self {

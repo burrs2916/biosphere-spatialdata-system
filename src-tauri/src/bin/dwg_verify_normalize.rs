@@ -1,5 +1,4 @@
 use acadrust::{DwgReader, EntityType};
-use std::collections::HashMap;
 
 struct CoordCluster {
     min: f64,
@@ -149,14 +148,14 @@ fn median(sorted: &[f64]) -> f64 {
         return 0.0;
     }
     let mid = sorted.len() / 2;
-    if sorted.len() % 2 == 0 {
+    if sorted.len().is_multiple_of(2) {
         (sorted[mid - 1] + sorted[mid]) / 2.0
     } else {
         sorted[mid]
     }
 }
 
-fn analyze(path: &str, name: &str) {
+fn analyze(path: &str, _name: &str) {
     let data = match std::fs::read(path) {
         Ok(d) => d,
         Err(_) => {
@@ -166,7 +165,7 @@ fn analyze(path: &str, name: &str) {
     let result = DwgReader::from_stream(std::io::Cursor::new(data)).read();
     let doc = match result {
         Ok(d) => d,
-        Err(e) => {
+        Err(_e) => {
             return;
         }
     };
@@ -250,8 +249,8 @@ fn analyze(path: &str, name: &str) {
             y >= ymin - (span_y * 0.05).max(200.0) && y <= ymax + (span_y * 0.05).max(200.0)
         })
         .collect();
-    let ox = median(&filtered_xs);
-    let oy = median(&filtered_ys);
+    let _ox = median(&filtered_xs);
+    let _oy = median(&filtered_ys);
 }
 
 fn main() {

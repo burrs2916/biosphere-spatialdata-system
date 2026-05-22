@@ -20,8 +20,8 @@ fn main() {
                     || val.contains("编号")
                     || val.contains("图例")
                 {
-                    let p = &t.insertion_point;
-                    let h_align: u8 = match t.horizontal_alignment {
+                    let _p = &t.insertion_point;
+                    let _h_align: u8 = match t.horizontal_alignment {
                         TextHorizontalAlignment::Left => 0,
                         TextHorizontalAlignment::Center => 1,
                         TextHorizontalAlignment::Right => 2,
@@ -29,7 +29,7 @@ fn main() {
                         TextHorizontalAlignment::Middle => 4,
                         TextHorizontalAlignment::Fit => 5,
                     };
-                    let v_align: u8 = match t.vertical_alignment {
+                    let _v_align: u8 = match t.vertical_alignment {
                         TextVerticalAlignment::Baseline => 0,
                         TextVerticalAlignment::Bottom => 1,
                         TextVerticalAlignment::Middle => 2,
@@ -46,8 +46,8 @@ fn main() {
                     || val.contains("编号")
                     || val.contains("图例")
                 {
-                    let p = &mt.insertion_point;
-                    let ap: u8 = match mt.attachment_point {
+                    let _p = &mt.insertion_point;
+                    let _ap: u8 = match mt.attachment_point {
                         AttachmentPoint::TopLeft => 1,
                         AttachmentPoint::TopCenter => 2,
                         AttachmentPoint::TopRight => 3,
@@ -72,8 +72,8 @@ fn main() {
                 AttachmentPoint::MiddleCenter => Some(5u8),
                 _ => None,
             };
-            if let Some(ap_val) = ap {
-                let p = &mt.insertion_point;
+            if let Some(_ap_val) = ap {
+                let _p = &mt.insertion_point;
                 if mt.rotation.abs() < 0.1 {}
             }
         }
@@ -86,8 +86,8 @@ fn main() {
                 TextHorizontalAlignment::Center | TextHorizontalAlignment::Middle
             );
             if is_center {
-                let p = &t.insertion_point;
-                let h_align: u8 = match t.horizontal_alignment {
+                let _p = &t.insertion_point;
+                let _h_align: u8 = match t.horizontal_alignment {
                     TextHorizontalAlignment::Left => 0,
                     TextHorizontalAlignment::Center => 1,
                     TextHorizontalAlignment::Right => 2,
@@ -95,7 +95,7 @@ fn main() {
                     TextHorizontalAlignment::Middle => 4,
                     TextHorizontalAlignment::Fit => 5,
                 };
-                let v_align: u8 = match t.vertical_alignment {
+                let _v_align: u8 = match t.vertical_alignment {
                     TextVerticalAlignment::Baseline => 0,
                     TextVerticalAlignment::Bottom => 1,
                     TextVerticalAlignment::Middle => 2,

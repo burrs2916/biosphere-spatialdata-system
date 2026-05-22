@@ -36,6 +36,7 @@ pub const CHUNK_TAG_ATTRIBUTE: u8 = 0x11;
 pub const CHUNK_TAG_FACE3D: u8 = 0x12;
 pub const CHUNK_TAG_POLYLINE2D: u8 = 0x13;
 pub const CHUNK_TAG_TABLE: u8 = 0x14;
+#[allow(dead_code)]
 pub const CHUNK_TAG_UNKNOWN: u8 = 0xFF;
 
 pub const LAYER_FLAG_VISIBLE: u8 = 0x01;
@@ -51,11 +52,13 @@ pub const ARC_BYTES_PER_ENTITY: usize = 4 + 4 + 4 + 4 + 8 + 8 + 8 + 8 + 8;
 pub const ELLIPSE_BYTES_PER_ENTITY: usize = 4 + 4 + 4 + 4 + 8 + 8 + 8 + 8 + 8 + 8 + 8;
 pub const TEXT_BYTES_PER_ENTITY: usize = 4 + 4 + 4 + 8 + 8 + 8 + 8 + 4;
 pub const MTEXT_BYTES_PER_ENTITY: usize = 4 + 4 + 4 + 8 + 8 + 8 + 8 + 8 + 1 + 8 + 8 + 4 + 4;
+#[allow(dead_code)]
 pub const SOLID_BYTES_PER_ENTITY: usize = 4 + 4 + 4 + 8 * 8;
 pub const POINT_BYTES_PER_ENTITY: usize = 4 + 4 + 4 + 8 + 8;
 pub const INSERT_BYTES_PER_ENTITY: usize = 4 + 4 + 4 + 8 + 8 + 8 + 8 + 8 + 4;
 pub const DIMENSION_BYTES_PER_ENTITY: usize = 4 + 4 + 4 + 8 + 8 + 8 + 8 + 8 + 8 + 4;
 
+#[allow(dead_code)]
 pub fn chunk_tag_name(tag: u8) -> &'static str {
     match tag {
         CHUNK_TAG_LINE => "LINE",

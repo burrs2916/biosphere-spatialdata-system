@@ -86,7 +86,7 @@ fn main() {
         }
     }
     v_lines.sort_by(|a, b| b.3.partial_cmp(&a.3).unwrap());
-    for vl in v_lines.iter().take(20) {}
+    for _vl in v_lines.iter().take(20) {}
 
     let mut h_lines: Vec<(f64, f64, f64, f64)> = Vec::new();
     for l in &all_lines {
@@ -98,7 +98,7 @@ fn main() {
         }
     }
     h_lines.sort_by(|a, b| b.3.partial_cmp(&a.3).unwrap());
-    for hl in h_lines.iter().take(20) {}
+    for _hl in h_lines.iter().take(20) {}
 
     let long_h: Vec<_> = h_lines.iter().filter(|l| l.3 > 100.0).collect();
     let long_v: Vec<_> = v_lines.iter().filter(|l| l.3 > 100.0).collect();
@@ -122,7 +122,7 @@ fn main() {
         }
         table_v_lines.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
         table_v_lines.dedup_by(|a, b| (a.0 - b.0).abs() < 0.5);
-        for vl in &table_v_lines {}
+        for _vl in &table_v_lines {}
 
         let mut table_h_lines: Vec<(f64, f64, f64)> = Vec::new();
         for hl in &long_h {
@@ -132,10 +132,10 @@ fn main() {
         }
         table_h_lines.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
         table_h_lines.dedup_by(|a, b| (a.0 - b.0).abs() < 0.5);
-        for hl in &table_h_lines {}
+        for _hl in &table_h_lines {}
         for t in &all_texts {
             let (px, py, height, content, ap, _va, rotation, is_mtext, rect_width) = t;
-            let (px, py, height, content, ap, rotation, is_mtext, rect_width) = (
+            let (px, py, _height, _content, _ap, rotation, is_mtext, _rect_width) = (
                 *px,
                 *py,
                 *height,
@@ -161,8 +161,8 @@ fn main() {
                     }
                 }
 
-                let type_str = if is_mtext { "MText" } else { "Text" };
-                let cell_info =
+                let _type_str = if is_mtext { "MText" } else { "Text" };
+                let _cell_info =
                     if nearest_left_x > f64::NEG_INFINITY && nearest_right_x < f64::INFINITY {
                         format!(
                             "左线={:.4} 右线={:.4} 单元宽={:.4} 距左={:.4}",

@@ -4,7 +4,7 @@ use acadrust::DwgReader;
 fn analyze_file(file_path: &str) {
     let data = match std::fs::read(file_path) {
         Ok(d) => d,
-        Err(e) => {
+        Err(_e) => {
             return;
         }
     };
@@ -12,7 +12,7 @@ fn analyze_file(file_path: &str) {
     let mut reader = DwgReader::from_stream(cursor);
     let doc = match reader.read() {
         Ok(d) => d,
-        Err(e) => {
+        Err(_e) => {
             return;
         }
     };
@@ -99,13 +99,13 @@ fn analyze_file(file_path: &str) {
     h_lines.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
     h_lines.dedup_by(|a, b| (a.0 - b.0).abs() < 0.5);
 
-    let file_name = file_path.rsplit('/').next().unwrap_or(file_path);
+    let _file_name = file_path.rsplit('/').next().unwrap_or(file_path);
 
     let mut overflow_count = 0;
     let mut center_offset_count = 0;
     let mut total_in_table = 0;
     for t in &mtext_list {
-        let (px, py, height, content, ap, rotation, rect_w) = t;
+        let (px, py, _height, _content, ap, rotation, _rect_w) = t;
 
         if rotation.abs() > 0.1
             && (rotation - 1.5708).abs() > 0.1
@@ -144,7 +144,7 @@ fn analyze_file(file_path: &str) {
         }
 
         let cell_width = nearest_right_x - nearest_left_x;
-        if cell_width < 2.0 || cell_width > 300.0 {
+        if !(2.0..=300.0).contains(&cell_width) {
             continue;
         }
 
@@ -176,7 +176,7 @@ fn analyze_file(file_path: &str) {
         }
     }
     for t in &text_list {
-        let (px, py, height, content, h_align, v_align, rotation) = t;
+        let (px, py, _height, _content, h_align, _v_align, rotation) = t;
 
         if rotation.abs() > 0.1
             && (rotation - 1.5708).abs() > 0.1
@@ -203,7 +203,7 @@ fn analyze_file(file_path: &str) {
         }
 
         let cell_width = nearest_right_x - nearest_left_x;
-        if cell_width < 2.0 || cell_width > 300.0 {
+        if !(2.0..=300.0).contains(&cell_width) {
             continue;
         }
 
@@ -226,9 +226,7 @@ fn analyze_file(file_path: &str) {
             }
         }
     }
-    if overflow_count > 0 || center_offset_count > 0 {
-    } else {
-    }
+    if overflow_count > 0 || center_offset_count > 0 {}
 }
 
 fn main() {

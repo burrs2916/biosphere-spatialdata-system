@@ -24,10 +24,12 @@ impl ChunkCodec {
         ChunkCodec { string_pool }
     }
 
+    #[allow(dead_code)]
     pub fn string_pool_mut(&mut self) -> &mut StringPool {
         &mut self.string_pool
     }
 
+    #[allow(dead_code)]
     pub fn string_pool(&self) -> &StringPool {
         &self.string_pool
     }

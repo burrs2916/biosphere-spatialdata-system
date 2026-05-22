@@ -174,42 +174,42 @@ fn main() {
     }
     let mut sorted: Vec<_> = type_counts.iter().collect();
     sorted.sort_by(|a, b| b.1.cmp(a.1));
-    for (t, c) in &sorted {}
+    for (_t, _c) in &sorted {}
     all_x.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     all_y.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    if !all_x.is_empty() && !all_y.is_empty() {}
-    let c1_total: usize = cluster1_types.values().sum();
+    !all_x.is_empty() && !all_y.is_empty();
+    let _c1_total: usize = cluster1_types.values().sum();
     let mut c1_sorted: Vec<_> = cluster1_types.iter().collect();
     c1_sorted.sort_by(|a, b| b.1.cmp(a.1));
-    for (t, c) in c1_sorted.iter().take(8) {}
+    for (_t, _c) in c1_sorted.iter().take(8) {}
     let mut c1l: Vec<_> = cluster1_layers.iter().collect();
     c1l.sort_by(|a, b| b.1.cmp(a.1));
-    for (l, c) in c1l.iter().take(5) {}
-    let c2_total: usize = cluster2_types.values().sum();
+    for (_l, _c) in c1l.iter().take(5) {}
+    let _c2_total: usize = cluster2_types.values().sum();
     let mut c2_sorted: Vec<_> = cluster2_types.iter().collect();
     c2_sorted.sort_by(|a, b| b.1.cmp(a.1));
-    for (t, c) in c2_sorted.iter().take(8) {}
+    for (_t, _c) in c2_sorted.iter().take(8) {}
     let mut c2l: Vec<_> = cluster2_layers.iter().collect();
     c2l.sort_by(|a, b| b.1.cmp(a.1));
-    for (l, c) in c2l.iter().take(5) {}
+    for (_l, _c) in c2l.iter().take(5) {}
     if !text_heights.is_empty() {
-        let min_h = text_heights.iter().cloned().fold(f64::INFINITY, f64::min);
-        let max_h = text_heights
+        let _min_h = text_heights.iter().cloned().fold(f64::INFINITY, f64::min);
+        let _max_h = text_heights
             .iter()
             .cloned()
             .fold(f64::NEG_INFINITY, f64::max);
-        let avg_h = text_heights.iter().sum::<f64>() / text_heights.len() as f64;
-        let tiny = text_heights.iter().filter(|&&h| h < 0.5).count();
+        let _avg_h = text_heights.iter().sum::<f64>() / text_heights.len() as f64;
+        let _tiny = text_heights.iter().filter(|&&h| h < 0.5).count();
     }
 
     // 模拟 find_significant_cluster_range
     let clusters_x = find_clusters(&all_x, 100, 2);
     let clusters_y = find_clusters(&all_y, 100, 2);
-    for (i, c) in clusters_x.iter().enumerate() {
+    for (_i, c) in clusters_x.iter().enumerate() {
         let pct = c.2 as f64 / all_x.len() as f64 * 100.0;
         if pct > 0.5 {}
     }
-    for (i, c) in clusters_y.iter().enumerate() {
+    for (_i, c) in clusters_y.iter().enumerate() {
         let pct = c.2 as f64 / all_y.len() as f64 * 100.0;
         if pct > 0.5 {}
     }
@@ -232,27 +232,27 @@ fn main() {
 
         let span_x = final_max_x - final_min_x;
         let span_y = final_max_y - final_min_y;
-        let margin_x = (span_x * 0.05).max(200.0);
-        let margin_y = (span_y * 0.05).max(200.0);
+        let _margin_x = (span_x * 0.05).max(200.0);
+        let _margin_y = (span_y * 0.05).max(200.0);
 
         // 计算偏移后范围
         let offset_x = median(&all_x);
         let offset_y = median(&all_y);
 
         // 前端视口适配问题
-        let normalized_span_x = final_max_x - offset_x - (final_min_x - offset_x);
-        let normalized_span_y = final_max_y - offset_y - (final_min_y - offset_y);
+        let _normalized_span_x = final_max_x - offset_x - (final_min_x - offset_x);
+        let _normalized_span_y = final_max_y - offset_y - (final_min_y - offset_y);
 
         // 两个集群之间的距离
         if sig_x.len() >= 2 {
             let mut sig_x_sorted = sig_x.clone();
             sig_x_sorted.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
-            let gap_x = (sig_x_sorted[1].0 - sig_x_sorted[0].1).abs();
+            let _gap_x = (sig_x_sorted[1].0 - sig_x_sorted[0].1).abs();
         }
         if sig_y.len() >= 2 {
             let mut sig_y_sorted = sig_y.clone();
             sig_y_sorted.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
-            let gap_y = (sig_y_sorted[1].0 - sig_y_sorted[0].1).abs();
+            let _gap_y = (sig_y_sorted[1].0 - sig_y_sorted[0].1).abs();
         }
     }
 }
@@ -331,7 +331,7 @@ fn median(sorted: &[f64]) -> f64 {
         return 0.0;
     }
     let mid = sorted.len() / 2;
-    if sorted.len() % 2 == 0 {
+    if sorted.len().is_multiple_of(2) {
         (sorted[mid - 1] + sorted[mid]) / 2.0
     } else {
         sorted[mid]

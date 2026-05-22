@@ -19,7 +19,7 @@ fn main() {
             acadrust::EntityType::Text(t) => {
                 let p = &t.insertion_point;
                 if p.x >= x_min && p.x <= x_max && p.y >= y_min && p.y <= y_max {
-                    let h_align: u8 = match t.horizontal_alignment {
+                    let _h_align: u8 = match t.horizontal_alignment {
                         TextHorizontalAlignment::Left => 0,
                         TextHorizontalAlignment::Center => 1,
                         TextHorizontalAlignment::Right => 2,
@@ -27,7 +27,7 @@ fn main() {
                         TextHorizontalAlignment::Middle => 4,
                         TextHorizontalAlignment::Fit => 5,
                     };
-                    let v_align: u8 = match t.vertical_alignment {
+                    let _v_align: u8 = match t.vertical_alignment {
                         TextVerticalAlignment::Baseline => 0,
                         TextVerticalAlignment::Bottom => 1,
                         TextVerticalAlignment::Middle => 2,
@@ -38,7 +38,7 @@ fn main() {
             acadrust::EntityType::MText(mt) => {
                 let p = &mt.insertion_point;
                 if p.x >= x_min && p.x <= x_max && p.y >= y_min && p.y <= y_max {
-                    let ap: u8 = match mt.attachment_point {
+                    let _ap: u8 = match mt.attachment_point {
                         AttachmentPoint::TopLeft => 1,
                         AttachmentPoint::TopCenter => 2,
                         AttachmentPoint::TopRight => 3,
@@ -73,7 +73,7 @@ fn main() {
     }
     mtexts.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
 
-    for mt in mtexts.iter().take(50) {}
+    for _mt in mtexts.iter().take(50) {}
 
     let mut ap_counts: [usize; 10] = [0; 10];
     for entity in doc.entities() {
@@ -93,7 +93,7 @@ fn main() {
         }
     }
 
-    let ap_names = [
+    let _ap_names = [
         "",
         "TopLeft",
         "TopCenter",
@@ -130,8 +130,8 @@ fn main() {
         }
     }
 
-    let h_names = ["Left", "Center", "Right", "Aligned", "Middle", "Fit"];
-    let v_names = ["Baseline", "Bottom", "Middle", "Top"];
+    let _h_names = ["Left", "Center", "Right", "Aligned", "Middle", "Fit"];
+    let _v_names = ["Baseline", "Bottom", "Middle", "Top"];
     for h in 0..6 {
         for v in 0..4 {
             if hv_counts[h][v] > 0 {}

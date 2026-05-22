@@ -3,6 +3,7 @@ use crate::error::{AppError, AppResult};
 use crate::infrastructure::database::Database;
 use std::sync::Arc;
 
+#[allow(dead_code)]
 pub trait MapLibraryRepository: Send + Sync {
     fn get_all(&self) -> AppResult<Vec<MapLibrary>>;
     fn get_by_id(&self, id: &str) -> AppResult<Option<MapLibrary>>;
@@ -14,6 +15,7 @@ pub trait MapLibraryRepository: Send + Sync {
     fn delete(&self, id: &str) -> AppResult<()>;
 }
 
+#[allow(dead_code)]
 pub trait MapLibraryGroupRepository: Send + Sync {
     fn get_all_groups(&self) -> AppResult<Vec<MapLibraryGroup>>;
     fn get_groups_by_type(&self, map_type: &MapLibraryType) -> AppResult<Vec<MapLibraryGroup>>;

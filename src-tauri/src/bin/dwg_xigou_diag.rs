@@ -81,22 +81,22 @@ fn main() {
         .collect();
     all_y.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     if !all_y.is_empty() {
-        let p5 = all_y[all_y.len() * 5 / 100];
-        let p10 = all_y[all_y.len() * 10 / 100];
-        let p25 = all_y[all_y.len() * 25 / 100];
-        let p50 = all_y[all_y.len() * 50 / 100];
-        let p75 = all_y[all_y.len() * 75 / 100];
-        let p90 = all_y[all_y.len() * 90 / 100];
-        let p95 = all_y[all_y.len() * 95 / 100];
+        let _p5 = all_y[all_y.len() * 5 / 100];
+        let _p10 = all_y[all_y.len() * 10 / 100];
+        let _p25 = all_y[all_y.len() * 25 / 100];
+        let _p50 = all_y[all_y.len() * 50 / 100];
+        let _p75 = all_y[all_y.len() * 75 / 100];
+        let _p90 = all_y[all_y.len() * 90 / 100];
+        let _p95 = all_y[all_y.len() * 95 / 100];
 
-        let negative_y: Vec<f64> = all_y.iter().cloned().filter(|&y| y < 0.0).collect();
-        let positive_y: Vec<f64> = all_y.iter().cloned().filter(|&y| y >= 0.0).collect();
+        let _negative_y: Vec<f64> = all_y.iter().cloned().filter(|&y| y < 0.0).collect();
+        let _positive_y: Vec<f64> = all_y.iter().cloned().filter(|&y| y >= 0.0).collect();
 
-        let below_minus_1000 = all_y.iter().filter(|&&y| y < -1000.0).count();
-        let above_5000 = all_y.iter().filter(|&&y| y > 5000.0).count();
-        let between = all_y
+        let _below_minus_1000 = all_y.iter().filter(|&&y| y < -1000.0).count();
+        let _above_5000 = all_y.iter().filter(|&&y| y > 5000.0).count();
+        let _between = all_y
             .iter()
-            .filter(|&&y| y >= -1000.0 && y <= 5000.0)
+            .filter(|&&y| (-1000.0..=5000.0).contains(&y))
             .count();
     }
 
@@ -118,15 +118,15 @@ fn main() {
         })
         .collect();
     block_stats.sort_by(|a, b| b.1.cmp(&a.1));
-    for (name, count, min_y, max_y) in &block_stats {}
+    for (_name, _count, _min_y, _max_y) in &block_stats {}
 
     let empty_vec = Vec::new();
     let rte_items = by_block.get("RTE").unwrap_or(&empty_vec);
     if !rte_items.is_empty() {
-        for (i, (x, y, sx, sy, rot)) in rte_items.iter().take(20).enumerate() {}
+        for (_i, (_x, _y, _sx, _sy, _rot)) in rte_items.iter().take(20).enumerate() {}
     }
     let mut text_by_y_range: HashMap<String, usize> = HashMap::new();
-    for (_, _, y, h) in &text_details {
+    for (_, _, y, _h) in &text_details {
         let range = if *y < -1000.0 {
             "Y < -1000"
         } else if *y < 0.0 {
@@ -144,12 +144,12 @@ fn main() {
     }
     let mut ranges = text_by_y_range.iter().collect::<Vec<_>>();
     ranges.sort_by(|a, b| b.1.cmp(a.1));
-    for (range, count) in &ranges {}
+    for (_range, _count) in &ranges {}
     let small_texts: Vec<_> = text_details
         .iter()
         .filter(|(_, _, _, h)| *h < 1.0)
         .collect();
-    for (i, (t, x, y, h)) in small_texts.iter().take(20).enumerate() {}
+    for (_i, (_t, _x, _y, _h)) in small_texts.iter().take(20).enumerate() {}
     let mut negative_entities: Vec<String> = Vec::new();
     for entity in doc.entities() {
         match &entity {
@@ -180,7 +180,7 @@ fn main() {
             _ => {}
         }
     }
-    for e in negative_entities.iter().take(30) {}
+    for _e in negative_entities.iter().take(30) {}
     let mut high_entities: Vec<String> = Vec::new();
     for entity in doc.entities() {
         match &entity {
@@ -211,5 +211,5 @@ fn main() {
             _ => {}
         }
     }
-    for e in high_entities.iter().take(30) {}
+    for _e in high_entities.iter().take(30) {}
 }

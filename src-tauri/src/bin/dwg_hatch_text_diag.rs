@@ -39,14 +39,14 @@ fn main() {
             EntityType::Text(_) => text_count += 1,
             EntityType::MText(_) => mtext_count += 1,
             _ => {
-                let name = entity_type_name(&entity);
+                let name = entity_type_name(entity);
                 *other_counts.entry(name.to_string()).or_insert(0) += 1;
             }
         }
     }
     let mut ov: Vec<_> = other_counts.iter().collect();
     ov.sort_by(|a, b| b.1.cmp(a.1));
-    for (name, count) in &ov {}
+    for (_name, _count) in &ov {}
 
     let mut hatch_idx = 0;
     for entity in doc.entities() {
@@ -57,13 +57,13 @@ fn main() {
 
         if let EntityType::Hatch(hatch) = &entity {
             hatch_idx += 1;
-            for (li, line) in hatch.pattern.lines.iter().enumerate() {}
+            for (_li, _line) in hatch.pattern.lines.iter().enumerate() {}
 
-            for (pi, path) in hatch.paths.iter().enumerate() {
-                for (ei, edge) in path.edges.iter().enumerate() {
+            for (_pi, path) in hatch.paths.iter().enumerate() {
+                for (_ei, edge) in path.edges.iter().enumerate() {
                     match edge {
-                        BoundaryEdge::Line(le) => {}
-                        BoundaryEdge::CircularArc(ae) => {}
+                        BoundaryEdge::Line(_le) => {}
+                        BoundaryEdge::CircularArc(_ae) => {}
                         BoundaryEdge::Polyline(pe) => {
                             for (vi, v) in pe.vertices.iter().enumerate() {
                                 print!("      v[{}]: ({:.4},{:.4}) bulge={:.4}", vi, v.x, v.y, v.z);
@@ -74,8 +74,8 @@ fn main() {
                             }
                             if pe.vertices.len() % 3 != 0 {}
                         }
-                        BoundaryEdge::EllipticArc(ee) => {}
-                        BoundaryEdge::Spline(se) => {}
+                        BoundaryEdge::EllipticArc(_ee) => {}
+                        BoundaryEdge::Spline(_se) => {}
                     }
                 }
             }
@@ -110,10 +110,10 @@ fn main() {
                 }
             }
             if !all_x.is_empty() {
-                let min_x = all_x.iter().cloned().fold(f64::MAX, f64::min);
-                let max_x = all_x.iter().cloned().fold(f64::MIN, f64::max);
-                let min_y = all_y.iter().cloned().fold(f64::MAX, f64::min);
-                let max_y = all_y.iter().cloned().fold(f64::MIN, f64::max);
+                let _min_x = all_x.iter().cloned().fold(f64::MAX, f64::min);
+                let _max_x = all_x.iter().cloned().fold(f64::MIN, f64::max);
+                let _min_y = all_y.iter().cloned().fold(f64::MAX, f64::min);
+                let _max_y = all_y.iter().cloned().fold(f64::MIN, f64::max);
             }
         }
     }
@@ -127,14 +127,14 @@ fn main() {
 
         if let EntityType::Text(text) = &entity {
             text_idx += 1;
-            if let Some(ap) = text.alignment_point {}
+            if let Some(_ap) = text.alignment_point {}
         }
 
-        if let EntityType::MText(mtext) = &entity {
+        if let EntityType::MText(_mtext) = &entity {
             text_idx += 1;
         }
     }
-    for layer in doc.layers.iter() {}
+    for _layer in doc.layers.iter() {}
 }
 
 fn entity_type_name(entity: &EntityType) -> &'static str {

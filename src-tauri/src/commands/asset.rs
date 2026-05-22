@@ -138,11 +138,7 @@ pub fn list_assets(category: String, subcategory: String) -> Result<Vec<AssetInf
         let mime_str = file_name.clone();
         let mime = mime_from_ext(&mime_str);
 
-        let thumbnail = if mime.starts_with("image/") {
-            None
-        } else {
-            None
-        };
+        let thumbnail = None;
 
         assets.push(AssetInfo {
             name: file_name,

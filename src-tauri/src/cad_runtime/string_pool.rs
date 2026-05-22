@@ -5,6 +5,7 @@ pub struct StringPool {
     index: HashMap<String, u32>,
 }
 
+#[allow(dead_code)]
 impl StringPool {
     pub fn new() -> Self {
         StringPool {

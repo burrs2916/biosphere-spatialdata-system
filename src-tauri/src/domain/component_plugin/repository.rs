@@ -7,6 +7,7 @@ use std::sync::Arc;
 pub struct ComponentPluginRepository;
 
 impl ComponentPluginRepository {
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self
     }

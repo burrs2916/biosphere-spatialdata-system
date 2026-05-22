@@ -15,6 +15,7 @@ pub struct BlockTable {
 
 const BLOCK_DEF_SIZE: usize = 4 + 8 + 8 + 8 + 4 + 4;
 
+#[allow(dead_code)]
 impl BlockTable {
     pub fn new() -> Self {
         BlockTable { blocks: Vec::new() }

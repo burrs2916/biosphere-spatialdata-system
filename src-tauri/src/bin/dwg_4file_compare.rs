@@ -52,9 +52,9 @@ fn main() {
 
     dwg_mtexts.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
-    for (i, (x, y, h, rw, ap, raw, clean)) in dwg_mtexts.iter().enumerate() {
-        let raw_preview: String = raw.chars().take(60).collect();
-        let clean_preview: String = clean.chars().take(40).collect();
+    for (_i, (_x, _y, _h, _rw, _ap, raw, clean)) in dwg_mtexts.iter().enumerate() {
+        let _raw_preview: String = raw.chars().take(60).collect();
+        let _clean_preview: String = clean.chars().take(40).collect();
     }
 
     let dxf_content = std::fs::read_to_string(dxf_path).unwrap();
@@ -119,8 +119,8 @@ fn main() {
     });
     dxf_mtexts.sort_by(|a, b| b.y.partial_cmp(&a.y).unwrap_or(std::cmp::Ordering::Equal));
 
-    for (i, m) in dxf_mtexts.iter().enumerate() {
-        let preview: String = m.content.chars().take(80).collect();
+    for (_i, m) in dxf_mtexts.iter().enumerate() {
+        let _preview: String = m.content.chars().take(80).collect();
     }
 
     let mut w075_count = 0;
@@ -143,7 +143,7 @@ fn main() {
         let font = extract_font(&m.content);
         *font_counts.entry(font).or_insert(0) += 1;
     }
-    for (font, count) in &font_counts {}
+    for (_font, _count) in &font_counts {}
 
     let mut h_values: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
     for m in &dxf_mtexts {
@@ -152,20 +152,20 @@ fn main() {
     }
     let mut h_sorted: Vec<_> = h_values.iter().collect();
     h_sorted.sort_by(|a, b| b.1.cmp(a.1));
-    for (h, count) in &h_sorted {}
+    for (_h, _count) in &h_sorted {}
 
     let mut dir_counts: std::collections::HashMap<i32, usize> = std::collections::HashMap::new();
     for m in &dxf_mtexts {
         *dir_counts.entry(m.drawing_dir).or_insert(0) += 1;
     }
-    for (dir, count) in &dir_counts {}
+    for (_dir, _count) in &dir_counts {}
 
     let mut attach_counts: std::collections::HashMap<i32, usize> = std::collections::HashMap::new();
     for m in &dxf_mtexts {
         *attach_counts.entry(m.attach).or_insert(0) += 1;
     }
-    for (att, count) in &attach_counts {
-        let desc = match att {
+    for (att, _count) in &attach_counts {
+        let _desc = match att {
             1 => "TopLeft",
             2 => "TopCenter",
             3 => "TopRight",
@@ -204,13 +204,13 @@ fn main() {
 
         let dwg_w = dwg_x_max - dwg_x_min;
         let dwg_h = dwg_y_max - dwg_y_min;
-        let dxf_w = dxf_x_max - dxf_x_min;
-        let dxf_h = dxf_y_max - dxf_y_min;
+        let _dxf_w = dxf_x_max - dxf_x_min;
+        let _dxf_h = dxf_y_max - dxf_y_min;
 
-        if dwg_w > 0.0 && dwg_h > 0.0 {}
+        dwg_w > 0.0 && dwg_h > 0.0;
 
         let dwg_h_avg: f64 = dwg_mtexts.iter().map(|m| m.2).sum::<f64>() / dwg_mtexts.len() as f64;
-        let dxf_h_avg: f64 =
+        let _dxf_h_avg: f64 =
             dxf_mtexts.iter().map(|m| m.height).sum::<f64>() / dxf_mtexts.len() as f64;
 
         if dwg_h_avg > 0.0 {}
@@ -222,7 +222,7 @@ fn main() {
     let mut w_other_values: std::collections::HashMap<String, usize> =
         std::collections::HashMap::new();
 
-    for m in &dxf_mtexts {
+    for _m in &dxf_mtexts {
         // already filtered to legend area, let's check all
     }
 
@@ -241,7 +241,7 @@ fn main() {
         }
     }
     if w_other_total > 0 {
-        for (w, count) in &w_other_values {}
+        for (_w, _count) in &w_other_values {}
     }
 
     let mut all_dwg_mtexts: Vec<(f64, f64, f64, u8, String)> = Vec::new();

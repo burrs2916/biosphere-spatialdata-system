@@ -240,7 +240,7 @@ pub fn cad_entity_bbox(entity: &CadEntity) -> CadBounds {
             height,
             rotation,
             row_count,
-            col_count,
+            col_count: _,
             row_heights,
             col_widths,
             ..

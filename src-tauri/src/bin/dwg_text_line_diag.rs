@@ -79,13 +79,13 @@ fn main() {
     let all_texts_x: Vec<f64> = texts.iter().map(|t| t.0).collect();
     let all_texts_y: Vec<f64> = texts.iter().map(|t| t.1).collect();
     if !all_texts_x.is_empty() {
-        let min_tx = all_texts_x.iter().cloned().fold(f64::INFINITY, f64::min);
-        let max_tx = all_texts_x
+        let _min_tx = all_texts_x.iter().cloned().fold(f64::INFINITY, f64::min);
+        let _max_tx = all_texts_x
             .iter()
             .cloned()
             .fold(f64::NEG_INFINITY, f64::max);
-        let min_ty = all_texts_y.iter().cloned().fold(f64::INFINITY, f64::min);
-        let max_ty = all_texts_y
+        let _min_ty = all_texts_y.iter().cloned().fold(f64::INFINITY, f64::min);
+        let _max_ty = all_texts_y
             .iter()
             .cloned()
             .fold(f64::NEG_INFINITY, f64::max);
@@ -94,13 +94,13 @@ fn main() {
     let all_lines_x: Vec<f64> = lines.iter().flat_map(|l| vec![l.0, l.2]).collect();
     let all_lines_y: Vec<f64> = lines.iter().flat_map(|l| vec![l.1, l.3]).collect();
     if !all_lines_x.is_empty() {
-        let min_lx = all_lines_x.iter().cloned().fold(f64::INFINITY, f64::min);
-        let max_lx = all_lines_x
+        let _min_lx = all_lines_x.iter().cloned().fold(f64::INFINITY, f64::min);
+        let _max_lx = all_lines_x
             .iter()
             .cloned()
             .fold(f64::NEG_INFINITY, f64::max);
-        let min_ly = all_lines_y.iter().cloned().fold(f64::INFINITY, f64::min);
-        let max_ly = all_lines_y
+        let _min_ly = all_lines_y.iter().cloned().fold(f64::INFINITY, f64::min);
+        let _max_ly = all_lines_y
             .iter()
             .cloned()
             .fold(f64::NEG_INFINITY, f64::max);
@@ -119,14 +119,14 @@ fn main() {
 
     let mut sorted_grids: Vec<_> = grid_line_count.iter().collect();
     sorted_grids.sort_by(|a, b| b.1.cmp(a.1));
-    for (rank, ((gx, gy), count)) in sorted_grids.iter().take(5).enumerate() {
+    for (_rank, ((gx, gy), _count)) in sorted_grids.iter().take(5).enumerate() {
         let x_min = *gx as f64 * grid_size;
         let y_min = *gy as f64 * grid_size;
-        let x_max = x_min + grid_size;
-        let y_max = y_min + grid_size;
+        let _x_max = x_min + grid_size;
+        let _y_max = y_min + grid_size;
     }
-    for (i, t) in texts.iter().enumerate() {}
-    for (i, t) in mtexts.iter().enumerate() {}
+    for (_i, _t) in texts.iter().enumerate() {}
+    for (_i, _t) in mtexts.iter().enumerate() {}
     let vertical_lines: Vec<(f64, f64, f64)> = lines
         .iter()
         .filter(|l| (l.0 - l.2).abs() < 0.01)
@@ -134,7 +134,7 @@ fn main() {
         .collect();
 
     if !vertical_lines.is_empty() {
-        for (i, t) in texts.iter().enumerate() {
+        for (_i, t) in texts.iter().enumerate() {
             let mut min_dist = f64::INFINITY;
             let mut nearest_line_x = 0.0;
             for vl in &vertical_lines {
@@ -144,9 +144,9 @@ fn main() {
                     nearest_line_x = vl.0;
                 }
             }
-            let direction = if t.0 < nearest_line_x { "左" } else { "右" };
+            let _direction = if t.0 < nearest_line_x { "左" } else { "右" };
         }
-        for (i, t) in mtexts.iter().enumerate() {
+        for (_i, t) in mtexts.iter().enumerate() {
             let mut min_dist = f64::INFINITY;
             let mut nearest_line_x = 0.0;
             for vl in &vertical_lines {
@@ -156,7 +156,7 @@ fn main() {
                     nearest_line_x = vl.0;
                 }
             }
-            let direction = if t.0 < nearest_line_x { "左" } else { "右" };
+            let _direction = if t.0 < nearest_line_x { "左" } else { "右" };
         }
     }
     if let Some(((best_gx, best_gy), _)) = sorted_grids.first() {
@@ -177,7 +177,7 @@ fn main() {
         }
         v_lines_in_area.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
         v_lines_in_area.dedup_by(|a, b| (a.0 - b.0).abs() < 0.01);
-        for vl in &v_lines_in_area {}
+        for _vl in &v_lines_in_area {}
         let mut h_lines_in_area: Vec<(f64, f64, f64)> = Vec::new();
         for l in &lines {
             if (l.1 - l.3).abs() < 0.01 {
@@ -191,11 +191,11 @@ fn main() {
         }
         h_lines_in_area.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
         h_lines_in_area.dedup_by(|a, b| (a.0 - b.0).abs() < 0.01);
-        for hl in &h_lines_in_area {}
-        for (i, t) in texts.iter().enumerate() {
+        for _hl in &h_lines_in_area {}
+        for (_i, t) in texts.iter().enumerate() {
             if t.0 >= x_min && t.0 <= x_max && t.1 >= y_min && t.1 <= y_max {}
         }
-        for (i, t) in mtexts.iter().enumerate() {
+        for (_i, t) in mtexts.iter().enumerate() {
             if t.0 >= x_min && t.0 <= x_max && t.1 >= y_min && t.1 <= y_max {}
         }
     }

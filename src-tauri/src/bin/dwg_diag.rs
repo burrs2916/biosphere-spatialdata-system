@@ -208,15 +208,15 @@ fn extract_coords(entity: &EntityType) -> Vec<(f64, f64)> {
 }
 
 fn analyze_file(file_path: &Path) {
-    let file_name = file_path
+    let _file_name = file_path
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("?");
-    let file_size = std::fs::metadata(file_path).map(|m| m.len()).unwrap_or(0);
+    let _file_size = std::fs::metadata(file_path).map(|m| m.len()).unwrap_or(0);
 
     let data = match std::fs::read(file_path) {
         Ok(d) => d,
-        Err(e) => {
+        Err(_e) => {
             return;
         }
     };
@@ -225,7 +225,7 @@ fn analyze_file(file_path: &Path) {
     let mut reader = DwgReader::from_stream(cursor);
     let doc = match reader.read() {
         Ok(d) => d,
-        Err(e) => {
+        Err(_e) => {
             return;
         }
     };
@@ -243,7 +243,7 @@ fn analyze_file(file_path: &Path) {
 
     for entity in doc.entities() {
         total_entities += 1;
-        let type_name = entity_type_name(&entity).to_string();
+        let type_name = entity_type_name(entity).to_string();
         *type_counts.entry(type_name.clone()).or_insert(0) += 1;
 
         let common = entity.common();
@@ -257,7 +257,7 @@ fn analyze_file(file_path: &Path) {
         }
 
         // Extract coordinates
-        let coords = extract_coords(&entity);
+        let coords = extract_coords(entity);
         for (x, y) in coords {
             if x.is_finite() && y.is_finite() {
                 all_coords.push(CoordInfo {
@@ -277,23 +277,23 @@ fn analyze_file(file_path: &Path) {
     // 2. Print total count and count by type
     let mut type_vec: Vec<_> = type_counts.iter().collect();
     type_vec.sort_by(|a, b| b.1.cmp(a.1));
-    for (type_name, count) in &type_vec {}
+    for (_type_name, _count) in &type_vec {}
 
     // 3. Count by entity_mode and invisible
     let mut mode_vec: Vec<_> = mode_counts.iter().collect();
     mode_vec.sort_by(|a, b| a.0.cmp(b.0));
-    for (mode, count) in &mode_vec {}
+    for (_mode, _count) in &mode_vec {}
 
     // 4. Coordinate ranges (ALL entities)
     if all_coords.is_empty() {
         return;
     }
 
-    let (min_x, max_x) = all_coords
+    let (_min_x, _max_x) = all_coords
         .iter()
         .map(|c| c.x)
         .fold((f64::MAX, f64::MIN), |(mn, mx), v| (mn.min(v), mx.max(v)));
-    let (min_y, max_y) = all_coords
+    let (_min_y, _max_y) = all_coords
         .iter()
         .map(|c| c.y)
         .fold((f64::MAX, f64::MIN), |(mn, mx), v| (mn.min(v), mx.max(v)));
@@ -305,11 +305,11 @@ fn analyze_file(file_path: &Path) {
         .collect();
     if non_paper_coords.is_empty() {
     } else {
-        let (min_x2, max_x2) = non_paper_coords
+        let (_min_x2, _max_x2) = non_paper_coords
             .iter()
             .map(|c| c.x)
             .fold((f64::MAX, f64::MIN), |(mn, mx), v| (mn.min(v), mx.max(v)));
-        let (min_y2, max_y2) = non_paper_coords
+        let (_min_y2, _max_y2) = non_paper_coords
             .iter()
             .map(|c| c.y)
             .fold((f64::MAX, f64::MIN), |(mn, mx), v| (mn.min(v), mx.max(v)));
@@ -364,11 +364,11 @@ fn analyze_file(file_path: &Path) {
     if outliers.is_empty() && paper_coords.is_empty() {
     } else {
         if !paper_coords.is_empty() {
-            let (pmin_x, pmax_x) = paper_coords
+            let (_pmin_x, _pmax_x) = paper_coords
                 .iter()
                 .map(|c| c.x)
                 .fold((f64::MAX, f64::MIN), |(mn, mx), v| (mn.min(v), mx.max(v)));
-            let (pmin_y, pmax_y) = paper_coords
+            let (_pmin_y, _pmax_y) = paper_coords
                 .iter()
                 .map(|c| c.y)
                 .fold((f64::MAX, f64::MIN), |(mn, mx), v| (mn.min(v), mx.max(v)));
@@ -379,7 +379,7 @@ fn analyze_file(file_path: &Path) {
             }
             let mut pv: Vec<_> = paper_by_type.iter().collect();
             pv.sort_by(|a, b| b.1.cmp(a.1));
-            for (t, cnt) in &pv {}
+            for (_t, _cnt) in &pv {}
         }
 
         if !outliers.is_empty() {
@@ -395,11 +395,11 @@ fn analyze_file(file_path: &Path) {
 
             let mut ot: Vec<_> = outlier_by_type.iter().collect();
             ot.sort_by(|a, b| b.1.cmp(a.1));
-            for (t, cnt) in &ot {}
+            for (_t, _cnt) in &ot {}
 
             let mut ol: Vec<_> = outlier_by_layer.iter().collect();
             ol.sort_by(|a, b| b.1.cmp(a.1));
-            for (l, cnt) in &ol {}
+            for (_l, _cnt) in &ol {}
 
             // Print first 20 outlier entities (deduplicated by handle)
             let mut seen_handles: std::collections::HashSet<String> =
@@ -407,8 +407,8 @@ fn analyze_file(file_path: &Path) {
             let mut printed = 0;
             for c in &outliers {
                 if seen_handles.insert(c.handle.clone()) {
-                    let dev_x = (c.x - median_x).abs() / effective_mad_x;
-                    let dev_y = (c.y - median_y).abs() / effective_mad_y;
+                    let _dev_x = (c.x - median_x).abs() / effective_mad_x;
+                    let _dev_y = (c.y - median_y).abs() / effective_mad_y;
                     printed += 1;
                     if printed >= 20 {
                         break;
@@ -424,7 +424,7 @@ fn median(sorted: &[f64]) -> f64 {
         return 0.0;
     }
     let mid = sorted.len() / 2;
-    if sorted.len() % 2 == 0 {
+    if sorted.len().is_multiple_of(2) {
         (sorted[mid - 1] + sorted[mid]) / 2.0
     } else {
         sorted[mid]

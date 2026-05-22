@@ -9,7 +9,7 @@ fn main() {
     ];
 
     for file_path in &files {
-        let file_name = std::path::Path::new(file_path)
+        let _file_name = std::path::Path::new(file_path)
             .file_name()
             .unwrap()
             .to_string_lossy()
@@ -18,7 +18,7 @@ fn main() {
 
         let data = match std::fs::read(file_path) {
             Ok(d) => d,
-            Err(e) => {
+            Err(_e) => {
                 continue;
             }
         };
@@ -27,7 +27,7 @@ fn main() {
         let mut reader = DwgReader::from_stream(cursor);
         let doc = match reader.read() {
             Ok(d) => d,
-            Err(e) => {
+            Err(_e) => {
                 continue;
             }
         };
@@ -248,7 +248,7 @@ fn main() {
         .filter(|&&x| x)
         .count();
 
-        let profile = if problem_count == 0 && !has_heavy_entity {
+        let _profile = if problem_count == 0 && !has_heavy_entity {
             "Simple"
         } else if problem_count == 0 && has_heavy_entity {
             "HeavyEntity"
@@ -288,19 +288,19 @@ fn main() {
                 let y_p10 = ys[ys.len() * 10 / 100];
                 let y_p90 = ys[ys.len() * 90 / 100];
 
-                let outlier_x_low = xs
+                let _outlier_x_low = xs
                     .iter()
                     .filter(|&&x| x < x_p10 - (x_p90 - x_p10) * 2.0)
                     .count();
-                let outlier_x_high = xs
+                let _outlier_x_high = xs
                     .iter()
                     .filter(|&&x| x > x_p90 + (x_p90 - x_p10) * 2.0)
                     .count();
-                let outlier_y_low = ys
+                let _outlier_y_low = ys
                     .iter()
                     .filter(|&&y| y < y_p10 - (y_p90 - y_p10) * 2.0)
                     .count();
-                let outlier_y_high = ys
+                let _outlier_y_high = ys
                     .iter()
                     .filter(|&&y| y > y_p90 + (y_p90 - y_p10) * 2.0)
                     .count();
@@ -308,14 +308,14 @@ fn main() {
         }
         let mut types: Vec<_> = type_dist.iter().collect();
         types.sort_by(|a, b| b.1.cmp(a.1));
-        for (t, c) in &types {}
+        for (_t, _c) in &types {}
         if !text_heights.is_empty() {
             text_heights.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-            let very_small = text_heights.iter().filter(|&&h| h < 0.01).count();
-            let very_large = text_heights.iter().filter(|&&h| h > 1000.0).count();
-            let normal = text_heights
+            let _very_small = text_heights.iter().filter(|&&h| h < 0.01).count();
+            let _very_large = text_heights.iter().filter(|&&h| h > 1000.0).count();
+            let _normal = text_heights
                 .iter()
-                .filter(|&&h| h >= 0.01 && h <= 1000.0)
+                .filter(|&&h| (0.01..=1000.0).contains(&h))
                 .count();
 
             let height_dist: HashMap<u64, usize> = text_heights
@@ -327,10 +327,10 @@ fn main() {
                 });
             let mut h_dist: Vec<_> = height_dist.iter().collect();
             h_dist.sort_by(|a, b| b.1.cmp(a.1));
-            for (h_bucket, count) in h_dist.iter().take(10) {}
+            for (_h_bucket, _count) in h_dist.iter().take(10) {}
         }
         let mut block_names: Vec<_> = insert_block_names.iter().collect();
         block_names.sort_by(|a, b| b.1.cmp(a.1));
-        for (name, count) in block_names.iter().take(15) {}
+        for (_name, _count) in block_names.iter().take(15) {}
     }
 }

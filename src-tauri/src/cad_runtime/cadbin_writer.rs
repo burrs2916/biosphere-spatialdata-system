@@ -90,6 +90,7 @@ impl CadbinWriter {
         file
     }
 
+    #[allow(dead_code)]
     pub fn write_to_file(doc: &CadDocument, path: &str) -> Result<(), String> {
         let data = Self::write_to_bytes(doc);
         std::fs::write(path, data).map_err(|e| format!("Failed to write cadbin file: {}", e))
@@ -194,6 +195,7 @@ impl CadbinWriter {
     }
 }
 
+#[allow(dead_code)]
 pub struct CadbinFileInfo {
     pub version: u32,
     pub entity_count: u32,
@@ -210,6 +212,7 @@ pub struct CadbinFileInfo {
 
 pub struct CadbinReader;
 
+#[allow(dead_code)]
 impl CadbinReader {
     pub fn read_header(data: &[u8]) -> Result<CadbinFileInfo, String> {
         if data.len() < FILE_HEADER_SIZE {

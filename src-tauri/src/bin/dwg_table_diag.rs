@@ -49,11 +49,11 @@ fn main() {
 
     v_lines.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
     v_lines.dedup_by(|a, b| (a.0 - b.0).abs() < 0.5);
-    for vl in &v_lines {}
+    for _vl in &v_lines {}
 
     h_lines.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
     h_lines.dedup_by(|a, b| (a.0 - b.0).abs() < 0.5);
-    for hl in &h_lines {}
+    for _hl in &h_lines {}
     for entity in doc.entities() {
         if let acadrust::EntityType::Text(t) = entity {
             let p = &t.insertion_point;
@@ -62,7 +62,7 @@ fn main() {
                 && p.y >= target_y_min
                 && p.y <= target_y_max
             {
-                let h_align: u8 = match t.horizontal_alignment {
+                let _h_align: u8 = match t.horizontal_alignment {
                     TextHorizontalAlignment::Left => 0,
                     TextHorizontalAlignment::Center => 1,
                     TextHorizontalAlignment::Right => 2,
@@ -70,7 +70,7 @@ fn main() {
                     TextHorizontalAlignment::Middle => 4,
                     TextHorizontalAlignment::Fit => 5,
                 };
-                let v_align: u8 = match t.vertical_alignment {
+                let _v_align: u8 = match t.vertical_alignment {
                     TextVerticalAlignment::Baseline => 0,
                     TextVerticalAlignment::Bottom => 1,
                     TextVerticalAlignment::Middle => 2,
@@ -87,7 +87,7 @@ fn main() {
                 && p.y >= target_y_min
                 && p.y <= target_y_max
             {
-                let ap: u8 = match mt.attachment_point {
+                let _ap: u8 = match mt.attachment_point {
                     AttachmentPoint::TopLeft => 1,
                     AttachmentPoint::TopCenter => 2,
                     AttachmentPoint::TopRight => 3,
@@ -103,7 +103,7 @@ fn main() {
     }
     if !v_lines.is_empty() {
         for entity in doc.entities() {
-            let (px, py, content, ap, is_mtext) = match entity {
+            let (px, _py, _content, _ap, is_mtext) = match entity {
                 acadrust::EntityType::Text(t) => {
                     let p = &t.insertion_point;
                     if p.x >= target_x_min - 20.0
@@ -165,21 +165,21 @@ fn main() {
                 }
             }
 
-            let cell_width =
+            let _cell_width =
                 if nearest_right_x < f64::INFINITY && nearest_left_x > f64::NEG_INFINITY {
                     nearest_right_x - nearest_left_x
                 } else {
                     f64::NAN
                 };
 
-            let dist_to_left = px - nearest_left_x;
-            let dist_to_right = if nearest_right_x < f64::INFINITY {
+            let _dist_to_left = px - nearest_left_x;
+            let _dist_to_right = if nearest_right_x < f64::INFINITY {
                 nearest_right_x - px
             } else {
                 f64::NAN
             };
 
-            let type_str = if is_mtext { "MText" } else { "Text" };
+            let _type_str = if is_mtext { "MText" } else { "Text" };
         }
     }
 }

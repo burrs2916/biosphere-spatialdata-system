@@ -25,7 +25,7 @@ fn main() {
     }
     v_lines.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
     v_lines.dedup_by(|a, b| (a.0 - b.0).abs() < 0.5);
-    for vl in &v_lines {}
+    for _vl in &v_lines {}
 
     for entity in doc.entities() {
         if let acadrust::EntityType::MText(mt) = entity {
@@ -37,7 +37,7 @@ fn main() {
             }
 
             let p = &mt.insertion_point;
-            let content_clean = mt
+            let _content_clean = mt
                 .value
                 .replace("{\\fFangSong_GB2312|b0|i0|c134|p49;", "")
                 .replace("{\\fSimSun|b0|i0|c134|p2;", "")
@@ -64,12 +64,12 @@ fn main() {
             }
 
             let cell_width = nearest_right_x - nearest_left_x;
-            if cell_width > 300.0 || cell_width < 5.0 {
+            if !(5.0..=300.0).contains(&cell_width) {
                 continue;
             }
 
             let dist_to_left = p.x - nearest_left_x;
-            let left_ratio = dist_to_left / cell_width;
+            let _left_ratio = dist_to_left / cell_width;
         }
     }
 
@@ -83,7 +83,7 @@ fn main() {
             }
 
             let p = &mt.insertion_point;
-            let content_clean = mt
+            let _content_clean = mt
                 .value
                 .replace("{\\fFangSong_GB2312|b0|i0|c134|p49;", "")
                 .replace("{\\fSimSun|b0|i0|c134|p2;", "")
@@ -109,13 +109,13 @@ fn main() {
             }
 
             let cell_width = nearest_right_x - nearest_left_x;
-            if cell_width > 300.0 || cell_width < 5.0 {
+            if !(5.0..=300.0).contains(&cell_width) {
                 continue;
             }
 
             let cell_center = (nearest_left_x + nearest_right_x) / 2.0;
-            let dist_to_left = p.x - nearest_left_x;
-            let dist_to_center = p.x - cell_center;
+            let _dist_to_left = p.x - nearest_left_x;
+            let _dist_to_center = p.x - cell_center;
         }
     }
 
@@ -152,12 +152,12 @@ fn main() {
             }
 
             let cell_width = nearest_right_x - nearest_left_x;
-            if cell_width > 300.0 || cell_width < 5.0 {
+            if !(5.0..=300.0).contains(&cell_width) {
                 continue;
             }
 
             let dist_to_left = p.x - nearest_left_x;
-            let left_ratio = dist_to_left / cell_width;
+            let _left_ratio = dist_to_left / cell_width;
         }
     }
 }
