@@ -1327,8 +1327,6 @@ pub fn update_cadbin_layer_props(
     }
 
     let _bytes = save_doc_and_cadbin(&state, lib, &doc, &doc_json_path, &cadbin_full_path)?;
-    // 仅在 debug 模式下输出，避免生产环境日志泛滥
-    #[cfg(debug_assertions)]
     Ok(())
 }
 
