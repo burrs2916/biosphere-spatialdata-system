@@ -1,5 +1,7 @@
+use crate::domain::datasource::models::{
+    DatabaseConnectionConfig, DatabaseType, GreptimeDBConnectionMode,
+};
 use crate::domain::datasource::DataSource;
-use crate::domain::datasource::models::{DatabaseConnectionConfig, DatabaseType, GreptimeDBConnectionMode};
 use crate::error::AppError;
 use crate::infrastructure::database::datasource_repository::DatasourceRepository;
 use crate::infrastructure::SqliteDatasourceRepository;
@@ -24,7 +26,10 @@ pub fn get_all_datasources(state: State<'_, DatasourceState>) -> Result<Vec<Data
 }
 
 #[tauri::command]
-pub fn get_datasource(state: State<'_, DatasourceState>, id: String) -> Result<Option<DataSource>, AppError> {
+pub fn get_datasource(
+    state: State<'_, DatasourceState>,
+    id: String,
+) -> Result<Option<DataSource>, AppError> {
     state.repository.get_by_id(&id)
 }
 
@@ -39,12 +44,18 @@ pub fn delete_datasource(state: State<'_, DatasourceState>, id: String) -> Resul
 }
 
 #[tauri::command]
-pub async fn db_test_connection(config: DatabaseConnectionConfig, test_query: Option<String>) -> Result<DbResult, AppError> {
+pub async fn db_test_connection(
+    config: DatabaseConnectionConfig,
+    test_query: Option<String>,
+) -> Result<DbResult, AppError> {
     let db_type_str: String = config.db_type.clone().into();
 
     match config.db_type {
         DatabaseType::GreptimeDB => {
-            let mode = config.connection_mode.clone().unwrap_or(GreptimeDBConnectionMode::Postgresql);
+            let mode = config
+                .connection_mode
+                .clone()
+                .unwrap_or(GreptimeDBConnectionMode::Postgresql);
             match mode {
                 GreptimeDBConnectionMode::Postgresql => {
                     let conn_str = build_postgres_connection_string(&config);
@@ -77,7 +88,8 @@ pub async fn db_test_connection(config: DatabaseConnectionConfig, test_query: Op
                     }
                 }
                 GreptimeDBConnectionMode::HttpSql => {
-                    match test_greptimedb_http_sql_connection(&config, test_query.as_deref()).await {
+                    match test_greptimedb_http_sql_connection(&config, test_query.as_deref()).await
+                    {
                         Ok(data) => Ok(DbResult {
                             success: true,
                             message: "GreptimeDB (HTTP SQL) 连接成功".to_string(),
@@ -91,7 +103,9 @@ pub async fn db_test_connection(config: DatabaseConnectionConfig, test_query: Op
                     }
                 }
                 GreptimeDBConnectionMode::HttpPromql => {
-                    match test_greptimedb_http_promql_connection(&config, test_query.as_deref()).await {
+                    match test_greptimedb_http_promql_connection(&config, test_query.as_deref())
+                        .await
+                    {
                         Ok(data) => Ok(DbResult {
                             success: true,
                             message: "GreptimeDB (HTTP PromQL) 连接成功".to_string(),
@@ -136,62 +150,54 @@ pub async fn db_test_connection(config: DatabaseConnectionConfig, test_query: Op
                 }),
             }
         }
-        DatabaseType::ClickHouse => {
-            match test_clickhouse_connection(&config).await {
-                Ok(data) => Ok(DbResult {
-                    success: true,
-                    message: "ClickHouse 连接成功".to_string(),
-                    data: Some(data),
-                }),
-                Err(e) => Ok(DbResult {
-                    success: false,
-                    message: format!("ClickHouse 连接失败: {}", e),
-                    data: None,
-                }),
-            }
-        }
-        DatabaseType::Redis => {
-            match test_redis_connection(&config).await {
-                Ok(data) => Ok(DbResult {
-                    success: true,
-                    message: "Redis 连接成功".to_string(),
-                    data: Some(data),
-                }),
-                Err(e) => Ok(DbResult {
-                    success: false,
-                    message: format!("Redis 连接失败: {}", e),
-                    data: None,
-                }),
-            }
-        }
-        DatabaseType::Mongodb => {
-            match test_mongodb_connection(&config).await {
-                Ok(data) => Ok(DbResult {
-                    success: true,
-                    message: "MongoDB 连接成功".to_string(),
-                    data: Some(data),
-                }),
-                Err(e) => Ok(DbResult {
-                    success: false,
-                    message: format!("MongoDB 连接失败: {}", e),
-                    data: None,
-                }),
-            }
-        }
-        DatabaseType::InfluxDB => {
-            match test_influxdb_connection(&config).await {
-                Ok(data) => Ok(DbResult {
-                    success: true,
-                    message: "InfluxDB 连接成功".to_string(),
-                    data: Some(data),
-                }),
-                Err(e) => Ok(DbResult {
-                    success: false,
-                    message: format!("InfluxDB 连接失败: {}", e),
-                    data: None,
-                }),
-            }
-        }
+        DatabaseType::ClickHouse => match test_clickhouse_connection(&config).await {
+            Ok(data) => Ok(DbResult {
+                success: true,
+                message: "ClickHouse 连接成功".to_string(),
+                data: Some(data),
+            }),
+            Err(e) => Ok(DbResult {
+                success: false,
+                message: format!("ClickHouse 连接失败: {}", e),
+                data: None,
+            }),
+        },
+        DatabaseType::Redis => match test_redis_connection(&config).await {
+            Ok(data) => Ok(DbResult {
+                success: true,
+                message: "Redis 连接成功".to_string(),
+                data: Some(data),
+            }),
+            Err(e) => Ok(DbResult {
+                success: false,
+                message: format!("Redis 连接失败: {}", e),
+                data: None,
+            }),
+        },
+        DatabaseType::Mongodb => match test_mongodb_connection(&config).await {
+            Ok(data) => Ok(DbResult {
+                success: true,
+                message: "MongoDB 连接成功".to_string(),
+                data: Some(data),
+            }),
+            Err(e) => Ok(DbResult {
+                success: false,
+                message: format!("MongoDB 连接失败: {}", e),
+                data: None,
+            }),
+        },
+        DatabaseType::InfluxDB => match test_influxdb_connection(&config).await {
+            Ok(data) => Ok(DbResult {
+                success: true,
+                message: "InfluxDB 连接成功".to_string(),
+                data: Some(data),
+            }),
+            Err(e) => Ok(DbResult {
+                success: false,
+                message: format!("InfluxDB 连接失败: {}", e),
+                data: None,
+            }),
+        },
     }
 }
 
@@ -204,7 +210,10 @@ pub async fn db_execute_query(
 
     match config.db_type {
         DatabaseType::GreptimeDB => {
-            let mode = config.connection_mode.clone().unwrap_or(GreptimeDBConnectionMode::Postgresql);
+            let mode = config
+                .connection_mode
+                .clone()
+                .unwrap_or(GreptimeDBConnectionMode::Postgresql);
             match mode {
                 GreptimeDBConnectionMode::Postgresql => {
                     let conn_str = build_postgres_connection_string(&config);
@@ -296,20 +305,18 @@ pub async fn db_execute_query(
                 }),
             }
         }
-        DatabaseType::ClickHouse => {
-            match execute_clickhouse_query(&config, &query).await {
-                Ok(data) => Ok(DbResult {
-                    success: true,
-                    message: "ClickHouse 查询成功".to_string(),
-                    data: Some(data),
-                }),
-                Err(e) => Ok(DbResult {
-                    success: false,
-                    message: format!("ClickHouse 查询失败: {}", e),
-                    data: None,
-                }),
-            }
-        }
+        DatabaseType::ClickHouse => match execute_clickhouse_query(&config, &query).await {
+            Ok(data) => Ok(DbResult {
+                success: true,
+                message: "ClickHouse 查询成功".to_string(),
+                data: Some(data),
+            }),
+            Err(e) => Ok(DbResult {
+                success: false,
+                message: format!("ClickHouse 查询失败: {}", e),
+                data: None,
+            }),
+        },
         DatabaseType::Redis => Ok(DbResult {
             success: false,
             message: "Redis 查询暂不支持，请使用测试连接".to_string(),
@@ -329,12 +336,13 @@ pub async fn db_execute_query(
 }
 
 fn build_postgres_connection_string(config: &DatabaseConnectionConfig) -> String {
-    let db = if config.database.is_empty() { "public" } else { &config.database };
+    let db = if config.database.is_empty() {
+        "public"
+    } else {
+        &config.database
+    };
     let mut conn_str = if config.username.is_empty() && config.password.is_empty() {
-        format!(
-            "postgres://{}:{}/{}",
-            config.host, config.port, db
-        )
+        format!("postgres://{}:{}/{}", config.host, config.port, db)
     } else if config.password.is_empty() {
         format!(
             "postgres://{}@{}:{}/{}",
@@ -347,19 +355,24 @@ fn build_postgres_connection_string(config: &DatabaseConnectionConfig) -> String
         )
     };
 
-    let ssl_mode = config.options.get("sslmode").map(|s| s.as_str()).unwrap_or("disable");
+    let ssl_mode = config
+        .options
+        .get("sslmode")
+        .map(|s| s.as_str())
+        .unwrap_or("disable");
     conn_str = format!("{}?sslmode={}", conn_str, ssl_mode);
 
     conn_str
 }
 
 fn build_mysql_connection_string(config: &DatabaseConnectionConfig) -> String {
-    let db = if config.database.is_empty() { "public" } else { &config.database };
+    let db = if config.database.is_empty() {
+        "public"
+    } else {
+        &config.database
+    };
     let mut conn_str = if config.username.is_empty() && config.password.is_empty() {
-        format!(
-            "mysql://{}:{}/{}",
-            config.host, config.port, db
-        )
+        format!("mysql://{}:{}/{}", config.host, config.port, db)
     } else if config.password.is_empty() {
         format!(
             "mysql://{}@{}:{}/{}",
@@ -372,13 +385,20 @@ fn build_mysql_connection_string(config: &DatabaseConnectionConfig) -> String {
         )
     };
 
-    let ssl_mode = config.options.get("ssl-mode").map(|s| s.as_str()).unwrap_or("DISABLED");
+    let ssl_mode = config
+        .options
+        .get("ssl-mode")
+        .map(|s| s.as_str())
+        .unwrap_or("DISABLED");
     conn_str = format!("{}?ssl-mode={}", conn_str, ssl_mode);
 
     conn_str
 }
 
-async fn test_postgres_connection(conn_str: &str, test_query: Option<&str>) -> Result<serde_json::Value, String> {
+async fn test_postgres_connection(
+    conn_str: &str,
+    test_query: Option<&str>,
+) -> Result<serde_json::Value, String> {
     use sqlx::postgres::PgPoolOptions;
     use sqlx::Row;
 
@@ -434,7 +454,10 @@ async fn execute_postgres_query(conn_str: &str, query: &str) -> Result<serde_jso
     }))
 }
 
-async fn test_mysql_connection(conn_str: &str, test_query: Option<&str>) -> Result<serde_json::Value, String> {
+async fn test_mysql_connection(
+    conn_str: &str,
+    test_query: Option<&str>,
+) -> Result<serde_json::Value, String> {
     use sqlx::mysql::MySqlPoolOptions;
 
     let pool = MySqlPoolOptions::new()
@@ -482,16 +505,27 @@ async fn execute_mysql_query(conn_str: &str, query: &str) -> Result<serde_json::
 }
 
 fn build_greptimedb_sql_url(config: &DatabaseConnectionConfig) -> String {
-    let db = if config.database.is_empty() { "public" } else { &config.database };
+    let db = if config.database.is_empty() {
+        "public"
+    } else {
+        &config.database
+    };
     format!("http://{}:{}/v1/sql?db={}", config.host, config.port, db)
 }
 
 fn build_greptimedb_promql_url(config: &DatabaseConnectionConfig) -> String {
-    let db = if config.database.is_empty() { "public" } else { &config.database };
+    let db = if config.database.is_empty() {
+        "public"
+    } else {
+        &config.database
+    };
     format!("http://{}:{}/v1/promql?db={}", config.host, config.port, db)
 }
 
-async fn test_greptimedb_http_sql_connection(config: &DatabaseConnectionConfig, test_query: Option<&str>) -> Result<serde_json::Value, String> {
+async fn test_greptimedb_http_sql_connection(
+    config: &DatabaseConnectionConfig,
+    test_query: Option<&str>,
+) -> Result<serde_json::Value, String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
         .build()
@@ -499,7 +533,8 @@ async fn test_greptimedb_http_sql_connection(config: &DatabaseConnectionConfig, 
 
     if let Some(query) = test_query {
         let url = build_greptimedb_sql_url(config);
-        let mut request = client.post(&url)
+        let mut request = client
+            .post(&url)
             .header("Content-Type", "application/x-www-form-urlencoded")
             .form(&[("sql", query)]);
 
@@ -507,10 +542,7 @@ async fn test_greptimedb_http_sql_connection(config: &DatabaseConnectionConfig, 
             request = request.basic_auth(&config.username, Some(&config.password));
         }
 
-        let response = request
-            .send()
-            .await
-            .map_err(|e| format!("{}", e))?;
+        let response = request.send().await.map_err(|e| format!("{}", e))?;
 
         if response.status().is_success() {
             let body: serde_json::Value = response.json().await.unwrap_or(serde_json::json!({}));
@@ -525,7 +557,8 @@ async fn test_greptimedb_http_sql_connection(config: &DatabaseConnectionConfig, 
         }
     } else {
         let url = format!("http://{}:{}/v1/health", config.host, config.port);
-        let response = client.get(&url)
+        let response = client
+            .get(&url)
             .send()
             .await
             .map_err(|e| format!("{}", e))?;
@@ -542,14 +575,18 @@ async fn test_greptimedb_http_sql_connection(config: &DatabaseConnectionConfig, 
     }
 }
 
-async fn execute_greptimedb_http_sql_query(config: &DatabaseConnectionConfig, query: &str) -> Result<serde_json::Value, String> {
+async fn execute_greptimedb_http_sql_query(
+    config: &DatabaseConnectionConfig,
+    query: &str,
+) -> Result<serde_json::Value, String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
         .build()
         .map_err(|e| format!("HTTP 客户端创建失败: {}", e))?;
 
     let url = build_greptimedb_sql_url(config);
-    let mut request = client.post(&url)
+    let mut request = client
+        .post(&url)
         .header("Content-Type", "application/x-www-form-urlencoded")
         .form(&[("sql", query)]);
 
@@ -557,10 +594,7 @@ async fn execute_greptimedb_http_sql_query(config: &DatabaseConnectionConfig, qu
         request = request.basic_auth(&config.username, Some(&config.password));
     }
 
-    let response = request
-        .send()
-        .await
-        .map_err(|e| format!("{}", e))?;
+    let response = request.send().await.map_err(|e| format!("{}", e))?;
 
     if response.status().is_success() {
         let body: serde_json::Value = response.json().await.unwrap_or(serde_json::json!({}));
@@ -575,7 +609,10 @@ async fn execute_greptimedb_http_sql_query(config: &DatabaseConnectionConfig, qu
     }
 }
 
-async fn test_greptimedb_http_promql_connection(config: &DatabaseConnectionConfig, test_query: Option<&str>) -> Result<serde_json::Value, String> {
+async fn test_greptimedb_http_promql_connection(
+    config: &DatabaseConnectionConfig,
+    test_query: Option<&str>,
+) -> Result<serde_json::Value, String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
         .build()
@@ -602,10 +639,7 @@ async fn test_greptimedb_http_promql_connection(config: &DatabaseConnectionConfi
         request = request.basic_auth(&config.username, Some(&config.password));
     }
 
-    let response = request
-        .send()
-        .await
-        .map_err(|e| format!("{}", e))?;
+    let response = request.send().await.map_err(|e| format!("{}", e))?;
 
     if response.status().is_success() {
         let body: serde_json::Value = response.json().await.unwrap_or(serde_json::json!({}));
@@ -620,7 +654,10 @@ async fn test_greptimedb_http_promql_connection(config: &DatabaseConnectionConfi
     }
 }
 
-async fn execute_greptimedb_http_promql_query(config: &DatabaseConnectionConfig, query: &str) -> Result<serde_json::Value, String> {
+async fn execute_greptimedb_http_promql_query(
+    config: &DatabaseConnectionConfig,
+    query: &str,
+) -> Result<serde_json::Value, String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
         .build()
@@ -646,10 +683,7 @@ async fn execute_greptimedb_http_promql_query(config: &DatabaseConnectionConfig,
         request = request.basic_auth(&config.username, Some(&config.password));
     }
 
-    let response = request
-        .send()
-        .await
-        .map_err(|e| format!("{}", e))?;
+    let response = request.send().await.map_err(|e| format!("{}", e))?;
 
     if response.status().is_success() {
         let body: serde_json::Value = response.json().await.unwrap_or(serde_json::json!({}));
@@ -664,7 +698,9 @@ async fn execute_greptimedb_http_promql_query(config: &DatabaseConnectionConfig,
     }
 }
 
-async fn test_clickhouse_connection(config: &DatabaseConnectionConfig) -> Result<serde_json::Value, String> {
+async fn test_clickhouse_connection(
+    config: &DatabaseConnectionConfig,
+) -> Result<serde_json::Value, String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
         .build()
@@ -677,10 +713,7 @@ async fn test_clickhouse_connection(config: &DatabaseConnectionConfig) -> Result
         request = request.basic_auth(&config.username, Some(&config.password));
     }
 
-    let response = request
-        .send()
-        .await
-        .map_err(|e| format!("{}", e))?;
+    let response = request.send().await.map_err(|e| format!("{}", e))?;
 
     if response.status().is_success() {
         let body = response.text().await.unwrap_or_default();
@@ -693,23 +726,28 @@ async fn test_clickhouse_connection(config: &DatabaseConnectionConfig) -> Result
     }
 }
 
-async fn execute_clickhouse_query(config: &DatabaseConnectionConfig, query: &str) -> Result<serde_json::Value, String> {
+async fn execute_clickhouse_query(
+    config: &DatabaseConnectionConfig,
+    query: &str,
+) -> Result<serde_json::Value, String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
         .build()
         .map_err(|e| format!("HTTP 客户端创建失败: {}", e))?;
 
-    let url = format!("http://{}:{}/?query={}", config.host, config.port, urlencoding::encode(query));
+    let url = format!(
+        "http://{}:{}/?query={}",
+        config.host,
+        config.port,
+        urlencoding::encode(query)
+    );
 
     let mut request = client.get(&url);
     if !config.username.is_empty() {
         request = request.basic_auth(&config.username, Some(&config.password));
     }
 
-    let response = request
-        .send()
-        .await
-        .map_err(|e| format!("{}", e))?;
+    let response = request.send().await.map_err(|e| format!("{}", e))?;
 
     if response.status().is_success() {
         let body = response.text().await.unwrap_or_default();
@@ -722,16 +760,21 @@ async fn execute_clickhouse_query(config: &DatabaseConnectionConfig, query: &str
     }
 }
 
-async fn test_redis_connection(config: &DatabaseConnectionConfig) -> Result<serde_json::Value, String> {
+async fn test_redis_connection(
+    config: &DatabaseConnectionConfig,
+) -> Result<serde_json::Value, String> {
     let addr = format!("redis://{}:{}", config.host, config.port);
     let addr = if !config.password.is_empty() {
-        format!("redis://:{}@{}:{}", config.password, config.host, config.port)
+        format!(
+            "redis://:{}@{}:{}",
+            config.password, config.host, config.port
+        )
     } else {
         addr
     };
 
-    let client = redis::Client::open(addr.as_str())
-        .map_err(|e| format!("Redis 客户端创建失败: {}", e))?;
+    let client =
+        redis::Client::open(addr.as_str()).map_err(|e| format!("Redis 客户端创建失败: {}", e))?;
 
     let mut conn = client
         .get_multiplexed_async_connection()
@@ -750,7 +793,9 @@ async fn test_redis_connection(config: &DatabaseConnectionConfig) -> Result<serd
     }))
 }
 
-async fn test_mongodb_connection(config: &DatabaseConnectionConfig) -> Result<serde_json::Value, String> {
+async fn test_mongodb_connection(
+    config: &DatabaseConnectionConfig,
+) -> Result<serde_json::Value, String> {
     let uri = if !config.username.is_empty() {
         format!(
             "mongodb://{}:{}@{}:{}/{}?directConnection=true",
@@ -780,7 +825,9 @@ async fn test_mongodb_connection(config: &DatabaseConnectionConfig) -> Result<se
     }))
 }
 
-async fn test_influxdb_connection(config: &DatabaseConnectionConfig) -> Result<serde_json::Value, String> {
+async fn test_influxdb_connection(
+    config: &DatabaseConnectionConfig,
+) -> Result<serde_json::Value, String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
         .build()
@@ -793,10 +840,7 @@ async fn test_influxdb_connection(config: &DatabaseConnectionConfig) -> Result<s
         request = request.basic_auth(&config.username, Some(&config.password));
     }
 
-    let response = request
-        .send()
-        .await
-        .map_err(|e| format!("{}", e))?;
+    let response = request.send().await.map_err(|e| format!("{}", e))?;
 
     if response.status().is_success() {
         let body: serde_json::Value = response.json().await.unwrap_or(serde_json::json!({}));

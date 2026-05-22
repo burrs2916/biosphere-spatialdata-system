@@ -10,7 +10,11 @@ pub const FILE_HEADER_SIZE: usize = 128;
 #[inline]
 pub fn padding_bytes(current_offset: usize, alignment: usize) -> usize {
     let m = current_offset % alignment;
-    if m == 0 { 0 } else { alignment - m }
+    if m == 0 {
+        0
+    } else {
+        alignment - m
+    }
 }
 
 pub const CHUNK_TAG_LINE: u8 = 0x01;

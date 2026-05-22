@@ -111,7 +111,10 @@ pub struct MapLibrary {
 impl Default for MapLibrary {
     fn default() -> Self {
         let now = chrono::Utc::now().timestamp();
-        let id = format!("maplib_{}", uuid::Uuid::new_v4().to_string().replace("-", ""));
+        let id = format!(
+            "maplib_{}",
+            uuid::Uuid::new_v4().to_string().replace("-", "")
+        );
         Self {
             id,
             name: String::new(),
@@ -153,7 +156,10 @@ pub struct MapLibraryGroup {
 impl Default for MapLibraryGroup {
     fn default() -> Self {
         let now = chrono::Utc::now().timestamp();
-        let id = format!("mlgrp_{}", uuid::Uuid::new_v4().to_string().replace("-", ""));
+        let id = format!(
+            "mlgrp_{}",
+            uuid::Uuid::new_v4().to_string().replace("-", "")
+        );
         Self {
             id,
             name: String::new(),

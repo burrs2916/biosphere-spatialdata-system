@@ -415,9 +415,7 @@ impl CadProfile {
             CadProfile::HeavyHatch { .. } => 3,
             CadProfile::HeavyEntity { .. } => 6,
             CadProfile::MediumEntity { .. } => 7,
-            CadProfile::Complex { flags, .. } => {
-                4 | (flags.bits() << 4)
-            }
+            CadProfile::Complex { flags, .. } => 4 | (flags.bits() << 4),
             CadProfile::Unparseable { .. } => 5,
         };
         profile_type
@@ -427,29 +425,78 @@ impl CadProfile {
         let profile_type = flags & 0x0F;
         let complex_flags = CadProfileFlags::from_bits_truncate((flags >> 4) & 0xFF);
         match profile_type {
-            0 => CadProfile::Simple { entity_count: 0, coord_span_x: 0.0, coord_span_y: 0.0 },
-            1 => CadProfile::LargeCoordinates { entity_count: 0, raw_span_x: 0.0, raw_span_y: 0.0 },
-            2 => CadProfile::HeavyLwPolyline { entity_count: 0, huge_polyline_count: 0, total_polyline_vertices: 0, max_vertices_per_polyline: 0 },
-            3 => CadProfile::HeavyHatch { entity_count: 0, hatch_count: 0, max_edges_per_path: 0 },
-            4 => {
-                CadProfile::Complex { entity_count: 0, flags: complex_flags }
-            }
-            5 => CadProfile::Unparseable { error: String::new(), file_size: 0 },
+            0 => CadProfile::Simple {
+                entity_count: 0,
+                coord_span_x: 0.0,
+                coord_span_y: 0.0,
+            },
+            1 => CadProfile::LargeCoordinates {
+                entity_count: 0,
+                raw_span_x: 0.0,
+                raw_span_y: 0.0,
+            },
+            2 => CadProfile::HeavyLwPolyline {
+                entity_count: 0,
+                huge_polyline_count: 0,
+                total_polyline_vertices: 0,
+                max_vertices_per_polyline: 0,
+            },
+            3 => CadProfile::HeavyHatch {
+                entity_count: 0,
+                hatch_count: 0,
+                max_edges_per_path: 0,
+            },
+            4 => CadProfile::Complex {
+                entity_count: 0,
+                flags: complex_flags,
+            },
+            5 => CadProfile::Unparseable {
+                error: String::new(),
+                file_size: 0,
+            },
             6 => CadProfile::HeavyEntity { entity_count: 0 },
             7 => CadProfile::MediumEntity { entity_count: 0 },
-            8 => CadProfile::Light { entity_count: 0, coord_span_x: 0.0, coord_span_y: 0.0 },
-            9 => CadProfile::Standard { entity_count: 0, coord_span_x: 0.0, coord_span_y: 0.0, flags: complex_flags },
-            10 => CadProfile::Heavy { entity_count: 0, coord_span_x: 0.0, coord_span_y: 0.0, flags: complex_flags },
-            11 => CadProfile::Mega { entity_count: 0, flags: complex_flags },
-            12 => CadProfile::Ultra { entity_count: 0, flags: complex_flags },
-            _ => CadProfile::Simple { entity_count: 0, coord_span_x: 0.0, coord_span_y: 0.0 },
+            8 => CadProfile::Light {
+                entity_count: 0,
+                coord_span_x: 0.0,
+                coord_span_y: 0.0,
+            },
+            9 => CadProfile::Standard {
+                entity_count: 0,
+                coord_span_x: 0.0,
+                coord_span_y: 0.0,
+                flags: complex_flags,
+            },
+            10 => CadProfile::Heavy {
+                entity_count: 0,
+                coord_span_x: 0.0,
+                coord_span_y: 0.0,
+                flags: complex_flags,
+            },
+            11 => CadProfile::Mega {
+                entity_count: 0,
+                flags: complex_flags,
+            },
+            12 => CadProfile::Ultra {
+                entity_count: 0,
+                flags: complex_flags,
+            },
+            _ => CadProfile::Simple {
+                entity_count: 0,
+                coord_span_x: 0.0,
+                coord_span_y: 0.0,
+            },
         }
     }
 }
 
 impl Default for CadProfile {
     fn default() -> Self {
-        CadProfile::Simple { entity_count: 0, coord_span_x: 0.0, coord_span_y: 0.0 }
+        CadProfile::Simple {
+            entity_count: 0,
+            coord_span_x: 0.0,
+            coord_span_y: 0.0,
+        }
     }
 }
 

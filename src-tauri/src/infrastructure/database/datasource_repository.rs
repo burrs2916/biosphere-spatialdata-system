@@ -16,7 +16,9 @@ pub struct SqliteDatasourceRepository {
 
 impl Clone for SqliteDatasourceRepository {
     fn clone(&self) -> Self {
-        Self { db: self.db.clone() }
+        Self {
+            db: self.db.clone(),
+        }
     }
 }
 
@@ -54,7 +56,11 @@ impl SqliteDatasourceRepository {
 
 impl DatasourceRepository for SqliteDatasourceRepository {
     fn get_all(&self) -> AppResult<Vec<DataSource>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
 
         let mut stmt = conn.prepare(
             "SELECT id, name, type, description, enabled, connection, response_mapping, test_apis, created_at, updated_at
@@ -73,7 +79,11 @@ impl DatasourceRepository for SqliteDatasourceRepository {
     }
 
     fn get_by_id(&self, id: &str) -> AppResult<Option<DataSource>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
 
         let result = conn.query_row(
             "SELECT id, name, type, description, enabled, connection, response_mapping, test_apis, created_at, updated_at
@@ -90,7 +100,11 @@ impl DatasourceRepository for SqliteDatasourceRepository {
     }
 
     fn save(&self, ds: &DataSource) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
 
         let type_str: String = ds.ds_type.clone().into();
         let connection_json = serde_json::to_string(&ds.connection)
@@ -120,12 +134,17 @@ impl DatasourceRepository for SqliteDatasourceRepository {
     }
 
     fn delete(&self, id: &str) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
 
         conn.execute(
             "DELETE FROM data_sources WHERE id = ?1",
             rusqlite::params![id],
-        ).map_err(|e| AppError::Database(e.to_string()))?;
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
 
         Ok(())
     }

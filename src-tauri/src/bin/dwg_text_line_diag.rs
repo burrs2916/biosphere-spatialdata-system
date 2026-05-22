@@ -1,5 +1,5 @@
+use acadrust::entities::{AttachmentPoint, TextHorizontalAlignment, TextVerticalAlignment};
 use acadrust::DwgReader;
-use acadrust::entities::{TextHorizontalAlignment, TextVerticalAlignment, AttachmentPoint};
 
 fn main() {
     let file_path = "/Users/liwenchao/EdgeView/biosphere/biosphere-spatialdata-system/docs/需求分析/20260510/雨田煤业井下降尘喷雾布置图22.7.1.dwg";
@@ -48,9 +48,12 @@ fn main() {
                     TextVerticalAlignment::Top => 3,
                 };
                 texts.push((
-                    p.x, p.y, t.height,
+                    p.x,
+                    p.y,
+                    t.height,
                     t.value.clone(),
-                    h_align, v_align,
+                    h_align,
+                    v_align,
                     t.rotation,
                 ));
             }
@@ -67,12 +70,7 @@ fn main() {
                     AttachmentPoint::BottomCenter => 8,
                     AttachmentPoint::BottomRight => 9,
                 };
-                mtexts.push((
-                    p.x, p.y, mt.height,
-                    mt.value.clone(),
-                    ap,
-                    mt.rotation,
-                ));
+                mtexts.push((p.x, p.y, mt.height, mt.value.clone(), ap, mt.rotation));
             }
             _ => {}
         }
@@ -82,22 +80,35 @@ fn main() {
     let all_texts_y: Vec<f64> = texts.iter().map(|t| t.1).collect();
     if !all_texts_x.is_empty() {
         let min_tx = all_texts_x.iter().cloned().fold(f64::INFINITY, f64::min);
-        let max_tx = all_texts_x.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        let max_tx = all_texts_x
+            .iter()
+            .cloned()
+            .fold(f64::NEG_INFINITY, f64::max);
         let min_ty = all_texts_y.iter().cloned().fold(f64::INFINITY, f64::min);
-        let max_ty = all_texts_y.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        let max_ty = all_texts_y
+            .iter()
+            .cloned()
+            .fold(f64::NEG_INFINITY, f64::max);
     }
 
     let all_lines_x: Vec<f64> = lines.iter().flat_map(|l| vec![l.0, l.2]).collect();
     let all_lines_y: Vec<f64> = lines.iter().flat_map(|l| vec![l.1, l.3]).collect();
     if !all_lines_x.is_empty() {
         let min_lx = all_lines_x.iter().cloned().fold(f64::INFINITY, f64::min);
-        let max_lx = all_lines_x.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        let max_lx = all_lines_x
+            .iter()
+            .cloned()
+            .fold(f64::NEG_INFINITY, f64::max);
         let min_ly = all_lines_y.iter().cloned().fold(f64::INFINITY, f64::min);
-        let max_ly = all_lines_y.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        let max_ly = all_lines_y
+            .iter()
+            .cloned()
+            .fold(f64::NEG_INFINITY, f64::max);
     }
 
     let grid_size = 50.0;
-    let mut grid_line_count: std::collections::HashMap<(i32, i32), usize> = std::collections::HashMap::new();
+    let mut grid_line_count: std::collections::HashMap<(i32, i32), usize> =
+        std::collections::HashMap::new();
     for l in &lines {
         let cx = (l.0 + l.2) / 2.0;
         let cy = (l.1 + l.3) / 2.0;
@@ -114,11 +125,10 @@ fn main() {
         let x_max = x_min + grid_size;
         let y_max = y_min + grid_size;
     }
-    for (i, t) in texts.iter().enumerate() {
-    }
-    for (i, t) in mtexts.iter().enumerate() {
-    }
-    let vertical_lines: Vec<(f64, f64, f64)> = lines.iter()
+    for (i, t) in texts.iter().enumerate() {}
+    for (i, t) in mtexts.iter().enumerate() {}
+    let vertical_lines: Vec<(f64, f64, f64)> = lines
+        .iter()
         .filter(|l| (l.0 - l.2).abs() < 0.01)
         .map(|l| (l.0, l.1.min(l.3), l.1.max(l.3)))
         .collect();
@@ -167,8 +177,7 @@ fn main() {
         }
         v_lines_in_area.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
         v_lines_in_area.dedup_by(|a, b| (a.0 - b.0).abs() < 0.01);
-        for vl in &v_lines_in_area {
-        }
+        for vl in &v_lines_in_area {}
         let mut h_lines_in_area: Vec<(f64, f64, f64)> = Vec::new();
         for l in &lines {
             if (l.1 - l.3).abs() < 0.01 {
@@ -182,15 +191,12 @@ fn main() {
         }
         h_lines_in_area.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
         h_lines_in_area.dedup_by(|a, b| (a.0 - b.0).abs() < 0.01);
-        for hl in &h_lines_in_area {
-        }
+        for hl in &h_lines_in_area {}
         for (i, t) in texts.iter().enumerate() {
-            if t.0 >= x_min && t.0 <= x_max && t.1 >= y_min && t.1 <= y_max {
-            }
+            if t.0 >= x_min && t.0 <= x_max && t.1 >= y_min && t.1 <= y_max {}
         }
         for (i, t) in mtexts.iter().enumerate() {
-            if t.0 >= x_min && t.0 <= x_max && t.1 >= y_min && t.1 <= y_max {
-            }
+            if t.0 >= x_min && t.0 <= x_max && t.1 >= y_min && t.1 <= y_max {}
         }
     }
     let mut h_align_counts: std::collections::HashMap<u8, usize> = std::collections::HashMap::new();

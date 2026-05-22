@@ -100,7 +100,10 @@ impl Default for Scene {
     fn default() -> Self {
         let now = chrono::Utc::now().timestamp();
         Self {
-            id: format!("scene_{}", uuid::Uuid::new_v4().to_string().replace("-", "")),
+            id: format!(
+                "scene_{}",
+                uuid::Uuid::new_v4().to_string().replace("-", "")
+            ),
             name: String::new(),
             description: None,
             coordinate_system: "EPSG:3857".to_string(),

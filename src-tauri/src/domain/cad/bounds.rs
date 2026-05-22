@@ -257,7 +257,9 @@ pub fn cad_entity_bbox(entity: &CadEntity) -> CadBounds {
     }
 }
 
-pub fn cad_entities_bbox<'a>(entities: impl IntoIterator<Item = &'a CadEntity>) -> Option<CadBounds> {
+pub fn cad_entities_bbox<'a>(
+    entities: impl IntoIterator<Item = &'a CadEntity>,
+) -> Option<CadBounds> {
     let mut bounds = CadBounds::empty();
     for entity in entities {
         bounds.union(cad_entity_bbox(entity));

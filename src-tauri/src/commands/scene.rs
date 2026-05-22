@@ -1,8 +1,8 @@
+use crate::commands::logger::LoggerState;
 use crate::domain::scene::{Scene, SceneCategory};
 use crate::error::AppError;
 use crate::infrastructure::database::scene_repository::SceneRepository;
 use crate::infrastructure::SqliteSceneRepository;
-use crate::commands::logger::LoggerState;
 use tauri::State;
 
 pub struct SceneState {
@@ -46,11 +46,31 @@ pub fn create_scene(
     logger_state: State<'_, LoggerState>,
     scene: Scene,
 ) -> Result<(), AppError> {
-    log_scene_op(&logger_state, "info", "SceneCommand", &format!("Creating scene: id={}, name={}, thumbnail={}", scene.id, scene.name, scene.thumbnail.as_ref().unwrap_or(&"None".to_string())));
+    log_scene_op(
+        &logger_state,
+        "info",
+        "SceneCommand",
+        &format!(
+            "Creating scene: id={}, name={}, thumbnail={}",
+            scene.id,
+            scene.name,
+            scene.thumbnail.as_ref().unwrap_or(&"None".to_string())
+        ),
+    );
     let result = state.repository.save_scene(&scene);
     match &result {
-        Ok(()) => log_scene_op(&logger_state, "info", "SceneCommand", &format!("Scene created: id={}", scene.id)),
-        Err(e) => log_scene_op(&logger_state, "error", "SceneCommand", &format!("Failed to create scene: id={}, error={}", scene.id, e)),
+        Ok(()) => log_scene_op(
+            &logger_state,
+            "info",
+            "SceneCommand",
+            &format!("Scene created: id={}", scene.id),
+        ),
+        Err(e) => log_scene_op(
+            &logger_state,
+            "error",
+            "SceneCommand",
+            &format!("Failed to create scene: id={}, error={}", scene.id, e),
+        ),
     }
     result
 }
@@ -61,11 +81,31 @@ pub fn update_scene(
     logger_state: State<'_, LoggerState>,
     scene: Scene,
 ) -> Result<(), AppError> {
-    log_scene_op(&logger_state, "info", "SceneCommand", &format!("Updating scene: id={}, name={}, thumbnail={}", scene.id, scene.name, scene.thumbnail.as_ref().unwrap_or(&"None".to_string())));
+    log_scene_op(
+        &logger_state,
+        "info",
+        "SceneCommand",
+        &format!(
+            "Updating scene: id={}, name={}, thumbnail={}",
+            scene.id,
+            scene.name,
+            scene.thumbnail.as_ref().unwrap_or(&"None".to_string())
+        ),
+    );
     let result = state.repository.save_scene(&scene);
     match &result {
-        Ok(()) => log_scene_op(&logger_state, "info", "SceneCommand", &format!("Scene updated: id={}", scene.id)),
-        Err(e) => log_scene_op(&logger_state, "error", "SceneCommand", &format!("Failed to update scene: id={}, error={}", scene.id, e)),
+        Ok(()) => log_scene_op(
+            &logger_state,
+            "info",
+            "SceneCommand",
+            &format!("Scene updated: id={}", scene.id),
+        ),
+        Err(e) => log_scene_op(
+            &logger_state,
+            "error",
+            "SceneCommand",
+            &format!("Failed to update scene: id={}, error={}", scene.id, e),
+        ),
     }
     result
 }
@@ -76,11 +116,26 @@ pub fn delete_scene(
     logger_state: State<'_, LoggerState>,
     id: String,
 ) -> Result<(), AppError> {
-    log_scene_op(&logger_state, "info", "SceneCommand", &format!("Deleting scene: id={}", id));
+    log_scene_op(
+        &logger_state,
+        "info",
+        "SceneCommand",
+        &format!("Deleting scene: id={}", id),
+    );
     let result = state.repository.delete_scene(&id);
     match &result {
-        Ok(()) => log_scene_op(&logger_state, "info", "SceneCommand", &format!("Scene deleted: id={}", id)),
-        Err(e) => log_scene_op(&logger_state, "error", "SceneCommand", &format!("Failed to delete scene: id={}, error={}", id, e)),
+        Ok(()) => log_scene_op(
+            &logger_state,
+            "info",
+            "SceneCommand",
+            &format!("Scene deleted: id={}", id),
+        ),
+        Err(e) => log_scene_op(
+            &logger_state,
+            "error",
+            "SceneCommand",
+            &format!("Failed to delete scene: id={}, error={}", id, e),
+        ),
     }
     result
 }

@@ -1,6 +1,6 @@
-use crate::infrastructure::icon_repository::IconRepository;
-use crate::domain::icons::{SystemIcon, IconGroup};
+use crate::domain::icons::{IconGroup, SystemIcon};
 use crate::error::{AppError, AppResult};
+use crate::infrastructure::icon_repository::IconRepository;
 
 pub struct GetAllGroupsUseCase<R: IconRepository> {
     repository: R,

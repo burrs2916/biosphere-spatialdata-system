@@ -1,17 +1,29 @@
-mod error;
-mod domain;
-mod infrastructure;
 mod application;
-mod commands;
 mod cad_runtime;
+mod commands;
+mod domain;
+mod error;
+mod infrastructure;
 
-use std::sync::Arc;
-use infrastructure::{Database, SqliteAuthRepository, SqliteSettingsRepository, SqliteIconRepository, SqliteDatasourceRepository, SqliteSceneRepository, SqliteMapLibraryRepository};
-use infrastructure::database::{init_tables, migrate};
-use application::{GetConfigUseCase, UpdateConfigUseCase, ResetConfigUseCase, GetPresetConfigUseCase, SavePresetConfigUseCase, DeletePresetConfigUseCase};
-use application::{GetAllGroupsUseCase, GetGroupUseCase, SaveGroupUseCase, DeleteGroupUseCase, GetAllIconsUseCase, GetIconsByGroupUseCase, GetIconUseCase, SaveIconUseCase, DeleteIconUseCase};
-use commands::{AuthState, SettingsState, IconsState, DatasourceState, MqttState, SceneState, ComponentPluginState, MapLibraryState, init_logger_state};
 use application::MqttService;
+use application::{
+    DeleteGroupUseCase, DeleteIconUseCase, GetAllGroupsUseCase, GetAllIconsUseCase,
+    GetGroupUseCase, GetIconUseCase, GetIconsByGroupUseCase, SaveGroupUseCase, SaveIconUseCase,
+};
+use application::{
+    DeletePresetConfigUseCase, GetConfigUseCase, GetPresetConfigUseCase, ResetConfigUseCase,
+    SavePresetConfigUseCase, UpdateConfigUseCase,
+};
+use commands::{
+    init_logger_state, AuthState, ComponentPluginState, DatasourceState, IconsState,
+    MapLibraryState, MqttState, SceneState, SettingsState,
+};
+use infrastructure::database::{init_tables, migrate};
+use infrastructure::{
+    Database, SqliteAuthRepository, SqliteDatasourceRepository, SqliteIconRepository,
+    SqliteMapLibraryRepository, SqliteSceneRepository, SqliteSettingsRepository,
+};
+use std::sync::Arc;
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -21,22 +33,22 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let db = Database::new(app.handle()).expect("Failed to initialize database");
-            
+
             {
                 let conn = db.0.lock().unwrap();
                 init_tables(&conn).expect("Failed to initialize tables");
                 migrate(&conn).expect("Failed to migrate database");
             }
-            
+
             let db_arc = Arc::new(db);
-            
+
             let auth_repo = SqliteAuthRepository::new(db_arc.clone());
             let settings_repo = SqliteSettingsRepository::new(db_arc.clone());
             let icon_repo = SqliteIconRepository::new(db_arc.clone());
             let datasource_repo = SqliteDatasourceRepository::new(db_arc.clone());
             let scene_repo = SqliteSceneRepository::new(db_arc.clone());
             let map_library_repo = SqliteMapLibraryRepository::new(db_arc.clone());
-            
+
             let auth_state = AuthState {
                 get_config_use_case: GetConfigUseCase::new(auth_repo.clone()),
                 update_config_use_case: UpdateConfigUseCase::new(auth_repo.clone()),
@@ -45,11 +57,11 @@ pub fn run() {
                 save_preset_config_use_case: SavePresetConfigUseCase::new(auth_repo.clone()),
                 delete_preset_config_use_case: DeletePresetConfigUseCase::new(auth_repo),
             };
-            
+
             let settings_state = SettingsState {
                 repository: settings_repo,
             };
-            
+
             let icons_state = IconsState {
                 get_all_groups_use_case: GetAllGroupsUseCase::new(icon_repo.clone()),
                 get_group_use_case: GetGroupUseCase::new(icon_repo.clone()),
@@ -75,16 +87,14 @@ pub fn run() {
                 repository: scene_repo,
             };
 
-            let component_plugin_state = ComponentPluginState {
-                db: db_arc.clone(),
-            };
+            let component_plugin_state = ComponentPluginState { db: db_arc.clone() };
 
             let map_library_state = MapLibraryState {
                 repository: map_library_repo,
             };
 
             let logger_state = init_logger_state();
-            
+
             app.manage(auth_state);
             app.manage(settings_state);
             app.manage(icons_state);

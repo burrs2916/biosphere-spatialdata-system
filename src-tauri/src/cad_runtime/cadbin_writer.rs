@@ -1,9 +1,9 @@
-use crate::domain::cad::{CadDocument, CadLayer};
+use crate::cad_runtime::block_table::BlockTable;
 use crate::cad_runtime::cadbin_spec::*;
 use crate::cad_runtime::chunk_codec::{ChunkCodec, ChunkData, ChunkIndexEntry};
-use crate::cad_runtime::string_pool::StringPool;
 use crate::cad_runtime::rtree::CadSpatialIndex;
-use crate::cad_runtime::block_table::BlockTable;
+use crate::cad_runtime::string_pool::StringPool;
+use crate::domain::cad::{CadDocument, CadLayer};
 
 pub struct CadbinWriter;
 
@@ -261,7 +261,11 @@ impl CadbinReader {
         StringPool::deserialize(&data[start..])
     }
 
-    pub fn read_spatial_index(data: &[u8], offset: u64, byte_size: u64) -> Result<CadSpatialIndex, String> {
+    pub fn read_spatial_index(
+        data: &[u8],
+        offset: u64,
+        byte_size: u64,
+    ) -> Result<CadSpatialIndex, String> {
         let start = offset as usize;
         let end = start + byte_size as usize;
         if end > data.len() {
@@ -327,7 +331,7 @@ impl CadbinReader {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::cad::{CadDocument, CadEntity, CadPoint, CadLayer, CadExtents};
+    use crate::domain::cad::{CadDocument, CadEntity, CadExtents, CadLayer, CadPoint};
 
     fn make_test_document() -> CadDocument {
         let entities = vec![
@@ -335,15 +339,27 @@ mod tests {
                 id: "1".to_string(),
                 layer: "0".to_string(),
                 color: 0xFFFFFF,
-                start: CadPoint { x: 0.0, y: 0.0, z: 0.0 },
-                end: CadPoint { x: 100.0, y: 100.0, z: 0.0 },
+                start: CadPoint {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                end: CadPoint {
+                    x: 100.0,
+                    y: 100.0,
+                    z: 0.0,
+                },
                 line_weight: 0.25,
             },
             CadEntity::Circle {
                 id: "2".to_string(),
                 layer: "0".to_string(),
                 color: 0xFF0000,
-                center: CadPoint { x: 50.0, y: 50.0, z: 0.0 },
+                center: CadPoint {
+                    x: 50.0,
+                    y: 50.0,
+                    z: 0.0,
+                },
                 radius: 25.0,
                 line_weight: 0.25,
             },
@@ -351,10 +367,22 @@ mod tests {
         CadDocument {
             file_name: "test.dwg".to_string(),
             version: "R2018".to_string(),
-            profile: crate::domain::cad::CadProfile::Simple { entity_count: 2, coord_span_x: 100.0, coord_span_y: 100.0 },
+            profile: crate::domain::cad::CadProfile::Simple {
+                entity_count: 2,
+                coord_span_x: 100.0,
+                coord_span_y: 100.0,
+            },
             extents: Some(CadExtents {
-                min: CadPoint { x: 0.0, y: 0.0, z: 0.0 },
-                max: CadPoint { x: 100.0, y: 100.0, z: 0.0 },
+                min: CadPoint {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                max: CadPoint {
+                    x: 100.0,
+                    y: 100.0,
+                    z: 0.0,
+                },
             }),
             layers: vec![CadLayer {
                 name: "0".to_string(),
@@ -365,7 +393,11 @@ mod tests {
             }],
             entities,
             entity_count: 2,
-            coordinate_offset: CadPoint { x: 0.0, y: 0.0, z: 0.0 },
+            coordinate_offset: CadPoint {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
             deleted_snapshots: Default::default(),
         }
     }

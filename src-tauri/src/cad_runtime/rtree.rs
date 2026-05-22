@@ -1,5 +1,5 @@
-use crate::domain::cad::CadEntity;
 use crate::cad_runtime::chunk_codec::entity_bbox;
+use crate::domain::cad::CadEntity;
 
 pub struct SpatialEntry {
     pub entity_id: u32,
@@ -17,7 +17,9 @@ const ENTRY_SIZE: usize = 4 + 8 + 8 + 8 + 8;
 
 impl CadSpatialIndex {
     pub fn new() -> Self {
-        CadSpatialIndex { entries: Vec::new() }
+        CadSpatialIndex {
+            entries: Vec::new(),
+        }
     }
 
     pub fn from_entities(entities: &[CadEntity]) -> Self {
@@ -55,7 +57,9 @@ impl CadSpatialIndex {
     pub fn query(&self, min_x: f64, min_y: f64, max_x: f64, max_y: f64) -> Vec<u32> {
         self.entries
             .iter()
-            .filter(|e| e.min_x <= max_x && e.max_x >= min_x && e.min_y <= max_y && e.max_y >= min_y)
+            .filter(|e| {
+                e.min_x <= max_x && e.max_x >= min_x && e.min_y <= max_y && e.max_y >= min_y
+            })
             .map(|e| e.entity_id)
             .collect()
     }
@@ -116,8 +120,16 @@ impl CadSpatialIndex {
 }
 
 fn morton_code(x: f64, y: f64) -> u64 {
-    let ix = if x >= 0.0 { x.to_bits() } else { u64::MAX - x.to_bits() };
-    let iy = if y >= 0.0 { y.to_bits() } else { u64::MAX - y.to_bits() };
+    let ix = if x >= 0.0 {
+        x.to_bits()
+    } else {
+        u64::MAX - x.to_bits()
+    };
+    let iy = if y >= 0.0 {
+        y.to_bits()
+    } else {
+        u64::MAX - y.to_bits()
+    };
     split_by_1(ix) | (split_by_1(iy) << 1)
 }
 

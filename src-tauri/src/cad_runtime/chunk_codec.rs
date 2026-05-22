@@ -1,6 +1,6 @@
-use crate::domain::cad::{cad_entity_bbox, CadEntity};
-use crate::cad_runtime::string_pool::StringPool;
 use crate::cad_runtime::cadbin_spec::*;
+use crate::cad_runtime::string_pool::StringPool;
+use crate::domain::cad::{cad_entity_bbox, CadEntity};
 
 pub struct ChunkIndexEntry {
     pub type_tag: u8,
@@ -39,7 +39,8 @@ impl ChunkCodec {
     /// 把 entities 按类型分组，并保留它们在 doc.entities 中的全局索引作为 entity_id。
     /// v3: 全局唯一 ID，与 spatial_index 中的 SpatialEntry.entity_id 对齐。
     pub fn encode_entities(&mut self, entities: &[CadEntity]) -> Vec<ChunkData> {
-        let mut groups: std::collections::HashMap<u8, Vec<(u32, &CadEntity)>> = std::collections::HashMap::new();
+        let mut groups: std::collections::HashMap<u8, Vec<(u32, &CadEntity)>> =
+            std::collections::HashMap::new();
 
         for (gid, entity) in entities.iter().enumerate() {
             let tag = entity_to_tag(entity);
@@ -88,7 +89,15 @@ impl ChunkCodec {
         let mut end_y = Vec::with_capacity(n * 8);
 
         for (gid, entity) in entities.iter() {
-            if let CadEntity::Line { id: _, layer, color, start, end, line_weight } = entity {
+            if let CadEntity::Line {
+                id: _,
+                layer,
+                color,
+                start,
+                end,
+                line_weight,
+            } = entity
+            {
                 ids.push(gid.to_le_bytes());
                 layers.push(self.string_pool.intern(layer).to_le_bytes());
                 colors.push((*color as u32).to_le_bytes());
@@ -123,7 +132,15 @@ impl ChunkCodec {
         let mut radii = Vec::with_capacity(n * 8);
 
         for (gid, entity) in entities.iter() {
-            if let CadEntity::Circle { id: _, layer, color, center, radius, line_weight } = entity {
+            if let CadEntity::Circle {
+                id: _,
+                layer,
+                color,
+                center,
+                radius,
+                line_weight,
+            } = entity
+            {
                 ids.push(gid.to_le_bytes());
                 layers.push(self.string_pool.intern(layer).to_le_bytes());
                 colors.push((*color as u32).to_le_bytes());
@@ -158,7 +175,17 @@ impl ChunkCodec {
         let mut end_angles = Vec::with_capacity(n * 8);
 
         for (gid, entity) in entities.iter() {
-            if let CadEntity::Arc { id: _, layer, color, center, radius, start_angle, end_angle, line_weight } = entity {
+            if let CadEntity::Arc {
+                id: _,
+                layer,
+                color,
+                center,
+                radius,
+                start_angle,
+                end_angle,
+                line_weight,
+            } = entity
+            {
                 ids.push(gid.to_le_bytes());
                 layers.push(self.string_pool.intern(layer).to_le_bytes());
                 colors.push((*color as u32).to_le_bytes());
@@ -199,7 +226,18 @@ impl ChunkCodec {
         let mut end_angles = Vec::with_capacity(n * 8);
 
         for (gid, entity) in entities.iter() {
-            if let CadEntity::Ellipse { id: _, layer, color, center, major_axis, minor_axis_ratio, start_angle, end_angle, line_weight } = entity {
+            if let CadEntity::Ellipse {
+                id: _,
+                layer,
+                color,
+                center,
+                major_axis,
+                minor_axis_ratio,
+                start_angle,
+                end_angle,
+                line_weight,
+            } = entity
+            {
                 ids.push(gid.to_le_bytes());
                 layers.push(self.string_pool.intern(layer).to_le_bytes());
                 colors.push((*color as u32).to_le_bytes());
@@ -232,7 +270,15 @@ impl ChunkCodec {
     fn encode_lwpolylines(&mut self, entities: &[(u32, &CadEntity)]) -> Vec<u8> {
         let mut buf = Vec::new();
         for (gid, entity) in entities.iter() {
-            if let CadEntity::LwPolyline { id: _, layer, color, vertices, closed, line_weight } = entity {
+            if let CadEntity::LwPolyline {
+                id: _,
+                layer,
+                color,
+                vertices,
+                closed,
+                line_weight,
+            } = entity
+            {
                 let entity_id = *gid;
                 let layer_idx = self.string_pool.intern(layer);
                 let color_val = *color as u32;
@@ -260,7 +306,15 @@ impl ChunkCodec {
     fn encode_polylines(&mut self, entities: &[(u32, &CadEntity)]) -> Vec<u8> {
         let mut buf = Vec::new();
         for (gid, entity) in entities.iter() {
-            if let CadEntity::Polyline { id: _, layer, color, vertices, closed, line_weight } = entity {
+            if let CadEntity::Polyline {
+                id: _,
+                layer,
+                color,
+                vertices,
+                closed,
+                line_weight,
+            } = entity
+            {
                 let entity_id = *gid;
                 let layer_idx = self.string_pool.intern(layer);
                 let color_val = *color as u32;
@@ -288,7 +342,17 @@ impl ChunkCodec {
     fn encode_splines(&mut self, entities: &[(u32, &CadEntity)]) -> Vec<u8> {
         let mut buf = Vec::new();
         for (gid, entity) in entities.iter() {
-            if let CadEntity::Spline { id: _, layer, color, control_points, fit_points, knots, degree, line_weight } = entity {
+            if let CadEntity::Spline {
+                id: _,
+                layer,
+                color,
+                control_points,
+                fit_points,
+                knots,
+                degree,
+                line_weight,
+            } = entity
+            {
                 let entity_id = *gid;
                 let layer_idx = self.string_pool.intern(layer);
                 let color_val = *color as u32;
@@ -338,7 +402,18 @@ impl ChunkCodec {
         let mut text_indices = Vec::with_capacity(n * 4);
 
         for (gid, entity) in entities.iter() {
-            if let CadEntity::Text { id: _, layer, color, position, height, content, rotation, horizontal_alignment, vertical_alignment } = entity {
+            if let CadEntity::Text {
+                id: _,
+                layer,
+                color,
+                position,
+                height,
+                content,
+                rotation,
+                horizontal_alignment,
+                vertical_alignment,
+            } = entity
+            {
                 ids.push(gid.to_le_bytes());
                 layers.push(self.string_pool.intern(layer).to_le_bytes());
                 colors.push((*color as u32).to_le_bytes());
@@ -383,7 +458,21 @@ impl ChunkCodec {
         let mut text_indices = Vec::with_capacity(n * 4);
 
         for (gid, entity) in entities.iter() {
-            if let CadEntity::MText { id: _, layer, color, position, height, content, width, rotation, attachment_point, width_factor, font_name, height_scale } = entity {
+            if let CadEntity::MText {
+                id: _,
+                layer,
+                color,
+                position,
+                height,
+                content,
+                width,
+                rotation,
+                attachment_point,
+                width_factor,
+                font_name,
+                height_scale,
+            } = entity
+            {
                 ids.push(gid.to_le_bytes());
                 layers.push(self.string_pool.intern(layer).to_le_bytes());
                 colors.push((*color as u32).to_le_bytes());
@@ -413,7 +502,9 @@ impl ChunkCodec {
         append_bytes_8(&mut buf, &width_factors);
         append_bytes_8(&mut buf, &height_scales);
         let pad = padding_bytes(buf.len(), 4);
-        for _ in 0..pad { buf.push(0); }
+        for _ in 0..pad {
+            buf.push(0);
+        }
         append_bytes(&mut buf, &font_indices);
         append_bytes(&mut buf, &text_indices);
         buf
@@ -422,7 +513,13 @@ impl ChunkCodec {
     fn encode_solids(&mut self, entities: &[(u32, &CadEntity)]) -> Vec<u8> {
         let mut buf = Vec::new();
         for (gid, entity) in entities.iter() {
-            if let CadEntity::Solid { id: _, layer, color, points } = entity {
+            if let CadEntity::Solid {
+                id: _,
+                layer,
+                color,
+                points,
+            } = entity
+            {
                 let entity_id = *gid;
                 let layer_idx = self.string_pool.intern(layer);
                 let color_val = *color as u32;
@@ -451,7 +548,13 @@ impl ChunkCodec {
         let mut pos_y = Vec::with_capacity(n * 8);
 
         for (gid, entity) in entities.iter() {
-            if let CadEntity::Point { id: _, layer, color, position } = entity {
+            if let CadEntity::Point {
+                id: _,
+                layer,
+                color,
+                position,
+            } = entity
+            {
                 ids.push(gid.to_le_bytes());
                 layers.push(self.string_pool.intern(layer).to_le_bytes());
                 colors.push((*color as u32).to_le_bytes());
@@ -482,7 +585,18 @@ impl ChunkCodec {
         let mut block_name_indices = Vec::with_capacity(n * 4);
 
         for (gid, entity) in entities.iter() {
-            if let CadEntity::Insert { id: _, layer, color, block_name, position, x_scale, y_scale, rotation, .. } = entity {
+            if let CadEntity::Insert {
+                id: _,
+                layer,
+                color,
+                block_name,
+                position,
+                x_scale,
+                y_scale,
+                rotation,
+                ..
+            } = entity
+            {
                 ids.push(gid.to_le_bytes());
                 layers.push(self.string_pool.intern(layer).to_le_bytes());
                 colors.push((*color as u32).to_le_bytes());
@@ -511,7 +625,20 @@ impl ChunkCodec {
     fn encode_hatches(&mut self, entities: &[(u32, &CadEntity)]) -> Vec<u8> {
         let mut buf = Vec::new();
         for (gid, entity) in entities.iter() {
-            if let CadEntity::Hatch { id: _, layer, color, boundaries, pattern_name, pattern_type, solid, scale, angle, style, pattern_lines } = entity {
+            if let CadEntity::Hatch {
+                id: _,
+                layer,
+                color,
+                boundaries,
+                pattern_name,
+                pattern_type,
+                solid,
+                scale,
+                angle,
+                style,
+                pattern_lines,
+            } = entity
+            {
                 let entity_id = *gid;
                 let layer_idx = self.string_pool.intern(layer);
                 let color_val = *color as u32;
@@ -572,7 +699,16 @@ impl ChunkCodec {
         let mut text_indices = Vec::with_capacity(n * 4);
 
         for (gid, entity) in entities.iter() {
-            if let CadEntity::Dimension { id: _, layer, color, definition_point, text_midpoint, content, rotation } = entity {
+            if let CadEntity::Dimension {
+                id: _,
+                layer,
+                color,
+                definition_point,
+                text_midpoint,
+                content,
+                rotation,
+            } = entity
+            {
                 ids.push(gid.to_le_bytes());
                 layers.push(self.string_pool.intern(layer).to_le_bytes());
                 colors.push((*color as u32).to_le_bytes());

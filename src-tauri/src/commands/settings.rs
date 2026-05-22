@@ -7,12 +7,19 @@ pub struct SettingsState {
 }
 
 #[tauri::command]
-pub fn get_setting(state: State<'_, SettingsState>, key: String) -> Result<Option<String>, AppError> {
+pub fn get_setting(
+    state: State<'_, SettingsState>,
+    key: String,
+) -> Result<Option<String>, AppError> {
     state.repository.get(&key)
 }
 
 #[tauri::command]
-pub fn set_setting(state: State<'_, SettingsState>, key: String, value: String) -> Result<(), AppError> {
+pub fn set_setting(
+    state: State<'_, SettingsState>,
+    key: String,
+    value: String,
+) -> Result<(), AppError> {
     state.repository.set(&key, &value)
 }
 

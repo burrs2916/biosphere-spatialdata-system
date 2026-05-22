@@ -1,5 +1,7 @@
+use crate::domain::auth::{
+    ApiEndpoint, AuthConfig, AuthParam, AuthPreset, HeaderConfig, UserDisplayConfig,
+};
 use rusqlite::Connection;
-use crate::domain::auth::{AuthConfig, AuthPreset, AuthParam, ApiEndpoint, HeaderConfig, UserDisplayConfig};
 
 pub fn init_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
     conn.execute(
@@ -28,10 +30,7 @@ pub fn init_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
         [],
     )?;
 
-    conn.execute(
-        "INSERT OR IGNORE INTO auth_config (id) VALUES (1)",
-        [],
-    )?;
+    conn.execute("INSERT OR IGNORE INTO auth_config (id) VALUES (1)", [])?;
 
     conn.execute(
         "CREATE TABLE IF NOT EXISTS auth_config_presets (
@@ -227,23 +226,38 @@ pub fn migrate(conn: &Connection) -> Result<(), rusqlite::Error> {
         .collect();
 
     if !columns.contains(&"preset".to_string()) {
-        conn.execute("ALTER TABLE auth_config ADD COLUMN preset TEXT NOT NULL DEFAULT 'custom'", [])?;
+        conn.execute(
+            "ALTER TABLE auth_config ADD COLUMN preset TEXT NOT NULL DEFAULT 'custom'",
+            [],
+        )?;
     }
 
     if !columns.contains(&"auth_params".to_string()) {
-        conn.execute("ALTER TABLE auth_config ADD COLUMN auth_params TEXT NOT NULL DEFAULT '[]'", [])?;
+        conn.execute(
+            "ALTER TABLE auth_config ADD COLUMN auth_params TEXT NOT NULL DEFAULT '[]'",
+            [],
+        )?;
     }
 
     if !columns.contains(&"endpoints".to_string()) {
-        conn.execute("ALTER TABLE auth_config ADD COLUMN endpoints TEXT NOT NULL DEFAULT '[]'", [])?;
+        conn.execute(
+            "ALTER TABLE auth_config ADD COLUMN endpoints TEXT NOT NULL DEFAULT '[]'",
+            [],
+        )?;
     }
 
     if !columns.contains(&"header_config".to_string()) {
-        conn.execute("ALTER TABLE auth_config ADD COLUMN header_config TEXT NOT NULL DEFAULT '[]'", [])?;
+        conn.execute(
+            "ALTER TABLE auth_config ADD COLUMN header_config TEXT NOT NULL DEFAULT '[]'",
+            [],
+        )?;
     }
 
     if !columns.contains(&"user_display_config".to_string()) {
-        conn.execute("ALTER TABLE auth_config ADD COLUMN user_display_config TEXT NOT NULL DEFAULT '[]'", [])?;
+        conn.execute(
+            "ALTER TABLE auth_config ADD COLUMN user_display_config TEXT NOT NULL DEFAULT '[]'",
+            [],
+        )?;
     }
 
     let preset_columns: Vec<String> = conn
@@ -279,8 +293,14 @@ pub fn migrate(conn: &Connection) -> Result<(), rusqlite::Error> {
         .filter_map(|r| r.ok())
         .collect();
 
-    if !icon_columns.is_empty() && icon_columns.contains(&"category".to_string()) && !icon_columns.contains(&"group_id".to_string()) {
-        conn.execute("ALTER TABLE system_icons ADD COLUMN group_id TEXT NOT NULL DEFAULT 'default'", [])?;
+    if !icon_columns.is_empty()
+        && icon_columns.contains(&"category".to_string())
+        && !icon_columns.contains(&"group_id".to_string())
+    {
+        conn.execute(
+            "ALTER TABLE system_icons ADD COLUMN group_id TEXT NOT NULL DEFAULT 'default'",
+            [],
+        )?;
         conn.execute("UPDATE system_icons SET group_id = category", [])?;
         conn.execute(
             "INSERT OR IGNORE INTO icon_groups (id, name, updated_at) VALUES ('default', '默认分组', strftime('%s', 'now'))",
@@ -304,8 +324,13 @@ pub fn migrate(conn: &Connection) -> Result<(), rusqlite::Error> {
         .filter_map(|r| r.ok())
         .collect();
 
-    if ds_columns.contains(&"strategy".to_string()) && !ds_columns.contains(&"test_apis".to_string()) {
-        conn.execute("ALTER TABLE data_sources ADD COLUMN test_apis TEXT NOT NULL DEFAULT '[]'", [])?;
+    if ds_columns.contains(&"strategy".to_string())
+        && !ds_columns.contains(&"test_apis".to_string())
+    {
+        conn.execute(
+            "ALTER TABLE data_sources ADD COLUMN test_apis TEXT NOT NULL DEFAULT '[]'",
+            [],
+        )?;
     }
 
     let ml_columns: Vec<String> = conn
@@ -330,9 +355,12 @@ pub fn migrate(conn: &Connection) -> Result<(), rusqlite::Error> {
         let mut stmt = conn.prepare(
             "SELECT id, data_dir FROM map_libraries WHERE map_type = 'cad' AND cadbin_path IS NULL AND data_dir IS NOT NULL"
         )?;
-        let rows: Vec<(String, String)> = stmt.query_map([], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-        })?.filter_map(|r| r.ok()).collect();
+        let rows: Vec<(String, String)> = stmt
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
 
         for (lib_id, data_dir) in rows {
             let cadbin_rel = format!("{}/data.cadbin", data_dir);
@@ -359,7 +387,10 @@ pub fn migrate(conn: &Connection) -> Result<(), rusqlite::Error> {
 
     if !scene_columns.contains(&"canvas_config".to_string()) {
         if scene_columns.contains(&"canvas_size".to_string()) {
-            conn.execute("ALTER TABLE scenes RENAME COLUMN canvas_size TO canvas_config", [])?;
+            conn.execute(
+                "ALTER TABLE scenes RENAME COLUMN canvas_size TO canvas_config",
+                [],
+            )?;
         } else {
             conn.execute("ALTER TABLE scenes ADD COLUMN canvas_config TEXT", [])?;
         }
@@ -369,11 +400,9 @@ pub fn migrate(conn: &Connection) -> Result<(), rusqlite::Error> {
 }
 
 fn seed_component_categories(conn: &Connection) -> Result<(), rusqlite::Error> {
-    let count: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM component_categories",
-        [],
-        |row| row.get(0),
-    )?;
+    let count: i64 = conn.query_row("SELECT COUNT(*) FROM component_categories", [], |row| {
+        row.get(0)
+    })?;
 
     if count > 0 {
         return Ok(());
@@ -381,16 +410,96 @@ fn seed_component_categories(conn: &Connection) -> Result<(), rusqlite::Error> {
 
     let now = chrono::Utc::now().timestamp();
     let seeds: Vec<(&str, &str, &str, &str, i32, Option<&str>, &str)> = vec![
-        ("ccat_basic", "基础组件", "palette", "#4FC3F7", 0, None, "文本、图片、形状等基础组件"),
-        ("ccat_basic_text", "文本类", "text_fields", "#4FC3F7", 0, Some("ccat_basic"), "文本相关组件"),
-        ("ccat_basic_shape", "图形类", "crop_square", "#4FC3F7", 1, Some("ccat_basic"), "图形和形状组件"),
-        ("ccat_chart", "图表组件", "bar_chart", "#FF8A65", 1, None, "数据可视化图表组件"),
-        ("ccat_chart_data", "数据图表", "bar_chart", "#FF8A65", 0, Some("ccat_chart"), "数据可视化图表"),
-        ("ccat_chart_metric", "指标卡片", "speed", "#FF8A65", 1, Some("ccat_chart"), "指标展示卡片"),
-        ("ccat_map", "地图组件", "map", "#81C784", 2, None, "2D/3D 地图组件"),
-        ("ccat_media", "媒体组件", "videocam", "#BA68C8", 3, None, "视频、音频等媒体组件"),
-        ("ccat_decoration", "装饰组件", "auto_awesome", "#FFD54F", 4, None, "装饰性组件"),
-        ("ccat_custom", "自定义组件", "widgets", "#A1887F", 5, None, "用户自定义组件"),
+        (
+            "ccat_basic",
+            "基础组件",
+            "palette",
+            "#4FC3F7",
+            0,
+            None,
+            "文本、图片、形状等基础组件",
+        ),
+        (
+            "ccat_basic_text",
+            "文本类",
+            "text_fields",
+            "#4FC3F7",
+            0,
+            Some("ccat_basic"),
+            "文本相关组件",
+        ),
+        (
+            "ccat_basic_shape",
+            "图形类",
+            "crop_square",
+            "#4FC3F7",
+            1,
+            Some("ccat_basic"),
+            "图形和形状组件",
+        ),
+        (
+            "ccat_chart",
+            "图表组件",
+            "bar_chart",
+            "#FF8A65",
+            1,
+            None,
+            "数据可视化图表组件",
+        ),
+        (
+            "ccat_chart_data",
+            "数据图表",
+            "bar_chart",
+            "#FF8A65",
+            0,
+            Some("ccat_chart"),
+            "数据可视化图表",
+        ),
+        (
+            "ccat_chart_metric",
+            "指标卡片",
+            "speed",
+            "#FF8A65",
+            1,
+            Some("ccat_chart"),
+            "指标展示卡片",
+        ),
+        (
+            "ccat_map",
+            "地图组件",
+            "map",
+            "#81C784",
+            2,
+            None,
+            "2D/3D 地图组件",
+        ),
+        (
+            "ccat_media",
+            "媒体组件",
+            "videocam",
+            "#BA68C8",
+            3,
+            None,
+            "视频、音频等媒体组件",
+        ),
+        (
+            "ccat_decoration",
+            "装饰组件",
+            "auto_awesome",
+            "#FFD54F",
+            4,
+            None,
+            "装饰性组件",
+        ),
+        (
+            "ccat_custom",
+            "自定义组件",
+            "widgets",
+            "#A1887F",
+            5,
+            None,
+            "用户自定义组件",
+        ),
     ];
 
     for (id, name, icon, color, sort_order, parent_id, description) in &seeds {
@@ -465,11 +574,9 @@ fn build_config_from_db(conn: &Connection) -> Option<AuthConfig> {
 }
 
 fn seed_scene_categories(conn: &Connection) -> Result<(), rusqlite::Error> {
-    let count: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM scene_categories",
-        [],
-        |row| row.get(0),
-    )?;
+    let count: i64 = conn.query_row("SELECT COUNT(*) FROM scene_categories", [], |row| {
+        row.get(0)
+    })?;
 
     if count > 0 {
         return Ok(());
@@ -477,12 +584,54 @@ fn seed_scene_categories(conn: &Connection) -> Result<(), rusqlite::Error> {
 
     let now = chrono::Utc::now().timestamp();
     let seeds = vec![
-        ("cat_default", "默认分组", "folder", "#757575", -1, "未指定分类的场景"),
-        ("cat_comprehensive", "综合监控", "monitoring", "#2196F3", 0, "实时数据监控场景"),
-        ("cat_spatial", "空间分析", "spatial", "#4CAF50", 1, "GIS 分析与测量场景"),
-        ("cat_device", "设备管理", "device", "#FF9800", 2, "IoT 设备标注场景"),
-        ("cat_dashboard", "数据展示", "dashboard", "#9C27B0", 3, "仪表盘与报表场景"),
-        ("cat_engineering", "工程图纸", "engineering", "#607D8B", 4, "CAD/BIM 查看场景"),
+        (
+            "cat_default",
+            "默认分组",
+            "folder",
+            "#757575",
+            -1,
+            "未指定分类的场景",
+        ),
+        (
+            "cat_comprehensive",
+            "综合监控",
+            "monitoring",
+            "#2196F3",
+            0,
+            "实时数据监控场景",
+        ),
+        (
+            "cat_spatial",
+            "空间分析",
+            "spatial",
+            "#4CAF50",
+            1,
+            "GIS 分析与测量场景",
+        ),
+        (
+            "cat_device",
+            "设备管理",
+            "device",
+            "#FF9800",
+            2,
+            "IoT 设备标注场景",
+        ),
+        (
+            "cat_dashboard",
+            "数据展示",
+            "dashboard",
+            "#9C27B0",
+            3,
+            "仪表盘与报表场景",
+        ),
+        (
+            "cat_engineering",
+            "工程图纸",
+            "engineering",
+            "#607D8B",
+            4,
+            "CAD/BIM 查看场景",
+        ),
     ];
 
     for (id, name, icon, color, sort_order, description) in seeds {

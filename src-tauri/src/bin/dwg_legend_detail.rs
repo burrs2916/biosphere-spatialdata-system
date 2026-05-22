@@ -1,5 +1,5 @@
+use acadrust::entities::{AttachmentPoint, TextHorizontalAlignment, TextVerticalAlignment};
 use acadrust::DwgReader;
-use acadrust::entities::{TextHorizontalAlignment, TextVerticalAlignment, AttachmentPoint};
 
 fn main() {
     let file_path = "/Users/liwenchao/EdgeView/biosphere/biosphere-spatialdata-system/docs/需求分析/20260510/雨田煤业井下降尘喷雾布置图22.7.1.dwg";
@@ -22,7 +22,11 @@ fn main() {
             if (p1.x - p2.x).abs() < 0.01 {
                 let y_min = p1.y.min(p2.y);
                 let y_max = p1.y.max(p2.y);
-                if p1.x >= legend_x_min - 10.0 && p1.x <= legend_x_max + 10.0 && y_max >= legend_y_min && y_min <= legend_y_max {
+                if p1.x >= legend_x_min - 10.0
+                    && p1.x <= legend_x_max + 10.0
+                    && y_max >= legend_y_min
+                    && y_min <= legend_y_max
+                {
                     v_lines.push((p1.x, y_min, y_max));
                 }
             }
@@ -30,8 +34,7 @@ fn main() {
     }
     v_lines.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
     v_lines.dedup_by(|a, b| (a.0 - b.0).abs() < 0.5);
-    for vl in &v_lines {
-    }
+    for vl in &v_lines {}
 
     let mut h_lines: Vec<(f64, f64, f64)> = Vec::new();
     for entity in doc.entities() {
@@ -41,7 +44,11 @@ fn main() {
             if (p1.y - p2.y).abs() < 0.01 {
                 let x_min = p1.x.min(p2.x);
                 let x_max = p1.x.max(p2.x);
-                if p1.y >= legend_y_min - 10.0 && p1.y <= legend_y_max + 10.0 && x_max >= legend_x_min && x_min <= legend_x_max {
+                if p1.y >= legend_y_min - 10.0
+                    && p1.y <= legend_y_max + 10.0
+                    && x_max >= legend_x_min
+                    && x_min <= legend_x_max
+                {
                     h_lines.push((p1.y, x_min, x_max));
                 }
             }
@@ -49,14 +56,17 @@ fn main() {
     }
     h_lines.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
     h_lines.dedup_by(|a, b| (a.0 - b.0).abs() < 0.5);
-    for hl in &h_lines {
-    }
+    for hl in &h_lines {}
 
     for entity in doc.entities() {
         match entity {
             acadrust::EntityType::Text(t) => {
                 let p = &t.insertion_point;
-                if p.x >= legend_x_min && p.x <= legend_x_max && p.y >= legend_y_min && p.y <= legend_y_max {
+                if p.x >= legend_x_min
+                    && p.x <= legend_x_max
+                    && p.y >= legend_y_min
+                    && p.y <= legend_y_max
+                {
                     let h_align: u8 = match t.horizontal_alignment {
                         TextHorizontalAlignment::Left => 0,
                         TextHorizontalAlignment::Center => 1,
@@ -75,7 +85,11 @@ fn main() {
             }
             acadrust::EntityType::MText(mt) => {
                 let p = &mt.insertion_point;
-                if p.x >= legend_x_min && p.x <= legend_x_max && p.y >= legend_y_min && p.y <= legend_y_max {
+                if p.x >= legend_x_min
+                    && p.x <= legend_x_max
+                    && p.y >= legend_y_min
+                    && p.y <= legend_y_max
+                {
                     let ap: u8 = match mt.attachment_point {
                         AttachmentPoint::TopLeft => 1,
                         AttachmentPoint::TopCenter => 2,
@@ -99,13 +113,21 @@ fn main() {
                         }
                     }
 
-                    let cell_info = if nearest_left_x > f64::NEG_INFINITY && nearest_right_x < f64::INFINITY {
-                        let cell_w = nearest_right_x - nearest_left_x;
-                        let cell_center = (nearest_left_x + nearest_right_x) / 2.0;
-                        format!("左线={:.4} 右线={:.4} 单元宽={:.4} 距左={:.4} 距中心={:.4}", nearest_left_x, nearest_right_x, cell_w, p.x - nearest_left_x, p.x - cell_center)
-                    } else {
-                        "无单元格".to_string()
-                    };
+                    let cell_info =
+                        if nearest_left_x > f64::NEG_INFINITY && nearest_right_x < f64::INFINITY {
+                            let cell_w = nearest_right_x - nearest_left_x;
+                            let cell_center = (nearest_left_x + nearest_right_x) / 2.0;
+                            format!(
+                                "左线={:.4} 右线={:.4} 单元宽={:.4} 距左={:.4} 距中心={:.4}",
+                                nearest_left_x,
+                                nearest_right_x,
+                                cell_w,
+                                p.x - nearest_left_x,
+                                p.x - cell_center
+                            )
+                        } else {
+                            "无单元格".to_string()
+                        };
                 }
             }
             _ => {}
@@ -124,7 +146,11 @@ fn main() {
             if (p1.x - p2.x).abs() < 0.01 {
                 let y_min = p1.y.min(p2.y);
                 let y_max = p1.y.max(p2.y);
-                if p1.x >= legend2_x_min - 10.0 && p1.x <= legend2_x_max + 10.0 && y_max >= legend2_y_min && y_min <= legend2_y_max {
+                if p1.x >= legend2_x_min - 10.0
+                    && p1.x <= legend2_x_max + 10.0
+                    && y_max >= legend2_y_min
+                    && y_min <= legend2_y_max
+                {
                     v_lines2.push((p1.x, y_min, y_max));
                 }
             }
@@ -132,13 +158,16 @@ fn main() {
     }
     v_lines2.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
     v_lines2.dedup_by(|a, b| (a.0 - b.0).abs() < 0.5);
-    for vl in &v_lines2 {
-    }
+    for vl in &v_lines2 {}
 
     for entity in doc.entities() {
         if let acadrust::EntityType::MText(mt) = entity {
             let p = &mt.insertion_point;
-            if p.x >= legend2_x_min && p.x <= legend2_x_max && p.y >= legend2_y_min && p.y <= legend2_y_max {
+            if p.x >= legend2_x_min
+                && p.x <= legend2_x_max
+                && p.y >= legend2_y_min
+                && p.y <= legend2_y_max
+            {
                 let ap: u8 = match mt.attachment_point {
                     AttachmentPoint::TopLeft => 1,
                     AttachmentPoint::TopCenter => 2,
@@ -162,13 +191,21 @@ fn main() {
                     }
                 }
 
-                let cell_info = if nearest_left_x > f64::NEG_INFINITY && nearest_right_x < f64::INFINITY {
-                    let cell_w = nearest_right_x - nearest_left_x;
-                    let cell_center = (nearest_left_x + nearest_right_x) / 2.0;
-                    format!("左线={:.4} 右线={:.4} 单元宽={:.4} 距左={:.4} 距中心={:.4}", nearest_left_x, nearest_right_x, cell_w, p.x - nearest_left_x, p.x - cell_center)
-                } else {
-                    "无单元格".to_string()
-                };
+                let cell_info =
+                    if nearest_left_x > f64::NEG_INFINITY && nearest_right_x < f64::INFINITY {
+                        let cell_w = nearest_right_x - nearest_left_x;
+                        let cell_center = (nearest_left_x + nearest_right_x) / 2.0;
+                        format!(
+                            "左线={:.4} 右线={:.4} 单元宽={:.4} 距左={:.4} 距中心={:.4}",
+                            nearest_left_x,
+                            nearest_right_x,
+                            cell_w,
+                            p.x - nearest_left_x,
+                            p.x - cell_center
+                        )
+                    } else {
+                        "无单元格".to_string()
+                    };
             }
         }
     }

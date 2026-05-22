@@ -1,5 +1,5 @@
+use acadrust::entities::{AttachmentPoint, TextHorizontalAlignment, TextVerticalAlignment};
 use acadrust::DwgReader;
-use acadrust::entities::{TextHorizontalAlignment, TextVerticalAlignment, AttachmentPoint};
 
 fn analyze_file(file_path: &str) {
     let data = match std::fs::read(file_path) {
@@ -44,7 +44,15 @@ fn analyze_file(file_path: &str) {
                     TextVerticalAlignment::Middle => 2,
                     TextVerticalAlignment::Top => 3,
                 };
-                text_list.push((p.x, p.y, t.height, t.value.clone(), h_align, v_align, t.rotation));
+                text_list.push((
+                    p.x,
+                    p.y,
+                    t.height,
+                    t.value.clone(),
+                    h_align,
+                    v_align,
+                    t.rotation,
+                ));
             }
             acadrust::EntityType::MText(mt) => {
                 let p = &mt.insertion_point;
@@ -59,7 +67,15 @@ fn analyze_file(file_path: &str) {
                     AttachmentPoint::BottomCenter => 8,
                     AttachmentPoint::BottomRight => 9,
                 };
-                mtext_list.push((p.x, p.y, mt.height, mt.value.chars().take(60).collect::<String>(), ap, mt.rotation, mt.rectangle_width));
+                mtext_list.push((
+                    p.x,
+                    p.y,
+                    mt.height,
+                    mt.value.chars().take(60).collect::<String>(),
+                    ap,
+                    mt.rotation,
+                    mt.rectangle_width,
+                ));
             }
             _ => {}
         }
@@ -91,7 +107,10 @@ fn analyze_file(file_path: &str) {
     for t in &mtext_list {
         let (px, py, height, content, ap, rotation, rect_w) = t;
 
-        if rotation.abs() > 0.1 && (rotation - 1.5708).abs() > 0.1 && (rotation - 3.14159).abs() > 0.1 {
+        if rotation.abs() > 0.1
+            && (rotation - 1.5708).abs() > 0.1
+            && (rotation - 3.14159).abs() > 0.1
+        {
             continue;
         }
 
@@ -159,7 +178,10 @@ fn analyze_file(file_path: &str) {
     for t in &text_list {
         let (px, py, height, content, h_align, v_align, rotation) = t;
 
-        if rotation.abs() > 0.1 && (rotation - 1.5708).abs() > 0.1 && (rotation - 3.14159).abs() > 0.1 {
+        if rotation.abs() > 0.1
+            && (rotation - 1.5708).abs() > 0.1
+            && (rotation - 3.14159).abs() > 0.1
+        {
             continue;
         }
 
@@ -210,7 +232,8 @@ fn analyze_file(file_path: &str) {
 }
 
 fn main() {
-    let dir = "/Users/liwenchao/EdgeView/biosphere/biosphere-spatialdata-system/docs/需求分析/20260510";
+    let dir =
+        "/Users/liwenchao/EdgeView/biosphere/biosphere-spatialdata-system/docs/需求分析/20260510";
 
     let files = [
         "雨田煤业井下降尘喷雾布置图22.7.1.dwg",

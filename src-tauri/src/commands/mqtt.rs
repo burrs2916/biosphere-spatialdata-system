@@ -3,8 +3,8 @@ use crate::domain::datasource::models::MqttConnectionConfig;
 use crate::error::AppError;
 use serde::Serialize;
 use std::sync::Arc;
-use tokio::sync::Mutex;
 use tauri::{AppHandle, State};
+use tokio::sync::Mutex;
 
 pub struct MqttState {
     pub service: Arc<Mutex<MqttService>>,
@@ -114,7 +114,10 @@ pub async fn mqtt_publish(
     retain: bool,
 ) -> Result<MqttResult, AppError> {
     let service = state.service.lock().await;
-    match service.publish(&source_id, &topic, &payload, qos, retain).await {
+    match service
+        .publish(&source_id, &topic, &payload, qos, retain)
+        .await
+    {
         Ok(()) => Ok(MqttResult {
             success: true,
             message: format!("已发布到 {}", topic),

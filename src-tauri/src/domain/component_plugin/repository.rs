@@ -1,8 +1,8 @@
-use rusqlite::params;
-use std::sync::Arc;
+use super::models::*;
 use crate::error::{AppError, AppResult};
 use crate::infrastructure::database::Database;
-use super::models::*;
+use rusqlite::params;
+use std::sync::Arc;
 
 pub struct ComponentPluginRepository;
 
@@ -41,25 +41,32 @@ impl ComponentPluginRepository {
         })
     }
 
-    const SELECT_ALL: &'static str = "SELECT id, type, name, version, description, icon, category, default_size, default_config,
+    const SELECT_ALL: &'static str =
+        "SELECT id, type, name, version, description, icon, category, default_size, default_config,
                     capabilities, config_schema, events, actions, data_schema, renderer_entry,
                     renderer_format, dependencies, permissions, author, homepage, thumbnail,
                     built_in, enabled, installed_at, updated_at FROM component_plugins";
 
     pub fn get_all_plugins(db: &Arc<Database>) -> AppResult<Vec<ComponentPlugin>> {
         let conn = db.0.lock().map_err(|e| AppError::Database(e.to_string()))?;
-        let mut stmt = conn.prepare(&format!("{} ORDER BY category, name", Self::SELECT_ALL))
+        let mut stmt = conn
+            .prepare(&format!("{} ORDER BY category, name", Self::SELECT_ALL))
             .map_err(|e| AppError::Database(e.to_string()))?;
-        let plugins = stmt.query_map([], Self::row_to_plugin)
+        let plugins = stmt
+            .query_map([], Self::row_to_plugin)
             .map_err(|e| AppError::Database(e.to_string()))?
             .filter_map(|r| r.ok())
             .collect();
         Ok(plugins)
     }
 
-    pub fn get_plugin_by_type(db: &Arc<Database>, plugin_type: &str) -> AppResult<Option<ComponentPlugin>> {
+    pub fn get_plugin_by_type(
+        db: &Arc<Database>,
+        plugin_type: &str,
+    ) -> AppResult<Option<ComponentPlugin>> {
         let conn = db.0.lock().map_err(|e| AppError::Database(e.to_string()))?;
-        let mut stmt = conn.prepare(&format!("{} WHERE type = ?1", Self::SELECT_ALL))
+        let mut stmt = conn
+            .prepare(&format!("{} WHERE type = ?1", Self::SELECT_ALL))
             .map_err(|e| AppError::Database(e.to_string()))?;
         let result = stmt.query_row(params![plugin_type], Self::row_to_plugin);
         match result {
@@ -71,16 +78,24 @@ impl ComponentPluginRepository {
 
     pub fn get_enabled_plugins(db: &Arc<Database>) -> AppResult<Vec<ComponentPlugin>> {
         let conn = db.0.lock().map_err(|e| AppError::Database(e.to_string()))?;
-        let mut stmt = conn.prepare(&format!("{} WHERE enabled = 1 ORDER BY category, name", Self::SELECT_ALL))
+        let mut stmt = conn
+            .prepare(&format!(
+                "{} WHERE enabled = 1 ORDER BY category, name",
+                Self::SELECT_ALL
+            ))
             .map_err(|e| AppError::Database(e.to_string()))?;
-        let plugins = stmt.query_map([], Self::row_to_plugin)
+        let plugins = stmt
+            .query_map([], Self::row_to_plugin)
             .map_err(|e| AppError::Database(e.to_string()))?
             .filter_map(|r| r.ok())
             .collect();
         Ok(plugins)
     }
 
-    pub fn create_plugin(db: &Arc<Database>, payload: &CreateComponentPluginPayload) -> AppResult<ComponentPlugin> {
+    pub fn create_plugin(
+        db: &Arc<Database>,
+        payload: &CreateComponentPluginPayload,
+    ) -> AppResult<ComponentPlugin> {
         let conn = db.0.lock().map_err(|e| AppError::Database(e.to_string()))?;
         let now = chrono::Utc::now().timestamp();
         let id = format!("cp_{}", uuid::Uuid::new_v4().to_string().replace("-", ""));
@@ -122,21 +137,48 @@ impl ComponentPluginRepository {
             id,
             plugin_type: payload.plugin_type.clone(),
             name: payload.name.clone(),
-            version: payload.version.clone().unwrap_or_else(|| "1.0.0".to_string()),
+            version: payload
+                .version
+                .clone()
+                .unwrap_or_else(|| "1.0.0".to_string()),
             description: payload.description.clone(),
             icon: payload.icon.clone(),
-            category: payload.category.clone().unwrap_or_else(|| "custom".to_string()),
-            default_size: payload.default_size.clone().unwrap_or_else(|| "{}".to_string()),
-            default_config: payload.default_config.clone().unwrap_or_else(|| "{}".to_string()),
-            capabilities: payload.capabilities.clone().unwrap_or_else(|| "{}".to_string()),
-            config_schema: payload.config_schema.clone().unwrap_or_else(|| "[]".to_string()),
+            category: payload
+                .category
+                .clone()
+                .unwrap_or_else(|| "custom".to_string()),
+            default_size: payload
+                .default_size
+                .clone()
+                .unwrap_or_else(|| "{}".to_string()),
+            default_config: payload
+                .default_config
+                .clone()
+                .unwrap_or_else(|| "{}".to_string()),
+            capabilities: payload
+                .capabilities
+                .clone()
+                .unwrap_or_else(|| "{}".to_string()),
+            config_schema: payload
+                .config_schema
+                .clone()
+                .unwrap_or_else(|| "[]".to_string()),
             events: payload.events.clone().unwrap_or_else(|| "[]".to_string()),
             actions: payload.actions.clone().unwrap_or_else(|| "[]".to_string()),
             data_schema: payload.data_schema.clone(),
             renderer_entry: payload.renderer_entry.clone(),
-            renderer_format: payload.renderer_format.clone().unwrap_or_else(|| "module".to_string()),
-            dependencies: payload.dependencies.clone().unwrap_or_else(|| "[]".to_string()),
-            permissions: payload.permissions.clone().unwrap_or_else(|| "[]".to_string()),
+            renderer_format: payload
+                .renderer_format
+                .clone()
+                .unwrap_or_else(|| "module".to_string()),
+            dependencies: payload
+                .dependencies
+                .clone()
+                .unwrap_or_else(|| "[]".to_string()),
+            permissions: payload
+                .permissions
+                .clone()
+                .unwrap_or_else(|| "[]".to_string()),
             author: payload.author.clone(),
             homepage: payload.homepage.clone(),
             thumbnail: payload.thumbnail.clone(),
@@ -147,7 +189,10 @@ impl ComponentPluginRepository {
         })
     }
 
-    pub fn update_plugin(db: &Arc<Database>, payload: &UpdateComponentPluginPayload) -> AppResult<()> {
+    pub fn update_plugin(
+        db: &Arc<Database>,
+        payload: &UpdateComponentPluginPayload,
+    ) -> AppResult<()> {
         let conn = db.0.lock().map_err(|e| AppError::Database(e.to_string()))?;
         let now = chrono::Utc::now().timestamp();
 
@@ -207,7 +252,8 @@ impl ComponentPluginRepository {
         conn.execute(
             &sql,
             rusqlite::params_from_iter(param_values.iter().map(|v| v.as_ref())),
-        ).map_err(|e| AppError::Database(e.to_string()))?;
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
 
         Ok(())
     }
@@ -217,7 +263,8 @@ impl ComponentPluginRepository {
         conn.execute(
             "DELETE FROM component_plugins WHERE id = ?1 AND built_in = 0",
             params![id],
-        ).map_err(|e| AppError::Database(e.to_string()))?;
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
         Ok(())
     }
 
@@ -227,7 +274,8 @@ impl ComponentPluginRepository {
         conn.execute(
             "UPDATE component_plugins SET enabled = ?1, updated_at = ?2 WHERE id = ?3",
             params![enabled as i32, now, id],
-        ).map_err(|e| AppError::Database(e.to_string()))?;
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
         Ok(())
     }
 
@@ -238,26 +286,31 @@ impl ComponentPluginRepository {
              FROM component_categories ORDER BY sort_order"
         ).map_err(|e| AppError::Database(e.to_string()))?;
 
-        let categories = stmt.query_map([], |row| {
-            Ok(ComponentCategory {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                icon: row.get(2)?,
-                color: row.get(3)?,
-                sort_order: row.get(4)?,
-                parent_id: row.get(5)?,
-                description: row.get(6)?,
-                created_at: row.get(7)?,
-                updated_at: row.get(8)?,
+        let categories = stmt
+            .query_map([], |row| {
+                Ok(ComponentCategory {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    icon: row.get(2)?,
+                    color: row.get(3)?,
+                    sort_order: row.get(4)?,
+                    parent_id: row.get(5)?,
+                    description: row.get(6)?,
+                    created_at: row.get(7)?,
+                    updated_at: row.get(8)?,
+                })
             })
-        }).map_err(|e| AppError::Database(e.to_string()))?
-          .filter_map(|r| r.ok())
-          .collect();
+            .map_err(|e| AppError::Database(e.to_string()))?
+            .filter_map(|r| r.ok())
+            .collect();
 
         Ok(categories)
     }
 
-    pub fn create_category(db: &Arc<Database>, payload: &CreateCategoryPayload) -> AppResult<ComponentCategory> {
+    pub fn create_category(
+        db: &Arc<Database>,
+        payload: &CreateCategoryPayload,
+    ) -> AppResult<ComponentCategory> {
         let conn = db.0.lock().map_err(|e| AppError::Database(e.to_string()))?;
         let now = chrono::Utc::now().timestamp();
 
@@ -329,7 +382,8 @@ impl ComponentPluginRepository {
         conn.execute(
             &sql,
             rusqlite::params_from_iter(param_values.iter().map(|v| v.as_ref())),
-        ).map_err(|e| AppError::Database(e.to_string()))?;
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
 
         Ok(())
     }
@@ -339,17 +393,23 @@ impl ComponentPluginRepository {
         conn.execute(
             "DELETE FROM component_categories WHERE id = ?1",
             params![id],
-        ).map_err(|e| AppError::Database(e.to_string()))?;
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
         Ok(())
     }
 
-    pub fn move_plugin_to_category(db: &Arc<Database>, plugin_id: &str, category: &str) -> AppResult<()> {
+    pub fn move_plugin_to_category(
+        db: &Arc<Database>,
+        plugin_id: &str,
+        category: &str,
+    ) -> AppResult<()> {
         let conn = db.0.lock().map_err(|e| AppError::Database(e.to_string()))?;
         let now = chrono::Utc::now().timestamp();
         conn.execute(
             "UPDATE component_plugins SET category = ?1, updated_at = ?2 WHERE id = ?3",
             params![category, now, plugin_id],
-        ).map_err(|e| AppError::Database(e.to_string()))?;
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
         Ok(())
     }
 }

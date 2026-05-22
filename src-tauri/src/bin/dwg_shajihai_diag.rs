@@ -30,7 +30,9 @@ fn main() {
     for entity in doc.entities() {
         entity_count += 1;
         let common = entity.common();
-        if common.invisible { continue; }
+        if common.invisible {
+            continue;
+        }
 
         let type_name = match &entity {
             EntityType::Line(_) => "Line",
@@ -58,24 +60,41 @@ fn main() {
             EntityType::Line(l) => {
                 cx = (l.start.x + l.end.x) / 2.0;
                 cy = (l.start.y + l.end.y) / 2.0;
-                if l.start.x.is_finite() { all_x.push(l.start.x); all_y.push(l.start.y); }
-                if l.end.x.is_finite() { all_x.push(l.end.x); all_y.push(l.end.y); }
+                if l.start.x.is_finite() {
+                    all_x.push(l.start.x);
+                    all_y.push(l.start.y);
+                }
+                if l.end.x.is_finite() {
+                    all_x.push(l.end.x);
+                    all_y.push(l.end.y);
+                }
             }
             EntityType::Circle(c) => {
-                cx = c.center.x; cy = c.center.y;
-                if c.center.x.is_finite() { all_x.push(c.center.x); all_y.push(c.center.y); }
+                cx = c.center.x;
+                cy = c.center.y;
+                if c.center.x.is_finite() {
+                    all_x.push(c.center.x);
+                    all_y.push(c.center.y);
+                }
             }
             EntityType::Arc(a) => {
-                cx = a.center.x; cy = a.center.y;
-                if a.center.x.is_finite() { all_x.push(a.center.x); all_y.push(a.center.y); }
+                cx = a.center.x;
+                cy = a.center.y;
+                if a.center.x.is_finite() {
+                    all_x.push(a.center.x);
+                    all_y.push(a.center.y);
+                }
             }
             EntityType::LwPolyline(lw) => {
                 let n = lw.vertices.len();
                 lwpoly_max_verts = lwpoly_max_verts.max(n);
-                if n > 1000 { lwpoly_huge += 1; }
+                if n > 1000 {
+                    lwpoly_huge += 1;
+                }
                 for v in lw.vertices.iter().take(5) {
                     if v.location.x.is_finite() {
-                        all_x.push(v.location.x); all_y.push(v.location.y);
+                        all_x.push(v.location.x);
+                        all_y.push(v.location.y);
                     }
                 }
                 if !lw.vertices.is_empty() {
@@ -84,14 +103,22 @@ fn main() {
                 }
             }
             EntityType::MText(mt) => {
-                cx = mt.insertion_point.x; cy = mt.insertion_point.y;
+                cx = mt.insertion_point.x;
+                cy = mt.insertion_point.y;
                 text_heights.push(mt.height);
-                if mt.insertion_point.x.is_finite() { all_x.push(mt.insertion_point.x); all_y.push(mt.insertion_point.y); }
+                if mt.insertion_point.x.is_finite() {
+                    all_x.push(mt.insertion_point.x);
+                    all_y.push(mt.insertion_point.y);
+                }
             }
             EntityType::Text(t) => {
-                cx = t.insertion_point.x; cy = t.insertion_point.y;
+                cx = t.insertion_point.x;
+                cy = t.insertion_point.y;
                 text_heights.push(t.height);
-                if t.insertion_point.x.is_finite() { all_x.push(t.insertion_point.x); all_y.push(t.insertion_point.y); }
+                if t.insertion_point.x.is_finite() {
+                    all_x.push(t.insertion_point.x);
+                    all_y.push(t.insertion_point.y);
+                }
             }
             EntityType::Solid(_) => {}
             EntityType::Hatch(h) => {
@@ -102,12 +129,20 @@ fn main() {
             }
             EntityType::Insert(ins) => {
                 insert_count += 1;
-                cx = ins.insert_point.x; cy = ins.insert_point.y;
-                if ins.insert_point.x.is_finite() { all_x.push(ins.insert_point.x); all_y.push(ins.insert_point.y); }
+                cx = ins.insert_point.x;
+                cy = ins.insert_point.y;
+                if ins.insert_point.x.is_finite() {
+                    all_x.push(ins.insert_point.x);
+                    all_y.push(ins.insert_point.y);
+                }
             }
             EntityType::Point(pt) => {
-                cx = pt.location.x; cy = pt.location.y;
-                if pt.location.x.is_finite() { all_x.push(pt.location.x); all_y.push(pt.location.y); }
+                cx = pt.location.x;
+                cy = pt.location.y;
+                if pt.location.x.is_finite() {
+                    all_x.push(pt.location.x);
+                    all_y.push(pt.location.y);
+                }
             }
             EntityType::Spline(sp) => {
                 if !sp.control_points.is_empty() {
@@ -115,7 +150,10 @@ fn main() {
                     cy = sp.control_points[0].y;
                 }
                 for p in &sp.control_points {
-                    if p.x.is_finite() { all_x.push(p.x); all_y.push(p.y); }
+                    if p.x.is_finite() {
+                        all_x.push(p.x);
+                        all_y.push(p.y);
+                    }
                 }
             }
             _ => {}
@@ -136,74 +174,75 @@ fn main() {
     }
     let mut sorted: Vec<_> = type_counts.iter().collect();
     sorted.sort_by(|a, b| b.1.cmp(a.1));
-    for (t, c) in &sorted {
-    }
+    for (t, c) in &sorted {}
     all_x.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     all_y.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    if !all_x.is_empty() && !all_y.is_empty() {
-    }
+    if !all_x.is_empty() && !all_y.is_empty() {}
     let c1_total: usize = cluster1_types.values().sum();
     let mut c1_sorted: Vec<_> = cluster1_types.iter().collect();
     c1_sorted.sort_by(|a, b| b.1.cmp(a.1));
-    for (t, c) in c1_sorted.iter().take(8) {
-    }
+    for (t, c) in c1_sorted.iter().take(8) {}
     let mut c1l: Vec<_> = cluster1_layers.iter().collect();
     c1l.sort_by(|a, b| b.1.cmp(a.1));
-    for (l, c) in c1l.iter().take(5) {
-    }
+    for (l, c) in c1l.iter().take(5) {}
     let c2_total: usize = cluster2_types.values().sum();
     let mut c2_sorted: Vec<_> = cluster2_types.iter().collect();
     c2_sorted.sort_by(|a, b| b.1.cmp(a.1));
-    for (t, c) in c2_sorted.iter().take(8) {
-    }
+    for (t, c) in c2_sorted.iter().take(8) {}
     let mut c2l: Vec<_> = cluster2_layers.iter().collect();
     c2l.sort_by(|a, b| b.1.cmp(a.1));
-    for (l, c) in c2l.iter().take(5) {
-    }
+    for (l, c) in c2l.iter().take(5) {}
     if !text_heights.is_empty() {
         let min_h = text_heights.iter().cloned().fold(f64::INFINITY, f64::min);
-        let max_h = text_heights.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        let max_h = text_heights
+            .iter()
+            .cloned()
+            .fold(f64::NEG_INFINITY, f64::max);
         let avg_h = text_heights.iter().sum::<f64>() / text_heights.len() as f64;
         let tiny = text_heights.iter().filter(|&&h| h < 0.5).count();
     }
-    
+
     // 模拟 find_significant_cluster_range
     let clusters_x = find_clusters(&all_x, 100, 2);
     let clusters_y = find_clusters(&all_y, 100, 2);
     for (i, c) in clusters_x.iter().enumerate() {
         let pct = c.2 as f64 / all_x.len() as f64 * 100.0;
-        if pct > 0.5 {
-        }
+        if pct > 0.5 {}
     }
     for (i, c) in clusters_y.iter().enumerate() {
         let pct = c.2 as f64 / all_y.len() as f64 * 100.0;
-        if pct > 0.5 {
-        }
+        if pct > 0.5 {}
     }
 
     // 模拟新归一化
-    let sig_x: Vec<_> = clusters_x.iter().filter(|c| c.2 as f64 / all_x.len() as f64 > 0.01).collect();
-    let sig_y: Vec<_> = clusters_y.iter().filter(|c| c.2 as f64 / all_y.len() as f64 > 0.01).collect();
-    
+    let sig_x: Vec<_> = clusters_x
+        .iter()
+        .filter(|c| c.2 as f64 / all_x.len() as f64 > 0.01)
+        .collect();
+    let sig_y: Vec<_> = clusters_y
+        .iter()
+        .filter(|c| c.2 as f64 / all_y.len() as f64 > 0.01)
+        .collect();
+
     if !sig_x.is_empty() && !sig_y.is_empty() {
         let final_min_x = sig_x.iter().map(|c| c.0).fold(f64::INFINITY, f64::min);
         let final_max_x = sig_x.iter().map(|c| c.1).fold(f64::NEG_INFINITY, f64::max);
         let final_min_y = sig_y.iter().map(|c| c.0).fold(f64::INFINITY, f64::min);
         let final_max_y = sig_y.iter().map(|c| c.1).fold(f64::NEG_INFINITY, f64::max);
-        
+
         let span_x = final_max_x - final_min_x;
         let span_y = final_max_y - final_min_y;
         let margin_x = (span_x * 0.05).max(200.0);
         let margin_y = (span_y * 0.05).max(200.0);
-        
+
         // 计算偏移后范围
         let offset_x = median(&all_x);
         let offset_y = median(&all_y);
-        
+
         // 前端视口适配问题
         let normalized_span_x = final_max_x - offset_x - (final_min_x - offset_x);
         let normalized_span_y = final_max_y - offset_y - (final_min_y - offset_y);
-        
+
         // 两个集群之间的距离
         if sig_x.len() >= 2 {
             let mut sig_x_sorted = sig_x.clone();
@@ -219,13 +258,17 @@ fn main() {
 }
 
 fn find_clusters(sorted: &[f64], num_buckets: usize, max_gap: usize) -> Vec<(f64, f64, usize)> {
-    if sorted.is_empty() { return vec![]; }
+    if sorted.is_empty() {
+        return vec![];
+    }
     let n = sorted.len();
     let gmin = sorted[0];
-    let gmax = sorted[n-1];
+    let gmax = sorted[n - 1];
     let range = gmax - gmin;
-    if range < 1e-6 { return vec![(gmin, gmax, n)]; }
-    
+    if range < 1e-6 {
+        return vec![(gmin, gmax, n)];
+    }
+
     let bw = range / num_buckets as f64;
     let mut bc: Vec<usize> = vec![0; num_buckets];
     for &v in sorted {
@@ -233,15 +276,17 @@ fn find_clusters(sorted: &[f64], num_buckets: usize, max_gap: usize) -> Vec<(f64
         let idx = idx.min(num_buckets - 1);
         bc[idx] += 1;
     }
-    
+
     let mut clusters: Vec<(f64, f64, usize)> = Vec::new();
     let mut seg_start: Option<usize> = None;
     let mut seg_count = 0usize;
     let mut empty = 0usize;
-    
+
     for i in 0..num_buckets {
         if bc[i] > 0 {
-            if seg_start.is_none() { seg_start = Some(i); }
+            if seg_start.is_none() {
+                seg_start = Some(i);
+            }
             seg_count += bc[i];
             empty = 0;
         } else {
@@ -253,7 +298,12 @@ fn find_clusters(sorted: &[f64], num_buckets: usize, max_gap: usize) -> Vec<(f64
                         let cmin = gmin + start as f64 * bw;
                         let cmax = gmin + (end + 1) as f64 * bw;
                         let pmin = sorted.iter().cloned().find(|&v| v >= cmin).unwrap_or(gmin);
-                        let pmax = sorted.iter().rev().cloned().find(|&v| v <= cmax).unwrap_or(gmax);
+                        let pmax = sorted
+                            .iter()
+                            .rev()
+                            .cloned()
+                            .find(|&v| v <= cmax)
+                            .unwrap_or(gmax);
                         clusters.push((pmin, pmax, seg_count));
                     }
                     seg_start = None;
@@ -269,13 +319,21 @@ fn find_clusters(sorted: &[f64], num_buckets: usize, max_gap: usize) -> Vec<(f64
             clusters.push((pmin, gmax, seg_count));
         }
     }
-    if clusters.is_empty() { clusters.push((gmin, gmax, n)); }
+    if clusters.is_empty() {
+        clusters.push((gmin, gmax, n));
+    }
     clusters.sort_by(|a, b| b.2.cmp(&a.2));
     clusters
 }
 
 fn median(sorted: &[f64]) -> f64 {
-    if sorted.is_empty() { return 0.0; }
+    if sorted.is_empty() {
+        return 0.0;
+    }
     let mid = sorted.len() / 2;
-    if sorted.len() % 2 == 0 { (sorted[mid-1] + sorted[mid]) / 2.0 } else { sorted[mid] }
+    if sorted.len() % 2 == 0 {
+        (sorted[mid - 1] + sorted[mid]) / 2.0
+    } else {
+        sorted[mid]
+    }
 }

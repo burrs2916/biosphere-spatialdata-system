@@ -1,5 +1,5 @@
+use acadrust::entities::{AttachmentPoint, TextHorizontalAlignment, TextVerticalAlignment};
 use acadrust::DwgReader;
-use acadrust::entities::{TextHorizontalAlignment, TextVerticalAlignment, AttachmentPoint};
 
 fn main() {
     let file_path = "/Users/liwenchao/EdgeView/biosphere/biosphere-spatialdata-system/docs/需求分析/20260510/雨田煤业井下降尘喷雾布置图22.7.1.dwg";
@@ -25,14 +25,22 @@ fn main() {
                 let lx = p1.x;
                 let ly_min = p1.y.min(p2.y);
                 let ly_max = p1.y.max(p2.y);
-                if ly_max >= target_y_min && ly_min <= target_y_max && lx >= target_x_min - 20.0 && lx <= target_x_max + 20.0 {
+                if ly_max >= target_y_min
+                    && ly_min <= target_y_max
+                    && lx >= target_x_min - 20.0
+                    && lx <= target_x_max + 20.0
+                {
                     v_lines.push((lx, ly_min, ly_max));
                 }
             } else if (p1.y - p2.y).abs() < 0.01 {
                 let ly = p1.y;
                 let lx_min = p1.x.min(p2.x);
                 let lx_max = p1.x.max(p2.x);
-                if lx_max >= target_x_min - 20.0 && lx_min <= target_x_max + 20.0 && ly >= target_y_min && ly <= target_y_max {
+                if lx_max >= target_x_min - 20.0
+                    && lx_min <= target_x_max + 20.0
+                    && ly >= target_y_min
+                    && ly <= target_y_max
+                {
                     h_lines.push((ly, lx_min, lx_max));
                 }
             }
@@ -41,17 +49,19 @@ fn main() {
 
     v_lines.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
     v_lines.dedup_by(|a, b| (a.0 - b.0).abs() < 0.5);
-    for vl in &v_lines {
-    }
+    for vl in &v_lines {}
 
     h_lines.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
     h_lines.dedup_by(|a, b| (a.0 - b.0).abs() < 0.5);
-    for hl in &h_lines {
-    }
+    for hl in &h_lines {}
     for entity in doc.entities() {
         if let acadrust::EntityType::Text(t) = entity {
             let p = &t.insertion_point;
-            if p.x >= target_x_min - 20.0 && p.x <= target_x_max + 20.0 && p.y >= target_y_min && p.y <= target_y_max {
+            if p.x >= target_x_min - 20.0
+                && p.x <= target_x_max + 20.0
+                && p.y >= target_y_min
+                && p.y <= target_y_max
+            {
                 let h_align: u8 = match t.horizontal_alignment {
                     TextHorizontalAlignment::Left => 0,
                     TextHorizontalAlignment::Center => 1,
@@ -72,7 +82,11 @@ fn main() {
     for entity in doc.entities() {
         if let acadrust::EntityType::MText(mt) = entity {
             let p = &mt.insertion_point;
-            if p.x >= target_x_min - 20.0 && p.x <= target_x_max + 20.0 && p.y >= target_y_min && p.y <= target_y_max {
+            if p.x >= target_x_min - 20.0
+                && p.x <= target_x_max + 20.0
+                && p.y >= target_y_min
+                && p.y <= target_y_max
+            {
                 let ap: u8 = match mt.attachment_point {
                     AttachmentPoint::TopLeft => 1,
                     AttachmentPoint::TopCenter => 2,
@@ -92,7 +106,11 @@ fn main() {
             let (px, py, content, ap, is_mtext) = match entity {
                 acadrust::EntityType::Text(t) => {
                     let p = &t.insertion_point;
-                    if p.x >= target_x_min - 20.0 && p.x <= target_x_max + 20.0 && p.y >= target_y_min && p.y <= target_y_max {
+                    if p.x >= target_x_min - 20.0
+                        && p.x <= target_x_max + 20.0
+                        && p.y >= target_y_min
+                        && p.y <= target_y_max
+                    {
                         let h: u8 = match t.horizontal_alignment {
                             TextHorizontalAlignment::Left => 0,
                             TextHorizontalAlignment::Center => 1,
@@ -106,7 +124,11 @@ fn main() {
                 }
                 acadrust::EntityType::MText(mt) => {
                     let p = &mt.insertion_point;
-                    if p.x >= target_x_min - 20.0 && p.x <= target_x_max + 20.0 && p.y >= target_y_min && p.y <= target_y_max {
+                    if p.x >= target_x_min - 20.0
+                        && p.x <= target_x_max + 20.0
+                        && p.y >= target_y_min
+                        && p.y <= target_y_max
+                    {
                         let ap: u8 = match mt.attachment_point {
                             AttachmentPoint::TopLeft => 1,
                             AttachmentPoint::TopCenter => 2,
@@ -118,7 +140,13 @@ fn main() {
                             AttachmentPoint::BottomCenter => 8,
                             AttachmentPoint::BottomRight => 9,
                         };
-                        (p.x, p.y, mt.value.chars().take(40).collect::<String>(), ap, true)
+                        (
+                            p.x,
+                            p.y,
+                            mt.value.chars().take(40).collect::<String>(),
+                            ap,
+                            true,
+                        )
                     } else {
                         continue;
                     }
@@ -137,14 +165,19 @@ fn main() {
                 }
             }
 
-            let cell_width = if nearest_right_x < f64::INFINITY && nearest_left_x > f64::NEG_INFINITY {
-                nearest_right_x - nearest_left_x
+            let cell_width =
+                if nearest_right_x < f64::INFINITY && nearest_left_x > f64::NEG_INFINITY {
+                    nearest_right_x - nearest_left_x
+                } else {
+                    f64::NAN
+                };
+
+            let dist_to_left = px - nearest_left_x;
+            let dist_to_right = if nearest_right_x < f64::INFINITY {
+                nearest_right_x - px
             } else {
                 f64::NAN
             };
-
-            let dist_to_left = px - nearest_left_x;
-            let dist_to_right = if nearest_right_x < f64::INFINITY { nearest_right_x - px } else { f64::NAN };
 
             let type_str = if is_mtext { "MText" } else { "Text" };
         }

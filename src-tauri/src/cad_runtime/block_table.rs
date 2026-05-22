@@ -60,10 +60,7 @@ impl BlockTable {
             if let Some(name) = block_name {
                 if let Some(ref cur) = current_block {
                     if *cur != name {
-                        block_map.insert(
-                            cur.clone(),
-                            (0.0, 0.0, 0.0, block_start, block_count),
-                        );
+                        block_map.insert(cur.clone(), (0.0, 0.0, 0.0, block_start, block_count));
                         current_block = Some(name);
                         block_start = i;
                         block_count = 1;
@@ -138,8 +135,10 @@ impl BlockTable {
             let base_x = f64::from_le_bytes(data[offset + 4..offset + 12].try_into().unwrap());
             let base_y = f64::from_le_bytes(data[offset + 12..offset + 20].try_into().unwrap());
             let base_z = f64::from_le_bytes(data[offset + 20..offset + 28].try_into().unwrap());
-            let entity_start = u32::from_le_bytes(data[offset + 28..offset + 32].try_into().unwrap());
-            let entity_count = u32::from_le_bytes(data[offset + 32..offset + 36].try_into().unwrap());
+            let entity_start =
+                u32::from_le_bytes(data[offset + 28..offset + 32].try_into().unwrap());
+            let entity_count =
+                u32::from_le_bytes(data[offset + 32..offset + 36].try_into().unwrap());
             blocks.push(BlockDef {
                 name_idx,
                 base_x,

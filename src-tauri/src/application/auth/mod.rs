@@ -27,9 +27,11 @@ impl<R: AuthRepository> UpdateConfigUseCase<R> {
 
     pub fn execute(&self, config: AuthConfig) -> AppResult<()> {
         if config.enabled && config.base_url.is_empty() {
-            return Err(AppError::Validation("启用认证时必须设置服务地址".to_string()));
+            return Err(AppError::Validation(
+                "启用认证时必须设置服务地址".to_string(),
+            ));
         }
-        
+
         let preset_str: String = config.preset.clone().into();
         self.repository.save_preset_config(&preset_str, &config)?;
         self.repository.update_config(&config)

@@ -125,10 +125,6 @@ impl From<GreptimeDBConnectionMode> for String {
     }
 }
 
-
-
-
-
 impl Default for DatabaseType {
     fn default() -> Self {
         Self::Mysql

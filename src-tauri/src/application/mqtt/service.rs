@@ -1,10 +1,10 @@
+use crate::domain::datasource::models::{MqttConnectionConfig, MqttProtocol};
+use rumqttc::{AsyncClient, Event, Incoming, MqttOptions, QoS, Transport};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::Mutex;
-use rumqttc::{MqttOptions, AsyncClient, Event, Incoming, QoS, Transport};
-use serde::{Serialize, Deserialize};
 use tauri::{AppHandle, Emitter};
-use crate::domain::datasource::models::{MqttProtocol, MqttConnectionConfig};
+use tokio::sync::Mutex;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -44,9 +44,7 @@ impl MqttService {
 
     fn build_mqtt_options(client_id: &str, config: &MqttConnectionConfig) -> MqttOptions {
         let mut opts = match config.protocol {
-            MqttProtocol::Mqtt => {
-                MqttOptions::new(client_id, &config.host, config.port as u16)
-            }
+            MqttProtocol::Mqtt => MqttOptions::new(client_id, &config.host, config.port as u16),
             MqttProtocol::Mqtts => {
                 let mut o = MqttOptions::new(client_id, &config.host, config.port as u16);
                 o.set_transport(Transport::tls_with_default_config());
@@ -73,7 +71,12 @@ impl MqttService {
         opts
     }
 
-    pub async fn connect(&self, source_id: &str, config: &MqttConnectionConfig, app_handle: AppHandle) -> Result<MqttConnectionState, String> {
+    pub async fn connect(
+        &self,
+        source_id: &str,
+        config: &MqttConnectionConfig,
+        app_handle: AppHandle,
+    ) -> Result<MqttConnectionState, String> {
         self.disconnect(source_id).await.ok();
 
         let mqttoptions = Self::build_mqtt_options(&config.client_id, config);
@@ -89,10 +92,13 @@ impl MqttService {
                         if let Some(conn) = conns.get_mut(&sid) {
                             conn.state.connected = true;
                         }
-                        let _ = app_handle.emit("mqtt-status", serde_json::json!({
-                            "sourceId": sid,
-                            "connected": true,
-                        }));
+                        let _ = app_handle.emit(
+                            "mqtt-status",
+                            serde_json::json!({
+                                "sourceId": sid,
+                                "connected": true,
+                            }),
+                        );
                     }
                     Ok(Event::Incoming(Incoming::Publish(publish))) => {
                         let payload = String::from_utf8_lossy(&publish.payload).to_string();
@@ -110,10 +116,13 @@ impl MqttService {
                         if let Some(conn) = conns.get_mut(&sid) {
                             conn.state.connected = false;
                         }
-                        let _ = app_handle.emit("mqtt-status", serde_json::json!({
-                            "sourceId": sid,
-                            "connected": false,
-                        }));
+                        let _ = app_handle.emit(
+                            "mqtt-status",
+                            serde_json::json!({
+                                "sourceId": sid,
+                                "connected": false,
+                            }),
+                        );
                         break;
                     }
                     Err(e) => {
@@ -121,11 +130,14 @@ impl MqttService {
                         if let Some(conn) = conns.get_mut(&sid) {
                             conn.state.connected = false;
                         }
-                        let _ = app_handle.emit("mqtt-status", serde_json::json!({
-                            "sourceId": sid,
-                            "connected": false,
-                            "error": format!("{:?}", e),
-                        }));
+                        let _ = app_handle.emit(
+                            "mqtt-status",
+                            serde_json::json!({
+                                "sourceId": sid,
+                                "connected": false,
+                                "error": format!("{:?}", e),
+                            }),
+                        );
                         break;
                     }
                     _ => {}
@@ -136,7 +148,12 @@ impl MqttService {
         let state = MqttConnectionState {
             connected: false,
             client_id: config.client_id.clone(),
-            broker: format!("{}://{}:{}", String::from(config.protocol.clone()), config.host, config.port),
+            broker: format!(
+                "{}://{}:{}",
+                String::from(config.protocol.clone()),
+                config.host,
+                config.port
+            ),
             subscriptions: Vec::new(),
         };
 
@@ -170,7 +187,10 @@ impl MqttService {
             2 => QoS::ExactlyOnce,
             _ => QoS::AtMostOnce,
         };
-        conn.client.subscribe(topic, q).await.map_err(|e| e.to_string())?;
+        conn.client
+            .subscribe(topic, q)
+            .await
+            .map_err(|e| e.to_string())?;
         if !conn.state.subscriptions.contains(&topic.to_string()) {
             conn.state.subscriptions.push(topic.to_string());
         }
@@ -180,12 +200,22 @@ impl MqttService {
     pub async fn unsubscribe(&self, source_id: &str, topic: &str) -> Result<(), String> {
         let mut conns = self.connections.lock().await;
         let conn = conns.get_mut(source_id).ok_or("MQTT 未连接")?;
-        conn.client.unsubscribe(topic).await.map_err(|e| e.to_string())?;
+        conn.client
+            .unsubscribe(topic)
+            .await
+            .map_err(|e| e.to_string())?;
         conn.state.subscriptions.retain(|t| t != topic);
         Ok(())
     }
 
-    pub async fn publish(&self, source_id: &str, topic: &str, payload: &str, qos: u8, retain: bool) -> Result<(), String> {
+    pub async fn publish(
+        &self,
+        source_id: &str,
+        topic: &str,
+        payload: &str,
+        qos: u8,
+        retain: bool,
+    ) -> Result<(), String> {
         let conns = self.connections.lock().await;
         let conn = conns.get(source_id).ok_or("MQTT 未连接")?;
         let q = match qos {
@@ -193,7 +223,10 @@ impl MqttService {
             2 => QoS::ExactlyOnce,
             _ => QoS::AtMostOnce,
         };
-        conn.client.publish(topic, q, retain, payload).await.map_err(|e| e.to_string())
+        conn.client
+            .publish(topic, q, retain, payload)
+            .await
+            .map_err(|e| e.to_string())
     }
 
     pub async fn get_state(&self, source_id: &str) -> Result<MqttConnectionState, String> {

@@ -1,3 +1,3 @@
 pub mod models;
 
-pub use models::{SystemIcon, IconGroup, IconFileType};
+pub use models::{IconFileType, IconGroup, SystemIcon};

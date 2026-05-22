@@ -1,4 +1,4 @@
-use crate::domain::map_library::{MapLibrary, MapLibraryGroup, MapLibraryType, MapLibraryStatus};
+use crate::domain::map_library::{MapLibrary, MapLibraryGroup, MapLibraryStatus, MapLibraryType};
 use crate::error::{AppError, AppResult};
 use crate::infrastructure::database::Database;
 use std::sync::Arc;
@@ -28,7 +28,9 @@ pub struct SqliteMapLibraryRepository {
 
 impl Clone for SqliteMapLibraryRepository {
     fn clone(&self) -> Self {
-        Self { db: self.db.clone() }
+        Self {
+            db: self.db.clone(),
+        }
     }
 }
 
@@ -67,54 +69,83 @@ impl SqliteMapLibraryRepository {
 
 impl MapLibraryRepository for SqliteMapLibraryRepository {
     fn get_all(&self) -> AppResult<Vec<MapLibrary>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Database(e.to_string()))?;
-        let mut stmt = conn.prepare(
-            &format!("SELECT {} FROM map_libraries ORDER BY updated_at DESC", Self::SELECT_FIELDS)
-        )?;
-        let libraries = stmt.query_map([], |row| self.row_to_library(row))?
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {} FROM map_libraries ORDER BY updated_at DESC",
+            Self::SELECT_FIELDS
+        ))?;
+        let libraries = stmt
+            .query_map([], |row| self.row_to_library(row))?
             .filter_map(|r| r.ok())
             .collect();
         Ok(libraries)
     }
 
     fn get_by_id(&self, id: &str) -> AppResult<Option<MapLibrary>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Database(e.to_string()))?;
-        let mut stmt = conn.prepare(
-            &format!("SELECT {} FROM map_libraries WHERE id = ?1", Self::SELECT_FIELDS)
-        )?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {} FROM map_libraries WHERE id = ?1",
+            Self::SELECT_FIELDS
+        ))?;
         let result = stmt.query_row([id], |row| self.row_to_library(row)).ok();
         Ok(result)
     }
 
     fn get_by_type(&self, map_type: &MapLibraryType) -> AppResult<Vec<MapLibrary>> {
         let type_str: String = map_type.clone().into();
-        let conn = self.db.0.lock().map_err(|e| AppError::Database(e.to_string()))?;
-        let mut stmt = conn.prepare(
-            &format!("SELECT {} FROM map_libraries WHERE map_type = ?1 ORDER BY updated_at DESC", Self::SELECT_FIELDS)
-        )?;
-        let libraries = stmt.query_map([type_str], |row| self.row_to_library(row))?
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {} FROM map_libraries WHERE map_type = ?1 ORDER BY updated_at DESC",
+            Self::SELECT_FIELDS
+        ))?;
+        let libraries = stmt
+            .query_map([type_str], |row| self.row_to_library(row))?
             .filter_map(|r| r.ok())
             .collect();
         Ok(libraries)
     }
 
     fn get_by_group(&self, group_id: &str) -> AppResult<Vec<MapLibrary>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Database(e.to_string()))?;
-        let mut stmt = conn.prepare(
-            &format!("SELECT {} FROM map_libraries WHERE group_id = ?1 ORDER BY updated_at DESC", Self::SELECT_FIELDS)
-        )?;
-        let libraries = stmt.query_map([group_id], |row| self.row_to_library(row))?
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {} FROM map_libraries WHERE group_id = ?1 ORDER BY updated_at DESC",
+            Self::SELECT_FIELDS
+        ))?;
+        let libraries = stmt
+            .query_map([group_id], |row| self.row_to_library(row))?
             .filter_map(|r| r.ok())
             .collect();
         Ok(libraries)
     }
 
     fn get_published(&self) -> AppResult<Vec<MapLibrary>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Database(e.to_string()))?;
-        let mut stmt = conn.prepare(
-            &format!("SELECT {} FROM map_libraries WHERE status = 'published' ORDER BY updated_at DESC", Self::SELECT_FIELDS)
-        )?;
-        let libraries = stmt.query_map([], |row| self.row_to_library(row))?
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {} FROM map_libraries WHERE status = 'published' ORDER BY updated_at DESC",
+            Self::SELECT_FIELDS
+        ))?;
+        let libraries = stmt
+            .query_map([], |row| self.row_to_library(row))?
             .filter_map(|r| r.ok())
             .collect();
         Ok(libraries)
@@ -122,18 +153,27 @@ impl MapLibraryRepository for SqliteMapLibraryRepository {
 
     fn get_published_by_type(&self, map_type: &MapLibraryType) -> AppResult<Vec<MapLibrary>> {
         let type_str: String = map_type.clone().into();
-        let conn = self.db.0.lock().map_err(|e| AppError::Database(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Database(e.to_string()))?;
         let mut stmt = conn.prepare(
             &format!("SELECT {} FROM map_libraries WHERE status = 'published' AND map_type = ?1 ORDER BY updated_at DESC", Self::SELECT_FIELDS)
         )?;
-        let libraries = stmt.query_map([type_str], |row| self.row_to_library(row))?
+        let libraries = stmt
+            .query_map([type_str], |row| self.row_to_library(row))?
             .filter_map(|r| r.ok())
             .collect();
         Ok(libraries)
     }
 
     fn save(&self, library: &MapLibrary) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Database(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Database(e.to_string()))?;
         let type_str: String = library.map_type.clone().into();
         let status_str: String = library.status.clone().into();
         conn.execute(
@@ -166,7 +206,11 @@ impl MapLibraryRepository for SqliteMapLibraryRepository {
     }
 
     fn delete(&self, id: &str) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Database(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Database(e.to_string()))?;
         conn.execute("DELETE FROM map_libraries WHERE id = ?1", [id])?;
         Ok(())
     }
@@ -174,68 +218,92 @@ impl MapLibraryRepository for SqliteMapLibraryRepository {
 
 impl MapLibraryGroupRepository for SqliteMapLibraryRepository {
     fn get_all_groups(&self) -> AppResult<Vec<MapLibraryGroup>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Database(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Database(e.to_string()))?;
         let mut stmt = conn.prepare(
             "SELECT id, name, description, map_type, parent_id, sort_order, created_at, updated_at FROM map_library_groups ORDER BY sort_order, created_at"
         )?;
-        let groups = stmt.query_map([], |row| {
-            Ok(MapLibraryGroup {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                description: row.get(2)?,
-                map_type: MapLibraryType::from(row.get::<_, String>(3)?),
-                parent_id: row.get(4)?,
-                sort_order: row.get(5)?,
-                created_at: row.get(6)?,
-                updated_at: row.get(7)?,
-            })
-        })?.filter_map(|r| r.ok()).collect();
+        let groups = stmt
+            .query_map([], |row| {
+                Ok(MapLibraryGroup {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    description: row.get(2)?,
+                    map_type: MapLibraryType::from(row.get::<_, String>(3)?),
+                    parent_id: row.get(4)?,
+                    sort_order: row.get(5)?,
+                    created_at: row.get(6)?,
+                    updated_at: row.get(7)?,
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
         Ok(groups)
     }
 
     fn get_groups_by_type(&self, map_type: &MapLibraryType) -> AppResult<Vec<MapLibraryGroup>> {
         let type_str: String = map_type.clone().into();
-        let conn = self.db.0.lock().map_err(|e| AppError::Database(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Database(e.to_string()))?;
         let mut stmt = conn.prepare(
             "SELECT id, name, description, map_type, parent_id, sort_order, created_at, updated_at FROM map_library_groups WHERE map_type = ?1 ORDER BY sort_order, created_at"
         )?;
-        let groups = stmt.query_map([type_str], |row| {
-            Ok(MapLibraryGroup {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                description: row.get(2)?,
-                map_type: MapLibraryType::from(row.get::<_, String>(3)?),
-                parent_id: row.get(4)?,
-                sort_order: row.get(5)?,
-                created_at: row.get(6)?,
-                updated_at: row.get(7)?,
-            })
-        })?.filter_map(|r| r.ok()).collect();
+        let groups = stmt
+            .query_map([type_str], |row| {
+                Ok(MapLibraryGroup {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    description: row.get(2)?,
+                    map_type: MapLibraryType::from(row.get::<_, String>(3)?),
+                    parent_id: row.get(4)?,
+                    sort_order: row.get(5)?,
+                    created_at: row.get(6)?,
+                    updated_at: row.get(7)?,
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
         Ok(groups)
     }
 
     fn get_group_by_id(&self, id: &str) -> AppResult<Option<MapLibraryGroup>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Database(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Database(e.to_string()))?;
         let mut stmt = conn.prepare(
             "SELECT id, name, description, map_type, parent_id, sort_order, created_at, updated_at FROM map_library_groups WHERE id = ?1"
         )?;
-        let result = stmt.query_row([id], |row| {
-            Ok(MapLibraryGroup {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                description: row.get(2)?,
-                map_type: MapLibraryType::from(row.get::<_, String>(3)?),
-                parent_id: row.get(4)?,
-                sort_order: row.get(5)?,
-                created_at: row.get(6)?,
-                updated_at: row.get(7)?,
+        let result = stmt
+            .query_row([id], |row| {
+                Ok(MapLibraryGroup {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    description: row.get(2)?,
+                    map_type: MapLibraryType::from(row.get::<_, String>(3)?),
+                    parent_id: row.get(4)?,
+                    sort_order: row.get(5)?,
+                    created_at: row.get(6)?,
+                    updated_at: row.get(7)?,
+                })
             })
-        }).ok();
+            .ok();
         Ok(result)
     }
 
     fn save_group(&self, group: &MapLibraryGroup) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Database(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Database(e.to_string()))?;
         let type_str: String = group.map_type.clone().into();
         conn.execute(
             "INSERT OR REPLACE INTO map_library_groups (id, name, description, map_type, parent_id, sort_order, created_at, updated_at)
@@ -255,8 +323,15 @@ impl MapLibraryGroupRepository for SqliteMapLibraryRepository {
     }
 
     fn delete_group(&self, id: &str) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Database(e.to_string()))?;
-        conn.execute("UPDATE map_libraries SET group_id = NULL WHERE group_id = ?1", [id])?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        conn.execute(
+            "UPDATE map_libraries SET group_id = NULL WHERE group_id = ?1",
+            [id],
+        )?;
         conn.execute("DELETE FROM map_library_groups WHERE id = ?1", [id])?;
         Ok(())
     }

@@ -22,7 +22,9 @@ pub struct SqliteSceneRepository {
 
 impl Clone for SqliteSceneRepository {
     fn clone(&self) -> Self {
-        Self { db: self.db.clone() }
+        Self {
+            db: self.db.clone(),
+        }
     }
 }
 
@@ -102,7 +104,11 @@ impl SqliteSceneRepository {
 
 impl SceneRepository for SqliteSceneRepository {
     fn get_all_scenes(&self) -> AppResult<Vec<Scene>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
 
         let mut stmt = conn.prepare(
             "SELECT id, name, description, coordinate_system, camera, bounds, layers, bindings, layout, editor_components, editor_layers, canvas_config, category_id, tags, thumbnail, status, metadata, created_at, updated_at
@@ -121,7 +127,11 @@ impl SceneRepository for SqliteSceneRepository {
     }
 
     fn get_scene_by_id(&self, id: &str) -> AppResult<Option<Scene>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
 
         let result = conn.query_row(
             "SELECT id, name, description, coordinate_system, camera, bounds, layers, bindings, layout, editor_components, editor_layers, canvas_config, category_id, tags, thumbnail, status, metadata, created_at, updated_at
@@ -138,7 +148,11 @@ impl SceneRepository for SqliteSceneRepository {
     }
 
     fn get_scenes_by_category(&self, category_id: &str) -> AppResult<Vec<Scene>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
 
         let mut stmt = conn.prepare(
             "SELECT id, name, description, coordinate_system, camera, bounds, layers, bindings, layout, editor_components, editor_layers, canvas_config, category_id, tags, thumbnail, status, metadata, created_at, updated_at
@@ -157,7 +171,11 @@ impl SceneRepository for SqliteSceneRepository {
     }
 
     fn save_scene(&self, scene: &Scene) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
 
         let status_str: String = scene.status.clone().into();
 
@@ -190,18 +208,24 @@ impl SceneRepository for SqliteSceneRepository {
     }
 
     fn delete_scene(&self, id: &str) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        conn.execute(
-            "DELETE FROM scenes WHERE id = ?1",
-            rusqlite::params![id],
-        ).map_err(|e| AppError::Database(e.to_string()))?;
+        conn.execute("DELETE FROM scenes WHERE id = ?1", rusqlite::params![id])
+            .map_err(|e| AppError::Database(e.to_string()))?;
 
         Ok(())
     }
 
     fn get_all_categories(&self) -> AppResult<Vec<SceneCategory>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
 
         let mut stmt = conn.prepare(
             "SELECT id, name, icon, color, sort_order, parent_id, description, created_at, updated_at
@@ -220,7 +244,11 @@ impl SceneRepository for SqliteSceneRepository {
     }
 
     fn get_category_by_id(&self, id: &str) -> AppResult<Option<SceneCategory>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
 
         let result = conn.query_row(
             "SELECT id, name, icon, color, sort_order, parent_id, description, created_at, updated_at
@@ -237,7 +265,11 @@ impl SceneRepository for SqliteSceneRepository {
     }
 
     fn save_category(&self, category: &SceneCategory) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
 
         conn.execute(
             "INSERT OR REPLACE INTO scene_categories (id, name, icon, color, sort_order, parent_id, description, created_at, updated_at)
@@ -258,12 +290,17 @@ impl SceneRepository for SqliteSceneRepository {
     }
 
     fn delete_category(&self, id: &str) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
 
         conn.execute(
             "DELETE FROM scene_categories WHERE id = ?1",
             rusqlite::params![id],
-        ).map_err(|e| AppError::Database(e.to_string()))?;
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
 
         Ok(())
     }

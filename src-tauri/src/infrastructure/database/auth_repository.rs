@@ -1,6 +1,6 @@
+use super::Database;
 use crate::domain::auth::{AuthConfig, AuthRepository};
 use crate::error::{AppError, AppResult};
-use super::Database;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -16,7 +16,11 @@ impl SqliteAuthRepository {
 
 impl AuthRepository for SqliteAuthRepository {
     fn get_config(&self) -> AppResult<AuthConfig> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
 
         let mut stmt = conn.prepare(
             "SELECT enabled, preset, base_url, auth_params, endpoints, header_config, user_display_config, timeout, 
@@ -32,32 +36,34 @@ impl AuthRepository for SqliteAuthRepository {
             let endpoints_str: String = row.get(4)?;
             let header_config_str: String = row.get(5)?;
             let user_display_config_str: String = row.get(6)?;
-            
-            let auth_params: Vec<crate::domain::auth::AuthParam> = 
+
+            let auth_params: Vec<crate::domain::auth::AuthParam> =
                 serde_json::from_str(&auth_params_str).unwrap_or_default();
-            
-            let mut endpoints: Vec<crate::domain::auth::ApiEndpoint> = 
+
+            let mut endpoints: Vec<crate::domain::auth::ApiEndpoint> =
                 serde_json::from_str(&endpoints_str).unwrap_or_default();
-            
-            endpoints = endpoints.into_iter().map(|mut e| {
-                if !e.bind_to_menu {
-                    e.bind_to_menu = false;
-                }
-                e
-            }).collect();
-            
-            let header_config: Vec<crate::domain::auth::HeaderConfig> = 
+
+            endpoints = endpoints
+                .into_iter()
+                .map(|mut e| {
+                    if !e.bind_to_menu {
+                        e.bind_to_menu = false;
+                    }
+                    e
+                })
+                .collect();
+
+            let header_config: Vec<crate::domain::auth::HeaderConfig> =
                 serde_json::from_str(&header_config_str).unwrap_or_default();
-            
-            let user_display_config: Vec<crate::domain::auth::UserDisplayConfig> = 
+
+            let user_display_config: Vec<crate::domain::auth::UserDisplayConfig> =
                 serde_json::from_str(&user_display_config_str).unwrap_or_default();
-            
-            let whitelist: Vec<String> = 
-                serde_json::from_str(&row.get::<_, String>(17)?)
-                    .unwrap_or_default();
-            
+
+            let whitelist: Vec<String> =
+                serde_json::from_str(&row.get::<_, String>(17)?).unwrap_or_default();
+
             let login_auto_redirect = row.get::<_, i32>(16)? != 0;
-            
+
             Ok(AuthConfig {
                 enabled: row.get::<_, i32>(0)? != 0,
                 preset: crate::domain::auth::AuthPreset::from(preset_str),
@@ -84,7 +90,11 @@ impl AuthRepository for SqliteAuthRepository {
     }
 
     fn update_config(&self, config: &AuthConfig) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
 
         let whitelist_json = serde_json::to_string(&config.whitelist)?;
         let auth_params_json = serde_json::to_string(&config.auth_params)?;
@@ -135,14 +145,19 @@ impl AuthRepository for SqliteAuthRepository {
                 config.login_auto_redirect as i32,
                 &whitelist_json,
             ],
-        ).map_err(|e| AppError::Database(e.to_string()))?;
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
 
         Ok(())
     }
 
     fn reset_config(&self) -> AppResult<()> {
         let config = AuthConfig::default();
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
 
         let whitelist_json = serde_json::to_string(&config.whitelist)?;
         let auth_params_json = serde_json::to_string(&config.auth_params)?;
@@ -150,7 +165,7 @@ impl AuthRepository for SqliteAuthRepository {
         let header_config_json = serde_json::to_string(&config.header_config)?;
         let user_display_config_json = serde_json::to_string(&config.user_display_config)?;
         let preset_str: String = config.preset.clone().into();
-        
+
         conn.execute(
             "UPDATE auth_config SET
                 enabled = ?1,
@@ -193,17 +208,20 @@ impl AuthRepository for SqliteAuthRepository {
                 config.login_auto_redirect as i32,
                 &whitelist_json,
             ],
-        ).map_err(|e| AppError::Database(e.to_string()))?;
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
 
         Ok(())
     }
 
     fn get_preset_config(&self, preset: &str) -> AppResult<Option<AuthConfig>> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        let mut stmt = conn.prepare(
-            "SELECT config FROM auth_config_presets WHERE preset = ?1"
-        )?;
+        let mut stmt = conn.prepare("SELECT config FROM auth_config_presets WHERE preset = ?1")?;
 
         let result = stmt.query_row([preset], |row| {
             let config_str: String = row.get(0)?;
@@ -212,8 +230,9 @@ impl AuthRepository for SqliteAuthRepository {
 
         match result {
             Ok(config_str) => {
-                let config: AuthConfig = serde_json::from_str(&config_str)
-                    .map_err(|e| AppError::Internal(format!("Failed to parse preset config: {}", e)))?;
+                let config: AuthConfig = serde_json::from_str(&config_str).map_err(|e| {
+                    AppError::Internal(format!("Failed to parse preset config: {}", e))
+                })?;
                 Ok(Some(config))
             }
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
@@ -222,7 +241,11 @@ impl AuthRepository for SqliteAuthRepository {
     }
 
     fn save_preset_config(&self, preset: &str, config: &AuthConfig) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
 
         let config_json = serde_json::to_string(config)
             .map_err(|e| AppError::Internal(format!("Failed to serialize config: {}", e)))?;
@@ -236,12 +259,17 @@ impl AuthRepository for SqliteAuthRepository {
     }
 
     fn delete_preset_config(&self, preset: &str) -> AppResult<()> {
-        let conn = self.db.0.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let conn = self
+            .db
+            .0
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
 
         conn.execute(
             "DELETE FROM auth_config_presets WHERE preset = ?1",
             rusqlite::params![preset],
-        ).map_err(|e| AppError::Database(e.to_string()))?;
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
 
         Ok(())
     }

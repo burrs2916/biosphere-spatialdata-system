@@ -1,8 +1,8 @@
+use chrono::Local;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use chrono::Local;
 use tauri::State;
 
 pub struct LoggerState {
@@ -21,7 +21,8 @@ pub struct LogEntry {
 
 fn get_log_dir() -> PathBuf {
     let project_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let project_root = project_root.parent()
+    let project_root = project_root
+        .parent()
         .unwrap_or_else(|| std::path::Path::new("."));
     project_root.join("logs")
 }
@@ -58,11 +59,20 @@ pub fn write_log(log_dir: &PathBuf, entry: &LogEntry) -> Result<(), String> {
         .map_err(|e| format!("Failed to open log file: {}", e))?;
 
     let timestamp = format_timestamp(entry.timestamp);
-    let data_str = entry.data.as_ref()
+    let data_str = entry
+        .data
+        .as_ref()
         .map(|d| format!(" | data: {}", d))
         .unwrap_or_default();
 
-    let line = format!("[{}] [{}] [{}] {}{}\n", timestamp, entry.level.to_uppercase(), entry.module, entry.message, data_str);
+    let line = format!(
+        "[{}] [{}] [{}] {}{}\n",
+        timestamp,
+        entry.level.to_uppercase(),
+        entry.module,
+        entry.message,
+        data_str
+    );
 
     file.write_all(line.as_bytes())
         .map_err(|e| format!("Failed to write log: {}", e))?;
@@ -77,7 +87,10 @@ pub fn write_log_entry(entry: LogEntry, state: State<'_, LoggerState>) -> Result
 }
 
 #[tauri::command]
-pub fn write_log_batch(entries: Vec<LogEntry>, state: State<'_, LoggerState>) -> Result<(), String> {
+pub fn write_log_batch(
+    entries: Vec<LogEntry>,
+    state: State<'_, LoggerState>,
+) -> Result<(), String> {
     let log_dir = state.log_dir.lock().map_err(|e| e.to_string())?;
     for entry in &entries {
         write_log(&log_dir, entry)?;
@@ -97,7 +110,12 @@ pub fn init_logger_state() -> LoggerState {
 
     let boot_log = log_dir.join(format!("app-{}-info.log", Local::now().format("%Y-%m-%d")));
     if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&boot_log) {
-        let _ = writeln!(file, "[{}] [INFO] [system] Application starting, log dir: {}", Local::now().format("%Y-%m-%d %H:%M:%S%.3f"), log_dir.display());
+        let _ = writeln!(
+            file,
+            "[{}] [INFO] [system] Application starting, log dir: {}",
+            Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
+            log_dir.display()
+        );
     }
 
     LoggerState {

@@ -1,5 +1,5 @@
-use crate::error::AppResult;
 use super::models::AuthConfig;
+use crate::error::AppResult;
 
 pub trait AuthRepository: Send + Sync {
     fn get_config(&self) -> AppResult<AuthConfig>;

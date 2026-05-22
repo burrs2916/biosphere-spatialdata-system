@@ -1,7 +1,12 @@
-use acadrust::{DxfReader, DwgReader, CadDocument as AcadDocument, EntityType, Color, Vector3};
-use acadrust::entities::{BoundaryEdge, HatchPatternType, TextHorizontalAlignment, TextVerticalAlignment, HatchStyleType};
+use crate::domain::cad::{
+    cad_entities_bbox, cad_entity_bbox, CadDocument, CadEntity, CadExtents, CadLayer, CadLwVertex,
+    CadPoint, CadProfile, CadProfileFlags, ParseDiagnostics, ParseResult,
+};
+use acadrust::entities::{
+    BoundaryEdge, HatchPatternType, HatchStyleType, TextHorizontalAlignment, TextVerticalAlignment,
+};
 use acadrust::types::Matrix3;
-use crate::domain::cad::{cad_entities_bbox, cad_entity_bbox, CadDocument, CadEntity, CadPoint, CadLwVertex, CadExtents, CadLayer, ParseResult, ParseDiagnostics, CadProfile, CadProfileFlags};
+use acadrust::{CadDocument as AcadDocument, Color, DwgReader, DxfReader, EntityType, Vector3};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
@@ -10,7 +15,12 @@ fn decode_dxf_unicode(s: &str) -> String {
     let mut result = String::new();
     let mut i = 0;
     while i < chars.len() {
-        if chars[i] == '\\' && i + 1 < chars.len() && chars[i + 1] == 'U' && i + 2 < chars.len() && chars[i + 2] == '+' {
+        if chars[i] == '\\'
+            && i + 1 < chars.len()
+            && chars[i + 1] == 'U'
+            && i + 2 < chars.len()
+            && chars[i + 2] == '+'
+        {
             let mut hex_start = i + 3;
             let mut hex_end = hex_start;
             while hex_end < chars.len() && hex_end - hex_start < 6 {
@@ -41,9 +51,7 @@ fn decode_dxf_unicode(s: &str) -> String {
 fn fix_garbled_text(s: &str) -> String {
     let s = decode_dxf_unicode(s);
 
-    let has_latin1_extended = s.chars().any(|c| {
-        (c as u32) >= 0x80 && (c as u32) <= 0xFF
-    });
+    let has_latin1_extended = s.chars().any(|c| (c as u32) >= 0x80 && (c as u32) <= 0xFF);
     if !has_latin1_extended {
         return s;
     }
@@ -71,7 +79,8 @@ fn fix_garbled_text(s: &str) -> String {
 }
 
 fn is_common_latin1_symbol(b: u8) -> bool {
-    matches!(b,
+    matches!(
+        b,
         0xB0 | // °
         0xB1 | // ±
         0xB2 | // ²
@@ -79,7 +88,7 @@ fn is_common_latin1_symbol(b: u8) -> bool {
         0xB5 | // µ
         0xB9 | // ¹
         0xD7 | // ×
-        0xF7   // ÷
+        0xF7 // ÷
     )
 }
 
@@ -136,10 +145,7 @@ mod tests {
 
     #[test]
     fn test_decode_gbk_segments_mixed_with_ascii() {
-        let gbk_bytes: Vec<u8> = vec![
-            0xCB, 0xB5, 0xC3, 0xF7, 0xA3, 0xBA, 0x20,
-            0x31, 0x2E,
-        ];
+        let gbk_bytes: Vec<u8> = vec![0xCB, 0xB5, 0xC3, 0xF7, 0xA3, 0xBA, 0x20, 0x31, 0x2E];
         let result = decode_gbk_segments(&gbk_bytes);
         assert_eq!(result, "说明： 1.");
     }
@@ -154,11 +160,9 @@ mod tests {
     #[test]
     fn test_decode_gbk_segments_mixed_gbk_and_superscript() {
         let bytes: Vec<u8> = vec![
-            0xCB, 0xB5, 0xC3, 0xF7, 0xA3, 0xBA,
-            0x20, 0x31, 0x2E,
-            0xCD, 0xBC, 0xD6, 0xD0, 0xB7, 0xE7, 0xC1, 0xBF,
-            0x51, 0xB5, 0xA5, 0xCE, 0xBB, 0xCE, 0xAA,
-            0x6D, 0xB3, 0x2F, 0x6D, 0x69, 0x6E,
+            0xCB, 0xB5, 0xC3, 0xF7, 0xA3, 0xBA, 0x20, 0x31, 0x2E, 0xCD, 0xBC, 0xD6, 0xD0, 0xB7,
+            0xE7, 0xC1, 0xBF, 0x51, 0xB5, 0xA5, 0xCE, 0xBB, 0xCE, 0xAA, 0x6D, 0xB3, 0x2F, 0x6D,
+            0x69, 0x6E,
         ];
         let result = decode_gbk_segments(&bytes);
         assert!(result.contains("说明："));
@@ -171,8 +175,16 @@ mod tests {
     fn test_fix_garbled_text_mine_ventilation() {
         let garbled = "ËµÃ÷£º 1.Í¼ÖÐ·çÁ¿Qµ¥Î»Îªm³/min£¬·çËÙVµ¥Î»Îªm/s";
         let result = fix_garbled_text(garbled);
-        assert!(result.contains("说明："), "Expected 说明： but got: {}", result);
-        assert!(result.contains("m³/min"), "Expected m³/min but got: {}", result);
+        assert!(
+            result.contains("说明："),
+            "Expected 说明： but got: {}",
+            result
+        );
+        assert!(
+            result.contains("m³/min"),
+            "Expected m³/min but got: {}",
+            result
+        );
         assert!(result.contains("m/s"), "Expected m/s but got: {}", result);
         assert!(!result.contains("Ëµ"), "Should not contain garbled text");
     }
@@ -294,7 +306,10 @@ fn parse_mtext_format(s: &str) -> MTextFormatInfo {
         if chars[i] == '\\' && i + 1 < chars.len() {
             let cmd = chars[i + 1];
 
-            if cmd == 'P' && i + 2 < chars.len() && (chars[i + 2] == 'X' || chars[i + 2] == 'Y' || chars[i + 2] == 'Z') {
+            if cmd == 'P'
+                && i + 2 < chars.len()
+                && (chars[i + 2] == 'X' || chars[i + 2] == 'Y' || chars[i + 2] == 'Z')
+            {
                 i += 3;
                 while i < chars.len() && chars[i] != '\\' {
                     i += 1;
@@ -373,13 +388,17 @@ fn parse_mtext_format(s: &str) -> MTextFormatInfo {
     }
 }
 
-fn parse_dxf_from_bytes(data: Vec<u8>) -> Result<AcadDocument, Box<dyn std::error::Error + Send + Sync>> {
+fn parse_dxf_from_bytes(
+    data: Vec<u8>,
+) -> Result<AcadDocument, Box<dyn std::error::Error + Send + Sync>> {
     let cursor = std::io::Cursor::new(data);
     let reader = DxfReader::from_reader(cursor)?;
     reader.read().map_err(|e| e.into())
 }
 
-fn parse_dwg_from_bytes(data: Vec<u8>) -> Result<AcadDocument, Box<dyn std::error::Error + Send + Sync>> {
+fn parse_dwg_from_bytes(
+    data: Vec<u8>,
+) -> Result<AcadDocument, Box<dyn std::error::Error + Send + Sync>> {
     let cursor = std::io::Cursor::new(data);
     let mut reader = DwgReader::from_stream(cursor);
     reader.read().map_err(|e| e.into())
@@ -392,7 +411,11 @@ fn parse_dwg_from_bytes(data: Vec<u8>) -> Result<AcadDocument, Box<dyn std::erro
 const COORD_SANITY_THRESHOLD: f64 = 1e9;
 
 fn sanitize_f64(v: f64) -> f64 {
-    if v.is_finite() && v.abs() < COORD_SANITY_THRESHOLD { v } else { 0.0 }
+    if v.is_finite() && v.abs() < COORD_SANITY_THRESHOLD {
+        v
+    } else {
+        0.0
+    }
 }
 
 /// 检查单个 f64 值是否为有效坐标分量。
@@ -407,14 +430,26 @@ fn sanitize_point(x: f64, y: f64, z: f64) -> Option<CadPoint> {
     if !is_valid_coord(x) || !is_valid_coord(y) {
         return None;
     }
-    let z = if is_valid_coord(z) { sanitize_f64(z) } else { 0.0 };
-    Some(CadPoint { x: sanitize_f64(x), y: sanitize_f64(y), z })
+    let z = if is_valid_coord(z) {
+        sanitize_f64(z)
+    } else {
+        0.0
+    };
+    Some(CadPoint {
+        x: sanitize_f64(x),
+        y: sanitize_f64(y),
+        z,
+    })
 }
 
 /// 保留旧行为的坐标转换，用于非关键坐标（如 z 轴辅助信息）。
 /// 任何无效分量都会被置零，适用于可以容忍精度损失的辅助字段。
 fn convert_point(x: f64, y: f64, z: f64) -> CadPoint {
-    CadPoint { x: sanitize_f64(x), y: sanitize_f64(y), z: sanitize_f64(z) }
+    CadPoint {
+        x: sanitize_f64(x),
+        y: sanitize_f64(y),
+        z: sanitize_f64(z),
+    }
 }
 
 fn color_to_rgb(color: &Color) -> i32 {
@@ -423,260 +458,260 @@ fn color_to_rgb(color: &Color) -> i32 {
         Color::ByBlock => (255 << 16) | (255 << 8) | 255,
         Color::Index(idx) => {
             let colors = [
-                (0, 0, 0),       
-                (255, 0, 0),     
-                (255, 255, 0),   
-                (0, 255, 0),     
-                (0, 255, 255),   
-                (0, 0, 255),     
-                (255, 0, 255),   
-                (255, 255, 255), 
-                (65, 65, 65),    
-                (128, 128, 128), 
-                (255, 0, 0),     
-                (255, 127, 127), 
-                (204, 0, 0),     
-                (204, 102, 102), 
-                (153, 0, 0),     
-                (153, 76, 76),   
-                (127, 0, 0),     
-                (127, 63, 63),   
-                (76, 0, 0),      
-                (76, 38, 38),    
-                (255, 63, 0),    
-                (255, 159, 127), 
-                (204, 51, 0),    
-                (204, 127, 102), 
-                (153, 38, 0),    
-                (153, 95, 76),   
-                (127, 31, 0),    
-                (127, 79, 63),   
-                (76, 19, 0),     
-                (76, 47, 38),    
-                (255, 127, 0),   
-                (255, 191, 127), 
-                (204, 102, 0),   
-                (204, 153, 102), 
-                (153, 76, 0),    
-                (153, 114, 76),  
-                (127, 63, 0),    
-                (127, 95, 63),   
-                (76, 38, 0),     
-                (76, 57, 38),    
-                (255, 191, 0),   
-                (255, 223, 127), 
-                (204, 153, 0),   
-                (204, 178, 102), 
-                (153, 114, 0),   
-                (153, 133, 76),  
-                (127, 95, 0),    
-                (127, 111, 63),  
-                (76, 57, 0),     
-                (76, 66, 38),    
-                (255, 255, 0),   
-                (255, 255, 127), 
-                (204, 204, 0),   
-                (204, 204, 102), 
-                (153, 153, 0),   
-                (153, 153, 76),  
-                (127, 127, 0),   
-                (127, 127, 63),  
-                (76, 76, 0),     
-                (76, 76, 38),    
-                (191, 255, 0),   
-                (223, 255, 127), 
-                (153, 204, 0),   
-                (178, 204, 102), 
-                (114, 153, 0),   
-                (133, 153, 76),  
-                (95, 127, 0),    
-                (111, 127, 63),  
-                (57, 76, 0),     
-                (66, 76, 38),    
-                (127, 255, 0),   
-                (191, 255, 127), 
-                (102, 204, 0),   
-                (153, 204, 102), 
-                (76, 153, 0),    
-                (114, 153, 76),  
-                (63, 127, 0),    
-                (95, 127, 63),   
-                (38, 76, 0),     
-                (57, 76, 38),    
-                (63, 255, 0),    
-                (159, 255, 127), 
-                (51, 204, 0),    
-                (127, 204, 102), 
-                (38, 153, 0),    
-                (95, 153, 76),   
-                (31, 127, 0),    
-                (79, 127, 63),   
-                (19, 76, 0),     
-                (47, 76, 38),    
-                (0, 255, 0),     
-                (127, 255, 127), 
-                (0, 204, 0),     
-                (102, 204, 102), 
-                (0, 153, 0),     
-                (76, 153, 76),   
-                (0, 127, 0),     
-                (63, 127, 63),   
-                (0, 76, 0),      
-                (38, 76, 38),    
-                (0, 255, 63),    
-                (127, 255, 159), 
-                (0, 204, 51),    
-                (102, 204, 127), 
-                (0, 153, 38),    
-                (76, 153, 95),   
-                (0, 127, 31),    
-                (63, 127, 79),   
-                (0, 76, 19),     
-                (38, 76, 47),    
-                (0, 255, 127),   
-                (127, 255, 191), 
-                (0, 204, 102),   
-                (102, 204, 153), 
-                (0, 153, 76),    
-                (76, 153, 114),  
-                (0, 127, 63),    
-                (63, 127, 95),   
-                (0, 76, 38),     
-                (38, 76, 57),    
-                (0, 255, 191),   
-                (127, 255, 223), 
-                (0, 204, 153),   
-                (102, 204, 178), 
-                (0, 153, 114),   
-                (76, 153, 133),  
-                (0, 127, 95),    
-                (63, 127, 111),  
-                (0, 76, 57),     
-                (38, 76, 66),    
-                (0, 255, 255),   
-                (127, 255, 255), 
-                (0, 204, 204),   
-                (102, 204, 204), 
-                (0, 153, 153),   
-                (76, 153, 153),  
-                (0, 127, 127),   
-                (63, 127, 127),  
-                (0, 76, 76),     
-                (38, 76, 76),    
-                (0, 191, 255),   
-                (127, 223, 255), 
-                (0, 153, 204),   
-                (102, 178, 204), 
-                (0, 114, 153),   
-                (76, 133, 153),  
-                (0, 95, 127),    
-                (63, 111, 127),  
-                (0, 57, 76),     
-                (38, 66, 76),    
-                (0, 127, 255),   
-                (127, 191, 255), 
-                (0, 102, 204),   
-                (102, 153, 204), 
-                (0, 76, 153),    
-                (76, 114, 153),  
-                (0, 63, 127),    
-                (63, 95, 127),   
-                (0, 38, 76),     
-                (38, 57, 76),    
-                (0, 63, 255),    
-                (127, 159, 255), 
-                (0, 51, 204),    
-                (102, 127, 204), 
-                (0, 38, 153),    
-                (76, 95, 153),   
-                (0, 31, 127),    
-                (63, 79, 127),   
-                (0, 19, 76),     
-                (38, 47, 76),    
-                (0, 0, 255),     
-                (127, 127, 255), 
-                (0, 0, 204),     
-                (102, 102, 204), 
-                (0, 0, 153),     
-                (76, 76, 153),   
-                (0, 0, 127),     
-                (63, 63, 127),   
-                (0, 0, 76),      
-                (38, 38, 76),    
-                (63, 0, 255),    
-                (159, 127, 255), 
-                (51, 0, 204),    
-                (127, 102, 204), 
-                (38, 0, 153),    
-                (95, 76, 153),   
-                (31, 0, 127),    
-                (79, 63, 127),   
-                (19, 0, 76),     
-                (47, 38, 76),    
-                (127, 0, 255),   
-                (191, 127, 255), 
-                (102, 0, 204),   
-                (153, 102, 204), 
-                (76, 0, 153),    
-                (114, 76, 153),  
-                (63, 0, 127),    
-                (95, 63, 127),   
-                (38, 0, 76),     
-                (57, 38, 76),    
-                (191, 0, 255),   
-                (223, 127, 255), 
-                (153, 0, 204),   
-                (178, 102, 204), 
-                (114, 0, 153),   
-                (133, 76, 153),  
-                (95, 0, 127),    
-                (111, 63, 127),  
-                (57, 0, 76),     
-                (66, 38, 76),    
-                (255, 0, 255),   
-                (255, 127, 255), 
-                (204, 0, 204),   
-                (204, 102, 204), 
-                (153, 0, 153),   
-                (153, 76, 153),  
-                (127, 0, 127),   
-                (127, 63, 127),  
-                (76, 0, 76),     
-                (76, 38, 76),    
-                (255, 0, 191),   
-                (255, 127, 223), 
-                (204, 0, 153),   
-                (204, 102, 178), 
-                (153, 0, 114),   
-                (153, 76, 133),  
-                (127, 0, 95),    
-                (127, 63, 111),  
-                (76, 0, 57),     
-                (76, 38, 66),    
-                (255, 0, 127),   
-                (255, 127, 191), 
-                (204, 0, 102),   
-                (204, 102, 153), 
-                (153, 0, 76),    
-                (153, 76, 114),  
-                (127, 0, 63),    
-                (127, 63, 95),   
-                (76, 0, 38),     
-                (76, 38, 57),    
-                (255, 0, 63),    
-                (255, 127, 159), 
-                (204, 0, 51),    
-                (204, 102, 127), 
-                (153, 0, 38),    
-                (153, 76, 95),   
-                (127, 0, 31),    
-                (127, 63, 79),   
-                (76, 0, 19),     
-                (76, 38, 47),    
-                (84, 84, 84),    
-                (127, 127, 127), 
-                (170, 170, 170), 
-                (212, 212, 212), 
+                (0, 0, 0),
+                (255, 0, 0),
+                (255, 255, 0),
+                (0, 255, 0),
+                (0, 255, 255),
+                (0, 0, 255),
+                (255, 0, 255),
+                (255, 255, 255),
+                (65, 65, 65),
+                (128, 128, 128),
+                (255, 0, 0),
+                (255, 127, 127),
+                (204, 0, 0),
+                (204, 102, 102),
+                (153, 0, 0),
+                (153, 76, 76),
+                (127, 0, 0),
+                (127, 63, 63),
+                (76, 0, 0),
+                (76, 38, 38),
+                (255, 63, 0),
+                (255, 159, 127),
+                (204, 51, 0),
+                (204, 127, 102),
+                (153, 38, 0),
+                (153, 95, 76),
+                (127, 31, 0),
+                (127, 79, 63),
+                (76, 19, 0),
+                (76, 47, 38),
+                (255, 127, 0),
+                (255, 191, 127),
+                (204, 102, 0),
+                (204, 153, 102),
+                (153, 76, 0),
+                (153, 114, 76),
+                (127, 63, 0),
+                (127, 95, 63),
+                (76, 38, 0),
+                (76, 57, 38),
+                (255, 191, 0),
+                (255, 223, 127),
+                (204, 153, 0),
+                (204, 178, 102),
+                (153, 114, 0),
+                (153, 133, 76),
+                (127, 95, 0),
+                (127, 111, 63),
+                (76, 57, 0),
+                (76, 66, 38),
+                (255, 255, 0),
+                (255, 255, 127),
+                (204, 204, 0),
+                (204, 204, 102),
+                (153, 153, 0),
+                (153, 153, 76),
+                (127, 127, 0),
+                (127, 127, 63),
+                (76, 76, 0),
+                (76, 76, 38),
+                (191, 255, 0),
+                (223, 255, 127),
+                (153, 204, 0),
+                (178, 204, 102),
+                (114, 153, 0),
+                (133, 153, 76),
+                (95, 127, 0),
+                (111, 127, 63),
+                (57, 76, 0),
+                (66, 76, 38),
+                (127, 255, 0),
+                (191, 255, 127),
+                (102, 204, 0),
+                (153, 204, 102),
+                (76, 153, 0),
+                (114, 153, 76),
+                (63, 127, 0),
+                (95, 127, 63),
+                (38, 76, 0),
+                (57, 76, 38),
+                (63, 255, 0),
+                (159, 255, 127),
+                (51, 204, 0),
+                (127, 204, 102),
+                (38, 153, 0),
+                (95, 153, 76),
+                (31, 127, 0),
+                (79, 127, 63),
+                (19, 76, 0),
+                (47, 76, 38),
+                (0, 255, 0),
+                (127, 255, 127),
+                (0, 204, 0),
+                (102, 204, 102),
+                (0, 153, 0),
+                (76, 153, 76),
+                (0, 127, 0),
+                (63, 127, 63),
+                (0, 76, 0),
+                (38, 76, 38),
+                (0, 255, 63),
+                (127, 255, 159),
+                (0, 204, 51),
+                (102, 204, 127),
+                (0, 153, 38),
+                (76, 153, 95),
+                (0, 127, 31),
+                (63, 127, 79),
+                (0, 76, 19),
+                (38, 76, 47),
+                (0, 255, 127),
+                (127, 255, 191),
+                (0, 204, 102),
+                (102, 204, 153),
+                (0, 153, 76),
+                (76, 153, 114),
+                (0, 127, 63),
+                (63, 127, 95),
+                (0, 76, 38),
+                (38, 76, 57),
+                (0, 255, 191),
+                (127, 255, 223),
+                (0, 204, 153),
+                (102, 204, 178),
+                (0, 153, 114),
+                (76, 153, 133),
+                (0, 127, 95),
+                (63, 127, 111),
+                (0, 76, 57),
+                (38, 76, 66),
+                (0, 255, 255),
+                (127, 255, 255),
+                (0, 204, 204),
+                (102, 204, 204),
+                (0, 153, 153),
+                (76, 153, 153),
+                (0, 127, 127),
+                (63, 127, 127),
+                (0, 76, 76),
+                (38, 76, 76),
+                (0, 191, 255),
+                (127, 223, 255),
+                (0, 153, 204),
+                (102, 178, 204),
+                (0, 114, 153),
+                (76, 133, 153),
+                (0, 95, 127),
+                (63, 111, 127),
+                (0, 57, 76),
+                (38, 66, 76),
+                (0, 127, 255),
+                (127, 191, 255),
+                (0, 102, 204),
+                (102, 153, 204),
+                (0, 76, 153),
+                (76, 114, 153),
+                (0, 63, 127),
+                (63, 95, 127),
+                (0, 38, 76),
+                (38, 57, 76),
+                (0, 63, 255),
+                (127, 159, 255),
+                (0, 51, 204),
+                (102, 127, 204),
+                (0, 38, 153),
+                (76, 95, 153),
+                (0, 31, 127),
+                (63, 79, 127),
+                (0, 19, 76),
+                (38, 47, 76),
+                (0, 0, 255),
+                (127, 127, 255),
+                (0, 0, 204),
+                (102, 102, 204),
+                (0, 0, 153),
+                (76, 76, 153),
+                (0, 0, 127),
+                (63, 63, 127),
+                (0, 0, 76),
+                (38, 38, 76),
+                (63, 0, 255),
+                (159, 127, 255),
+                (51, 0, 204),
+                (127, 102, 204),
+                (38, 0, 153),
+                (95, 76, 153),
+                (31, 0, 127),
+                (79, 63, 127),
+                (19, 0, 76),
+                (47, 38, 76),
+                (127, 0, 255),
+                (191, 127, 255),
+                (102, 0, 204),
+                (153, 102, 204),
+                (76, 0, 153),
+                (114, 76, 153),
+                (63, 0, 127),
+                (95, 63, 127),
+                (38, 0, 76),
+                (57, 38, 76),
+                (191, 0, 255),
+                (223, 127, 255),
+                (153, 0, 204),
+                (178, 102, 204),
+                (114, 0, 153),
+                (133, 76, 153),
+                (95, 0, 127),
+                (111, 63, 127),
+                (57, 0, 76),
+                (66, 38, 76),
+                (255, 0, 255),
+                (255, 127, 255),
+                (204, 0, 204),
+                (204, 102, 204),
+                (153, 0, 153),
+                (153, 76, 153),
+                (127, 0, 127),
+                (127, 63, 127),
+                (76, 0, 76),
+                (76, 38, 76),
+                (255, 0, 191),
+                (255, 127, 223),
+                (204, 0, 153),
+                (204, 102, 178),
+                (153, 0, 114),
+                (153, 76, 133),
+                (127, 0, 95),
+                (127, 63, 111),
+                (76, 0, 57),
+                (76, 38, 66),
+                (255, 0, 127),
+                (255, 127, 191),
+                (204, 0, 102),
+                (204, 102, 153),
+                (153, 0, 76),
+                (153, 76, 114),
+                (127, 0, 63),
+                (127, 63, 95),
+                (76, 0, 38),
+                (76, 38, 57),
+                (255, 0, 63),
+                (255, 127, 159),
+                (204, 0, 51),
+                (204, 102, 127),
+                (153, 0, 38),
+                (153, 76, 95),
+                (127, 0, 31),
+                (127, 63, 79),
+                (76, 0, 19),
+                (76, 38, 47),
+                (84, 84, 84),
+                (127, 127, 127),
+                (170, 170, 170),
+                (212, 212, 212),
             ];
             let idx = (*idx as usize).min(colors.len() - 1);
             let (r, g, b) = colors[idx];
@@ -694,7 +729,11 @@ struct CoordCluster {
 
 fn find_all_clusters(sorted_vals: &[f64], max_gap_buckets: usize) -> Vec<CoordCluster> {
     if sorted_vals.len() <= 1 {
-        return vec![CoordCluster { min: sorted_vals[0], max: sorted_vals[0], count: sorted_vals.len() }];
+        return vec![CoordCluster {
+            min: sorted_vals[0],
+            max: sorted_vals[0],
+            count: sorted_vals.len(),
+        }];
     }
 
     let n = sorted_vals.len();
@@ -703,7 +742,11 @@ fn find_all_clusters(sorted_vals: &[f64], max_gap_buckets: usize) -> Vec<CoordCl
     let global_range = global_max - global_min;
 
     if global_range < 1e-6 {
-        return vec![CoordCluster { min: global_min, max: global_max, count: n }];
+        return vec![CoordCluster {
+            min: global_min,
+            max: global_max,
+            count: n,
+        }];
     }
 
     let num_buckets = (n / 5).clamp(50, 200);
@@ -736,9 +779,22 @@ fn find_all_clusters(sorted_vals: &[f64], max_gap_buckets: usize) -> Vec<CoordCl
                         let end = i - empty_run;
                         let c_min = global_min + start as f64 * bucket_width;
                         let c_max = global_min + (end + 1) as f64 * bucket_width;
-                        let precise_min = sorted_vals.iter().cloned().find(|&v| v >= c_min).unwrap_or(global_min);
-                        let precise_max = sorted_vals.iter().rev().cloned().find(|&v| v <= c_max).unwrap_or(global_max);
-                        clusters.push(CoordCluster { min: precise_min, max: precise_max, count: seg_count });
+                        let precise_min = sorted_vals
+                            .iter()
+                            .cloned()
+                            .find(|&v| v >= c_min)
+                            .unwrap_or(global_min);
+                        let precise_max = sorted_vals
+                            .iter()
+                            .rev()
+                            .cloned()
+                            .find(|&v| v <= c_max)
+                            .unwrap_or(global_max);
+                        clusters.push(CoordCluster {
+                            min: precise_min,
+                            max: precise_max,
+                            count: seg_count,
+                        });
                     }
                     seg_start = None;
                     seg_count = 0;
@@ -750,14 +806,31 @@ fn find_all_clusters(sorted_vals: &[f64], max_gap_buckets: usize) -> Vec<CoordCl
         if seg_count > 0 {
             let c_min = global_min + start as f64 * bucket_width;
             let c_max = global_max;
-            let precise_min = sorted_vals.iter().cloned().find(|&v| v >= c_min).unwrap_or(global_min);
-            let precise_max = sorted_vals.iter().rev().cloned().find(|&v| v <= c_max).unwrap_or(global_max);
-            clusters.push(CoordCluster { min: precise_min, max: precise_max, count: seg_count });
+            let precise_min = sorted_vals
+                .iter()
+                .cloned()
+                .find(|&v| v >= c_min)
+                .unwrap_or(global_min);
+            let precise_max = sorted_vals
+                .iter()
+                .rev()
+                .cloned()
+                .find(|&v| v <= c_max)
+                .unwrap_or(global_max);
+            clusters.push(CoordCluster {
+                min: precise_min,
+                max: precise_max,
+                count: seg_count,
+            });
         }
     }
 
     if clusters.is_empty() {
-        clusters.push(CoordCluster { min: global_min, max: global_max, count: n });
+        clusters.push(CoordCluster {
+            min: global_min,
+            max: global_max,
+            count: n,
+        });
     }
 
     clusters.sort_by(|a, b| b.count.cmp(&a.count));
@@ -772,7 +845,8 @@ fn find_significant_cluster_range(sorted_vals: &[f64]) -> (f64, f64) {
     let clusters = find_all_clusters(sorted_vals, 2);
     let total = sorted_vals.len();
 
-    let significant: Vec<&CoordCluster> = clusters.iter()
+    let significant: Vec<&CoordCluster> = clusters
+        .iter()
         .filter(|c| c.count as f64 / total as f64 > 0.01)
         .collect();
 
@@ -799,14 +873,17 @@ fn calculate_extents(entities: &[CadEntity]) -> Option<CadExtents> {
     cad_entities_bbox(entities).and_then(|bounds| bounds.to_extents())
 }
 
-fn resolve_color(raw_color: &Color, layer: &str, layer_colors: &HashMap<String, i32>, insert_color: Option<i32>) -> i32 {
+fn resolve_color(
+    raw_color: &Color,
+    layer: &str,
+    layer_colors: &HashMap<String, i32>,
+    insert_color: Option<i32>,
+) -> i32 {
     match raw_color {
-        Color::ByLayer => {
-            *layer_colors.get(layer).unwrap_or(&(255 << 16 | 255 << 8 | 255))
-        }
-        Color::ByBlock => {
-            insert_color.unwrap_or(255 << 16 | 255 << 8 | 255)
-        }
+        Color::ByLayer => *layer_colors
+            .get(layer)
+            .unwrap_or(&(255 << 16 | 255 << 8 | 255)),
+        Color::ByBlock => insert_color.unwrap_or(255 << 16 | 255 << 8 | 255),
         _ => color_to_rgb(raw_color),
     }
 }
@@ -848,14 +925,28 @@ fn explode_insert_recursive(
                 layer_colors,
                 Some(insert_color),
             );
-            explode_insert_recursive(nested_insert, doc, nested_insert_color, layer_colors, entities, entity_count, depth + 1, visited);
+            explode_insert_recursive(
+                nested_insert,
+                doc,
+                nested_insert_color,
+                layer_colors,
+                entities,
+                entity_count,
+                depth + 1,
+                visited,
+            );
             continue;
         }
 
         *entity_count += 1;
         let id = format!("entity_{}", entity_count);
         let layer = fix_garbled_text(&sub_entity.common().layer);
-        let color = resolve_color(&sub_entity.common().color, &sub_entity.common().layer, layer_colors, Some(insert_color));
+        let color = resolve_color(
+            &sub_entity.common().color,
+            &sub_entity.common().layer,
+            layer_colors,
+            Some(insert_color),
+        );
         let line_weight = 1.0;
 
         if let Some(cad_entity) = convert_entity(sub_entity, id, layer, color, line_weight) {
@@ -878,70 +969,119 @@ fn collect_raw_coords(entities: &[CadEntity], xs: &mut Vec<f64>, ys: &mut Vec<f6
     for entity in entities {
         match entity {
             CadEntity::Line { start, end, .. } => {
-                xs.push(start.x); ys.push(start.y);
-                xs.push(end.x); ys.push(end.y);
+                xs.push(start.x);
+                ys.push(start.y);
+                xs.push(end.x);
+                ys.push(end.y);
             }
             CadEntity::Circle { center, .. } => {
-                xs.push(center.x); ys.push(center.y);
+                xs.push(center.x);
+                ys.push(center.y);
             }
             CadEntity::Arc { center, .. } => {
-                xs.push(center.x); ys.push(center.y);
+                xs.push(center.x);
+                ys.push(center.y);
             }
             CadEntity::Ellipse { center, .. } => {
-                xs.push(center.x); ys.push(center.y);
+                xs.push(center.x);
+                ys.push(center.y);
             }
             CadEntity::Polyline { vertices, .. } => {
-                for v in vertices { xs.push(v.x); ys.push(v.y); }
+                for v in vertices {
+                    xs.push(v.x);
+                    ys.push(v.y);
+                }
             }
             CadEntity::LwPolyline { vertices, .. } => {
-                for v in vertices { xs.push(v.x); ys.push(v.y); }
+                for v in vertices {
+                    xs.push(v.x);
+                    ys.push(v.y);
+                }
             }
-            CadEntity::Spline { control_points, fit_points, .. } => {
-                for p in control_points { xs.push(p.x); ys.push(p.y); }
-                for p in fit_points { xs.push(p.x); ys.push(p.y); }
+            CadEntity::Spline {
+                control_points,
+                fit_points,
+                ..
+            } => {
+                for p in control_points {
+                    xs.push(p.x);
+                    ys.push(p.y);
+                }
+                for p in fit_points {
+                    xs.push(p.x);
+                    ys.push(p.y);
+                }
             }
             CadEntity::Text { position, .. } | CadEntity::MText { position, .. } => {
-                xs.push(position.x); ys.push(position.y);
+                xs.push(position.x);
+                ys.push(position.y);
             }
             CadEntity::Solid { points, .. } => {
-                for p in points { xs.push(p.x); ys.push(p.y); }
+                for p in points {
+                    xs.push(p.x);
+                    ys.push(p.y);
+                }
             }
             CadEntity::Point { position, .. } => {
-                xs.push(position.x); ys.push(position.y);
+                xs.push(position.x);
+                ys.push(position.y);
             }
             CadEntity::Insert { position, .. } => {
-                xs.push(position.x); ys.push(position.y);
+                xs.push(position.x);
+                ys.push(position.y);
             }
             CadEntity::Hatch { boundaries, .. } => {
                 for path in boundaries {
-                    for v in path { xs.push(v.x); ys.push(v.y); }
+                    for v in path {
+                        xs.push(v.x);
+                        ys.push(v.y);
+                    }
                 }
             }
-            CadEntity::Dimension { definition_point, text_midpoint, .. } => {
-                xs.push(definition_point.x); ys.push(definition_point.y);
-                xs.push(text_midpoint.x); ys.push(text_midpoint.y);
+            CadEntity::Dimension {
+                definition_point,
+                text_midpoint,
+                ..
+            } => {
+                xs.push(definition_point.x);
+                ys.push(definition_point.y);
+                xs.push(text_midpoint.x);
+                ys.push(text_midpoint.y);
             }
             CadEntity::Leader { vertices, .. } => {
-                for v in vertices { xs.push(v.x); ys.push(v.y); }
+                for v in vertices {
+                    xs.push(v.x);
+                    ys.push(v.y);
+                }
             }
             CadEntity::AttributeEntity { position, .. } => {
-                xs.push(position.x); ys.push(position.y);
+                xs.push(position.x);
+                ys.push(position.y);
             }
             CadEntity::Face3D { points, .. } => {
-                for p in points { xs.push(p.x); ys.push(p.y); }
+                for p in points {
+                    xs.push(p.x);
+                    ys.push(p.y);
+                }
             }
             CadEntity::Polyline2D { vertices, .. } => {
-                for v in vertices { xs.push(v.x); ys.push(v.y); }
+                for v in vertices {
+                    xs.push(v.x);
+                    ys.push(v.y);
+                }
             }
             CadEntity::Table { position, .. } => {
-                xs.push(position.x); ys.push(position.y);
+                xs.push(position.x);
+                ys.push(position.y);
             }
         }
     }
 }
 
 fn median_sorted(sorted: &[f64]) -> f64 {
-    if sorted.is_empty() { return 0.0; }
+    if sorted.is_empty() {
+        return 0.0;
+    }
     let mid = sorted.len() / 2;
     if sorted.len() % 2 == 0 {
         (sorted[mid - 1] + sorted[mid]) / 2.0
@@ -953,63 +1093,110 @@ fn median_sorted(sorted: &[f64]) -> f64 {
 fn apply_coordinate_offset(entity: &mut CadEntity, offset_x: f64, offset_y: f64) {
     match entity {
         CadEntity::Line { start, end, .. } => {
-            start.x -= offset_x; start.y -= offset_y;
-            end.x -= offset_x; end.y -= offset_y;
+            start.x -= offset_x;
+            start.y -= offset_y;
+            end.x -= offset_x;
+            end.y -= offset_y;
         }
         CadEntity::Circle { center, .. } => {
-            center.x -= offset_x; center.y -= offset_y;
+            center.x -= offset_x;
+            center.y -= offset_y;
         }
         CadEntity::Arc { center, .. } => {
-            center.x -= offset_x; center.y -= offset_y;
+            center.x -= offset_x;
+            center.y -= offset_y;
         }
         CadEntity::Ellipse { center, .. } => {
-            center.x -= offset_x; center.y -= offset_y;
+            center.x -= offset_x;
+            center.y -= offset_y;
         }
         CadEntity::Polyline { vertices, .. } => {
-            for v in vertices { v.x -= offset_x; v.y -= offset_y; }
+            for v in vertices {
+                v.x -= offset_x;
+                v.y -= offset_y;
+            }
         }
         CadEntity::LwPolyline { vertices, .. } => {
-            for v in vertices { v.x -= offset_x; v.y -= offset_y; }
+            for v in vertices {
+                v.x -= offset_x;
+                v.y -= offset_y;
+            }
         }
-        CadEntity::Spline { control_points, fit_points, .. } => {
-            for p in control_points { p.x -= offset_x; p.y -= offset_y; }
-            for p in fit_points { p.x -= offset_x; p.y -= offset_y; }
+        CadEntity::Spline {
+            control_points,
+            fit_points,
+            ..
+        } => {
+            for p in control_points {
+                p.x -= offset_x;
+                p.y -= offset_y;
+            }
+            for p in fit_points {
+                p.x -= offset_x;
+                p.y -= offset_y;
+            }
         }
         CadEntity::Text { position, .. } | CadEntity::MText { position, .. } => {
-            position.x -= offset_x; position.y -= offset_y;
+            position.x -= offset_x;
+            position.y -= offset_y;
         }
         CadEntity::Solid { points, .. } => {
-            for p in points { p.x -= offset_x; p.y -= offset_y; }
+            for p in points {
+                p.x -= offset_x;
+                p.y -= offset_y;
+            }
         }
         CadEntity::Point { position, .. } => {
-            position.x -= offset_x; position.y -= offset_y;
+            position.x -= offset_x;
+            position.y -= offset_y;
         }
         CadEntity::Insert { position, .. } => {
-            position.x -= offset_x; position.y -= offset_y;
+            position.x -= offset_x;
+            position.y -= offset_y;
         }
         CadEntity::Hatch { boundaries, .. } => {
             for path in boundaries {
-                for v in path { v.x -= offset_x; v.y -= offset_y; }
+                for v in path {
+                    v.x -= offset_x;
+                    v.y -= offset_y;
+                }
             }
         }
-        CadEntity::Dimension { definition_point, text_midpoint, .. } => {
-            definition_point.x -= offset_x; definition_point.y -= offset_y;
-            text_midpoint.x -= offset_x; text_midpoint.y -= offset_y;
+        CadEntity::Dimension {
+            definition_point,
+            text_midpoint,
+            ..
+        } => {
+            definition_point.x -= offset_x;
+            definition_point.y -= offset_y;
+            text_midpoint.x -= offset_x;
+            text_midpoint.y -= offset_y;
         }
         CadEntity::Leader { vertices, .. } => {
-            for v in vertices { v.x -= offset_x; v.y -= offset_y; }
+            for v in vertices {
+                v.x -= offset_x;
+                v.y -= offset_y;
+            }
         }
         CadEntity::AttributeEntity { position, .. } => {
-            position.x -= offset_x; position.y -= offset_y;
+            position.x -= offset_x;
+            position.y -= offset_y;
         }
         CadEntity::Face3D { points, .. } => {
-            for p in points { p.x -= offset_x; p.y -= offset_y; }
+            for p in points {
+                p.x -= offset_x;
+                p.y -= offset_y;
+            }
         }
         CadEntity::Polyline2D { vertices, .. } => {
-            for v in vertices { v.x -= offset_x; v.y -= offset_y; }
+            for v in vertices {
+                v.x -= offset_x;
+                v.y -= offset_y;
+            }
         }
         CadEntity::Table { position, .. } => {
-            position.x -= offset_x; position.y -= offset_y;
+            position.x -= offset_x;
+            position.y -= offset_y;
         }
     }
 }
@@ -1053,12 +1240,17 @@ fn profile_dwg(doc: &AcadDocument, file_size: u64) -> CadProfile {
                 let n = lw.vertices.len();
                 lwpoly_total_verts += n;
                 lwpoly_max_verts = lwpoly_max_verts.max(n);
-                if n > 1000 { lwpoly_huge += 1; }
+                if n > 1000 {
+                    lwpoly_huge += 1;
+                }
                 for v in &lw.vertices {
-                    let x = v.location.x; let y = v.location.y;
+                    let x = v.location.x;
+                    let y = v.location.y;
                     if x.is_finite() && y.is_finite() {
-                        min_x = min_x.min(x); max_x = max_x.max(x);
-                        min_y = min_y.min(y); max_y = max_y.max(y);
+                        min_x = min_x.min(x);
+                        max_x = max_x.max(x);
+                        min_y = min_y.min(y);
+                        max_y = max_y.max(y);
                     }
                 }
             }
@@ -1069,121 +1261,176 @@ fn profile_dwg(doc: &AcadDocument, file_size: u64) -> CadProfile {
                 }
             }
             EntityType::Text(t) => {
-                if t.height > 1000.0 || t.height < 0.01 { text_extreme += 1; }
+                if t.height > 1000.0 || t.height < 0.01 {
+                    text_extreme += 1;
+                }
                 let p = &t.insertion_point;
                 if p.x.is_finite() && p.y.is_finite() {
-                    min_x = min_x.min(p.x); max_x = max_x.max(p.x);
-                    min_y = min_y.min(p.y); max_y = max_y.max(p.y);
+                    min_x = min_x.min(p.x);
+                    max_x = max_x.max(p.x);
+                    min_y = min_y.min(p.y);
+                    max_y = max_y.max(p.y);
                 }
             }
             EntityType::MText(mt) => {
-                if mt.height > 1000.0 || mt.height < 0.01 { text_extreme += 1; }
+                if mt.height > 1000.0 || mt.height < 0.01 {
+                    text_extreme += 1;
+                }
                 let p = &mt.insertion_point;
                 if p.x.is_finite() && p.y.is_finite() {
-                    min_x = min_x.min(p.x); max_x = max_x.max(p.x);
-                    min_y = min_y.min(p.y); max_y = max_y.max(p.y);
+                    min_x = min_x.min(p.x);
+                    max_x = max_x.max(p.x);
+                    min_y = min_y.min(p.y);
+                    max_y = max_y.max(p.y);
                 }
             }
             EntityType::Line(l) => {
                 for p in [&l.start, &l.end] {
                     if p.x.is_finite() && p.y.is_finite() {
-                        min_x = min_x.min(p.x); max_x = max_x.max(p.x);
-                        min_y = min_y.min(p.y); max_y = max_y.max(p.y);
+                        min_x = min_x.min(p.x);
+                        max_x = max_x.max(p.x);
+                        min_y = min_y.min(p.y);
+                        max_y = max_y.max(p.y);
                     }
                 }
             }
             EntityType::Circle(c) => {
-                let x = c.center.x; let y = c.center.y; let r = c.radius;
+                let x = c.center.x;
+                let y = c.center.y;
+                let r = c.radius;
                 if x.is_finite() && y.is_finite() && r.is_finite() {
-                    min_x = min_x.min(x - r); max_x = max_x.max(x + r);
-                    min_y = min_y.min(y - r); max_y = max_y.max(y + r);
+                    min_x = min_x.min(x - r);
+                    max_x = max_x.max(x + r);
+                    min_y = min_y.min(y - r);
+                    max_y = max_y.max(y + r);
                 }
             }
             EntityType::Arc(a) => {
-                let x = a.center.x; let y = a.center.y; let r = a.radius;
+                let x = a.center.x;
+                let y = a.center.y;
+                let r = a.radius;
                 if x.is_finite() && y.is_finite() && r.is_finite() {
-                    min_x = min_x.min(x - r); max_x = max_x.max(x + r);
-                    min_y = min_y.min(y - r); max_y = max_y.max(y + r);
+                    min_x = min_x.min(x - r);
+                    max_x = max_x.max(x + r);
+                    min_y = min_y.min(y - r);
+                    max_y = max_y.max(y + r);
                 }
             }
             EntityType::Insert(ins) => {
-                let x = ins.insert_point.x; let y = ins.insert_point.y;
+                let x = ins.insert_point.x;
+                let y = ins.insert_point.y;
                 if x.is_finite() && y.is_finite() {
-                    min_x = min_x.min(x); max_x = max_x.max(x);
-                    min_y = min_y.min(y); max_y = max_y.max(y);
+                    min_x = min_x.min(x);
+                    max_x = max_x.max(x);
+                    min_y = min_y.min(y);
+                    max_y = max_y.max(y);
                 }
             }
             EntityType::Spline(sp) => {
                 for p in &sp.control_points {
                     if p.x.is_finite() && p.y.is_finite() {
-                        min_x = min_x.min(p.x); max_x = max_x.max(p.x);
-                        min_y = min_y.min(p.y); max_y = max_y.max(p.y);
+                        min_x = min_x.min(p.x);
+                        max_x = max_x.max(p.x);
+                        min_y = min_y.min(p.y);
+                        max_y = max_y.max(p.y);
                     }
                 }
                 for p in &sp.fit_points {
                     if p.x.is_finite() && p.y.is_finite() {
-                        min_x = min_x.min(p.x); max_x = max_x.max(p.x);
-                        min_y = min_y.min(p.y); max_y = max_y.max(p.y);
+                        min_x = min_x.min(p.x);
+                        max_x = max_x.max(p.x);
+                        min_y = min_y.min(p.y);
+                        max_y = max_y.max(p.y);
                     }
                 }
             }
             EntityType::Polyline(poly) => {
                 for v in &poly.vertices {
-                    let x = v.location.x; let y = v.location.y;
+                    let x = v.location.x;
+                    let y = v.location.y;
                     if x.is_finite() && y.is_finite() {
-                        min_x = min_x.min(x); max_x = max_x.max(x);
-                        min_y = min_y.min(y); max_y = max_y.max(y);
+                        min_x = min_x.min(x);
+                        max_x = max_x.max(x);
+                        min_y = min_y.min(y);
+                        max_y = max_y.max(y);
                     }
                 }
             }
             EntityType::Ellipse(el) => {
-                let x = el.center.x; let y = el.center.y;
+                let x = el.center.x;
+                let y = el.center.y;
                 if x.is_finite() && y.is_finite() {
                     let major_len = (el.major_axis.x.powi(2) + el.major_axis.y.powi(2)).sqrt();
                     if major_len.is_finite() {
                         let r = major_len;
-                        min_x = min_x.min(x - r); max_x = max_x.max(x + r);
-                        min_y = min_y.min(y - r); max_y = max_y.max(y + r);
+                        min_x = min_x.min(x - r);
+                        max_x = max_x.max(x + r);
+                        min_y = min_y.min(y - r);
+                        max_y = max_y.max(y + r);
                     } else {
-                        min_x = min_x.min(x); max_x = max_x.max(x);
-                        min_y = min_y.min(y); max_y = max_y.max(y);
+                        min_x = min_x.min(x);
+                        max_x = max_x.max(x);
+                        min_y = min_y.min(y);
+                        max_y = max_y.max(y);
                     }
                 }
             }
             EntityType::Solid(s) => {
-                for p in [&s.first_corner, &s.second_corner, &s.third_corner, &s.fourth_corner] {
+                for p in [
+                    &s.first_corner,
+                    &s.second_corner,
+                    &s.third_corner,
+                    &s.fourth_corner,
+                ] {
                     if p.x.is_finite() && p.y.is_finite() {
-                        min_x = min_x.min(p.x); max_x = max_x.max(p.x);
-                        min_y = min_y.min(p.y); max_y = max_y.max(p.y);
+                        min_x = min_x.min(p.x);
+                        max_x = max_x.max(p.x);
+                        min_y = min_y.min(p.y);
+                        max_y = max_y.max(p.y);
                     }
                 }
             }
             EntityType::Point(pt) => {
-                let x = pt.location.x; let y = pt.location.y;
+                let x = pt.location.x;
+                let y = pt.location.y;
                 if x.is_finite() && y.is_finite() {
-                    min_x = min_x.min(x); max_x = max_x.max(x);
-                    min_y = min_y.min(y); max_y = max_y.max(y);
+                    min_x = min_x.min(x);
+                    max_x = max_x.max(x);
+                    min_y = min_y.min(y);
+                    max_y = max_y.max(y);
                 }
             }
             EntityType::Dimension(dim) => {
                 let base = dim.base();
                 let p = &base.definition_point;
                 if p.x.is_finite() && p.y.is_finite() {
-                    min_x = min_x.min(p.x); max_x = max_x.max(p.x);
-                    min_y = min_y.min(p.y); max_y = max_y.max(p.y);
+                    min_x = min_x.min(p.x);
+                    max_x = max_x.max(p.x);
+                    min_y = min_y.min(p.y);
+                    max_y = max_y.max(p.y);
                 }
                 let p2 = &base.text_middle_point;
                 if p2.x.is_finite() && p2.y.is_finite() {
-                    min_x = min_x.min(p2.x); max_x = max_x.max(p2.x);
-                    min_y = min_y.min(p2.y); max_y = max_y.max(p2.y);
+                    min_x = min_x.min(p2.x);
+                    max_x = max_x.max(p2.x);
+                    min_y = min_y.min(p2.y);
+                    max_y = max_y.max(p2.y);
                 }
             }
             _ => {}
         }
     }
 
-    let coord_span_x = if max_x.is_finite() && min_x.is_finite() { max_x - min_x } else { 0.0 };
-    let coord_span_y = if max_y.is_finite() && min_y.is_finite() { max_y - min_y } else { 0.0 };
+    let coord_span_x = if max_x.is_finite() && min_x.is_finite() {
+        max_x - min_x
+    } else {
+        0.0
+    };
+    let coord_span_y = if max_y.is_finite() && min_y.is_finite() {
+        max_y - min_y
+    } else {
+        0.0
+    };
 
     let has_large_coords = coord_span_x > 1_000_000.0 || coord_span_y > 1_000_000.0;
     let has_heavy_lwpoly = lwpoly_huge > 0;
@@ -1197,57 +1444,116 @@ fn profile_dwg(doc: &AcadDocument, file_size: u64) -> CadProfile {
     for entity in doc.entities() {
         match &entity {
             EntityType::Line(l) => {
-                if l.start.x.is_finite() && l.start.y.is_finite() { xs_sample.push(l.start.x); ys_sample.push(l.start.y); }
-                if l.end.x.is_finite() && l.end.y.is_finite() { xs_sample.push(l.end.x); ys_sample.push(l.end.y); }
+                if l.start.x.is_finite() && l.start.y.is_finite() {
+                    xs_sample.push(l.start.x);
+                    ys_sample.push(l.start.y);
+                }
+                if l.end.x.is_finite() && l.end.y.is_finite() {
+                    xs_sample.push(l.end.x);
+                    ys_sample.push(l.end.y);
+                }
             }
             EntityType::Circle(c) => {
-                if c.center.x.is_finite() && c.center.y.is_finite() { xs_sample.push(c.center.x); ys_sample.push(c.center.y); }
+                if c.center.x.is_finite() && c.center.y.is_finite() {
+                    xs_sample.push(c.center.x);
+                    ys_sample.push(c.center.y);
+                }
             }
             EntityType::Insert(ins) => {
-                if ins.insert_point.x.is_finite() && ins.insert_point.y.is_finite() { xs_sample.push(ins.insert_point.x); ys_sample.push(ins.insert_point.y); }
+                if ins.insert_point.x.is_finite() && ins.insert_point.y.is_finite() {
+                    xs_sample.push(ins.insert_point.x);
+                    ys_sample.push(ins.insert_point.y);
+                }
             }
             EntityType::LwPolyline(lw) => {
                 for v in lw.vertices.iter().take(5) {
-                    if v.location.x.is_finite() && v.location.y.is_finite() { xs_sample.push(v.location.x); ys_sample.push(v.location.y); }
+                    if v.location.x.is_finite() && v.location.y.is_finite() {
+                        xs_sample.push(v.location.x);
+                        ys_sample.push(v.location.y);
+                    }
                 }
             }
             _ => {}
         }
-        if xs_sample.len() >= 10000 { break; }
+        if xs_sample.len() >= 10000 {
+            break;
+        }
     }
     xs_sample.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     ys_sample.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let x_clusters = find_all_clusters(&xs_sample, 2);
     let y_clusters = find_all_clusters(&ys_sample, 2);
 
-    let sig_x_count = x_clusters.iter().filter(|c| c.count as f64 / xs_sample.len().max(1) as f64 > 0.05).count();
-    let sig_y_count = y_clusters.iter().filter(|c| c.count as f64 / ys_sample.len().max(1) as f64 > 0.05).count();
+    let sig_x_count = x_clusters
+        .iter()
+        .filter(|c| c.count as f64 / xs_sample.len().max(1) as f64 > 0.05)
+        .count();
+    let sig_y_count = y_clusters
+        .iter()
+        .filter(|c| c.count as f64 / ys_sample.len().max(1) as f64 > 0.05)
+        .count();
     let cluster_count = sig_x_count.max(sig_y_count);
     let has_distributed_coords = cluster_count > 1;
     let has_multi_cluster = cluster_count >= 3;
 
     let mut flags = CadProfileFlags::empty();
-    if has_large_coords { flags |= CadProfileFlags::LARGE_COORDS; }
-    if has_heavy_lwpoly { flags |= CadProfileFlags::HEAVY_LWPOLY; }
-    if has_heavy_hatch { flags |= CadProfileFlags::HEAVY_HATCH; }
-    if has_extreme_text { flags |= CadProfileFlags::EXTREME_TEXT_HEIGHT; }
-    if has_distributed_coords { flags |= CadProfileFlags::DISTRIBUTED_COORDS; }
-    if has_medium_entity { flags |= CadProfileFlags::MEDIUM_ENTITY; }
-    if has_multi_cluster { flags |= CadProfileFlags::MULTI_CLUSTER; }
+    if has_large_coords {
+        flags |= CadProfileFlags::LARGE_COORDS;
+    }
+    if has_heavy_lwpoly {
+        flags |= CadProfileFlags::HEAVY_LWPOLY;
+    }
+    if has_heavy_hatch {
+        flags |= CadProfileFlags::HEAVY_HATCH;
+    }
+    if has_extreme_text {
+        flags |= CadProfileFlags::EXTREME_TEXT_HEIGHT;
+    }
+    if has_distributed_coords {
+        flags |= CadProfileFlags::DISTRIBUTED_COORDS;
+    }
+    if has_medium_entity {
+        flags |= CadProfileFlags::MEDIUM_ENTITY;
+    }
+    if has_multi_cluster {
+        flags |= CadProfileFlags::MULTI_CLUSTER;
+    }
 
     if entity_count < 5000 && cluster_count <= 2 && !has_large_coords {
-        CadProfile::Light { entity_count, coord_span_x, coord_span_y }
+        CadProfile::Light {
+            entity_count,
+            coord_span_x,
+            coord_span_y,
+        }
     } else if entity_count < 15000 && cluster_count <= 3 {
         let mut f = flags;
         f.set(CadProfileFlags::LARGE_COORDS, false);
         f.set(CadProfileFlags::MULTI_CLUSTER, false);
-        CadProfile::Standard { entity_count, coord_span_x, coord_span_y, flags: f }
+        CadProfile::Standard {
+            entity_count,
+            coord_span_x,
+            coord_span_y,
+            flags: f,
+        }
     } else if entity_count < 30000 && cluster_count <= 5 {
-        CadProfile::Heavy { entity_count, coord_span_x, coord_span_y, flags }
-    } else if entity_count < 50000 || (cluster_count >= 3 && cluster_count <= 8 && entity_count < 50000) {
-        CadProfile::Mega { entity_count, flags }
+        CadProfile::Heavy {
+            entity_count,
+            coord_span_x,
+            coord_span_y,
+            flags,
+        }
+    } else if entity_count < 50000
+        || (cluster_count >= 3 && cluster_count <= 8 && entity_count < 50000)
+    {
+        CadProfile::Mega {
+            entity_count,
+            flags,
+        }
     } else {
-        CadProfile::Ultra { entity_count, flags }
+        CadProfile::Ultra {
+            entity_count,
+            flags,
+        }
     }
 }
 
@@ -1255,7 +1561,10 @@ const LWPOLYLINE_VERTEX_LIMIT: usize = 5000;
 
 fn apply_lwpolyline_decimation(entities: &mut Vec<CadEntity>) {
     for entity in entities.iter_mut() {
-        if let CadEntity::LwPolyline { vertices, closed, .. } = entity {
+        if let CadEntity::LwPolyline {
+            vertices, closed, ..
+        } = entity
+        {
             if vertices.len() > LWPOLYLINE_VERTEX_LIMIT {
                 let step = (vertices.len() as f64 / LWPOLYLINE_VERTEX_LIMIT as f64).ceil() as usize;
                 let mut decimated = Vec::with_capacity(LWPOLYLINE_VERTEX_LIMIT + 1);
@@ -1287,7 +1596,10 @@ const HATCH_MAX_EDGES_PER_PATH: usize = 100;
 
 fn apply_hatch_simplification(entities: &mut Vec<CadEntity>) {
     for entity in entities.iter_mut() {
-        if let CadEntity::Hatch { boundaries, solid, .. } = entity {
+        if let CadEntity::Hatch {
+            boundaries, solid, ..
+        } = entity
+        {
             boundaries.retain(|path| path.len() <= HATCH_MAX_EDGES_PER_PATH);
             if !*solid && boundaries.iter().map(|p| p.len()).sum::<usize>() > 500 {
                 boundaries.clear();
@@ -1313,11 +1625,11 @@ fn apply_text_height_clamping(entities: &mut Vec<CadEntity>) {
 const SMALL_TEXT_THRESHOLD: f64 = 0.5;
 
 fn apply_small_text_simplification(entities: &mut Vec<CadEntity>) {
-    entities.retain(|entity| {
-        match entity {
-            CadEntity::Text { height, .. } | CadEntity::MText { height, .. } => *height >= SMALL_TEXT_THRESHOLD,
-            _ => true,
+    entities.retain(|entity| match entity {
+        CadEntity::Text { height, .. } | CadEntity::MText { height, .. } => {
+            *height >= SMALL_TEXT_THRESHOLD
         }
+        _ => true,
     });
 }
 
@@ -1333,7 +1645,9 @@ fn apply_profile_strategies(entities: &mut Vec<CadEntity>, profile: &CadProfile)
             }
         }
         CadProfile::Heavy { flags, .. } => {
-            if flags.contains(CadProfileFlags::HEAVY_LWPOLY) || flags.contains(CadProfileFlags::LARGE_COORDS) {
+            if flags.contains(CadProfileFlags::HEAVY_LWPOLY)
+                || flags.contains(CadProfileFlags::LARGE_COORDS)
+            {
                 apply_lwpolyline_decimation(entities);
             }
             if flags.contains(CadProfileFlags::HEAVY_HATCH) {
@@ -1394,7 +1708,11 @@ fn apply_profile_strategies(entities: &mut Vec<CadEntity>, profile: &CadProfile)
     }
 }
 
-fn convert_document(doc: AcadDocument, file_name: String, file_size: u64) -> (CadDocument, ParseDiagnostics) {
+fn convert_document(
+    doc: AcadDocument,
+    file_name: String,
+    file_size: u64,
+) -> (CadDocument, ParseDiagnostics) {
     let profile = profile_dwg(&doc, file_size);
 
     let mut entities = Vec::new();
@@ -1404,11 +1722,15 @@ fn convert_document(doc: AcadDocument, file_name: String, file_size: u64) -> (Ca
     let mut invisible_skipped: usize = 0;
     let mut unsupported_types: HashMap<String, usize> = HashMap::new();
 
-    let layer_colors: HashMap<String, i32> = doc.layers.iter()
+    let layer_colors: HashMap<String, i32> = doc
+        .layers
+        .iter()
         .map(|layer| (layer.name.clone(), color_to_rgb(&layer.color)))
         .collect();
     // 同时保留按图层名快速取 layer 元信息（frozen / off / locked），用于过滤
-    let layer_meta: HashMap<String, (bool, bool)> = doc.layers.iter()
+    let layer_meta: HashMap<String, (bool, bool)> = doc
+        .layers
+        .iter()
         .map(|l| (l.name.clone(), (l.is_frozen(), l.is_locked())))
         .collect();
     let _ = layer_meta;
@@ -1434,14 +1756,29 @@ fn convert_document(doc: AcadDocument, file_name: String, file_size: u64) -> (Ca
 
         if let EntityType::Insert(ref insert) = entity {
             let insert_layer = insert.common.layer.clone();
-            let insert_color = resolve_color(&insert.common.color, &insert_layer, &layer_colors, None);
-            explode_insert_recursive(insert, &doc, insert_color, &layer_colors, &mut entities, &mut entity_count, 0, &mut HashSet::new());
+            let insert_color =
+                resolve_color(&insert.common.color, &insert_layer, &layer_colors, None);
+            explode_insert_recursive(
+                insert,
+                &doc,
+                insert_color,
+                &layer_colors,
+                &mut entities,
+                &mut entity_count,
+                0,
+                &mut HashSet::new(),
+            );
             continue;
         }
 
         let id = format!("entity_{}", entity_count);
         let layer = fix_garbled_text(&entity.common().layer);
-        let color = resolve_color(&entity.common().color, &entity.common().layer, &layer_colors, None);
+        let color = resolve_color(
+            &entity.common().color,
+            &entity.common().layer,
+            &layer_colors,
+            None,
+        );
         let line_weight = 1.0;
 
         if let Some(cad_entity) = convert_entity(entity.clone(), id, layer, color, line_weight) {
@@ -1449,12 +1786,19 @@ fn convert_document(doc: AcadDocument, file_name: String, file_size: u64) -> (Ca
         } else {
             // 区分"不支持类型"和"无效几何"：检查是否是已知的支持类型
             let type_name = match &entity {
-                EntityType::Line(_) | EntityType::Circle(_) | EntityType::Arc(_)
-                | EntityType::LwPolyline(_) | EntityType::Polyline(_)
-                | EntityType::Ellipse(_) | EntityType::Spline(_)
-                | EntityType::Text(_) | EntityType::MText(_)
-                | EntityType::Solid(_) | EntityType::Point(_)
-                | EntityType::Insert(_) | EntityType::Hatch(_)
+                EntityType::Line(_)
+                | EntityType::Circle(_)
+                | EntityType::Arc(_)
+                | EntityType::LwPolyline(_)
+                | EntityType::Polyline(_)
+                | EntityType::Ellipse(_)
+                | EntityType::Spline(_)
+                | EntityType::Text(_)
+                | EntityType::MText(_)
+                | EntityType::Solid(_)
+                | EntityType::Point(_)
+                | EntityType::Insert(_)
+                | EntityType::Hatch(_)
                 | EntityType::Dimension(_) => "valid_type_invalid_geom".to_string(),
                 other => {
                     let full_name = format!("{:?}", other);
@@ -1466,8 +1810,7 @@ fn convert_document(doc: AcadDocument, file_name: String, file_size: u64) -> (Ca
             let _ = type_name;
         }
     }
-    if paper_space_skipped > 0 || invisible_skipped > 0 || block_def_skipped > 0 {
-    }
+    if paper_space_skipped > 0 || invisible_skipped > 0 || block_def_skipped > 0 {}
 
     apply_profile_strategies(&mut entities, &profile);
 
@@ -1503,7 +1846,10 @@ fn convert_document(doc: AcadDocument, file_name: String, file_size: u64) -> (Ca
     entities.retain(|entity| {
         let (ex_min, ex_max, ey_min, ey_max) = entity_coord_bounds(entity);
         // 如果实体完全在主集群范围之外（含 margin），则丢弃
-        !(ex_max < reject_min_x || ex_min > reject_max_x || ey_max < reject_min_y || ey_min > reject_max_y)
+        !(ex_max < reject_min_x
+            || ex_min > reject_max_x
+            || ey_max < reject_min_y
+            || ey_min > reject_max_y)
     });
     let rejected_outliers = before_count - entities.len();
     // 离群点丢弃统计将在 Step 6 (ParseDiagnostics) 中通过 ParseResult 报告
@@ -1517,13 +1863,13 @@ fn convert_document(doc: AcadDocument, file_name: String, file_size: u64) -> (Ca
     // 这可以避免超大坐标范围导致的渲染精度问题
     let offset_x = if !xs.is_empty() {
         xs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-        xs[0]  // 使用最小值
+        xs[0] // 使用最小值
     } else {
         0.0
     };
     let offset_y = if !ys.is_empty() {
         ys.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-        ys[0]  // 使用最小值
+        ys[0] // 使用最小值
     } else {
         0.0
     };
@@ -1536,17 +1882,18 @@ fn convert_document(doc: AcadDocument, file_name: String, file_size: u64) -> (Ca
 
     let extents = calculate_extents(&entities);
 
-    let layers: Vec<CadLayer> = doc.layers.iter().map(|layer| {
-        CadLayer {
+    let layers: Vec<CadLayer> = doc
+        .layers
+        .iter()
+        .map(|layer| CadLayer {
             name: fix_garbled_text(&layer.name),
             color: color_to_rgb(&layer.color),
             visible: true,
             frozen: layer.is_frozen(),
             locked: layer.is_locked(),
-        }
-    }).collect();
-    if let Some(ref ext) = extents {
-    }
+        })
+        .collect();
+    if let Some(ref ext) = extents {}
 
     let unsupported_skipped: usize = unsupported_types.values().sum();
 
@@ -1558,7 +1905,11 @@ fn convert_document(doc: AcadDocument, file_name: String, file_size: u64) -> (Ca
         layers,
         entities,
         entity_count,
-        coordinate_offset: CadPoint { x: offset_x, y: offset_y, z: 0.0 },
+        coordinate_offset: CadPoint {
+            x: offset_x,
+            y: offset_y,
+            z: 0.0,
+        },
         deleted_snapshots: Default::default(),
     };
 
@@ -1570,9 +1921,9 @@ fn convert_document(doc: AcadDocument, file_name: String, file_size: u64) -> (Ca
         unsupported_skipped,
         invalid_geometry_skipped: 0, // 由 convert_entity 内部统计
         outlier_skipped: rejected_outliers,
-        profile_simplified: 0,       // 由 apply_profile_strategies 内部统计
+        profile_simplified: 0, // 由 apply_profile_strategies 内部统计
         unsupported_types,
-        insert_max_depth: 0,         // 由 explode_insert_recursive 内部统计
+        insert_max_depth: 0, // 由 explode_insert_recursive 内部统计
         insert_cycle_detected: false,
     };
 
@@ -1657,30 +2008,39 @@ fn convert_entity(
         EntityType::LwPolyline(lwpoly) => {
             let vertices: Vec<CadLwVertex> = if !is_standard_normal(&lwpoly.normal) {
                 let matrix = Matrix3::arbitrary_axis(lwpoly.normal);
-                lwpoly.vertices.iter().filter_map(|v| {
-                    let wcs = matrix * Vector3::new(v.location.x, v.location.y, lwpoly.elevation);
-                    if is_valid_coord(wcs.x) && is_valid_coord(wcs.y) {
-                        Some(CadLwVertex {
-                            x: sanitize_f64(wcs.x),
-                            y: sanitize_f64(wcs.y),
-                            bulge: sanitize_f64(v.bulge),
-                        })
-                    } else {
-                        None
-                    }
-                }).collect()
+                lwpoly
+                    .vertices
+                    .iter()
+                    .filter_map(|v| {
+                        let wcs =
+                            matrix * Vector3::new(v.location.x, v.location.y, lwpoly.elevation);
+                        if is_valid_coord(wcs.x) && is_valid_coord(wcs.y) {
+                            Some(CadLwVertex {
+                                x: sanitize_f64(wcs.x),
+                                y: sanitize_f64(wcs.y),
+                                bulge: sanitize_f64(v.bulge),
+                            })
+                        } else {
+                            None
+                        }
+                    })
+                    .collect()
             } else {
-                lwpoly.vertices.iter().filter_map(|v| {
-                    if is_valid_coord(v.location.x) && is_valid_coord(v.location.y) {
-                        Some(CadLwVertex {
-                            x: sanitize_f64(v.location.x),
-                            y: sanitize_f64(v.location.y),
-                            bulge: sanitize_f64(v.bulge),
-                        })
-                    } else {
-                        None
-                    }
-                }).collect()
+                lwpoly
+                    .vertices
+                    .iter()
+                    .filter_map(|v| {
+                        if is_valid_coord(v.location.x) && is_valid_coord(v.location.y) {
+                            Some(CadLwVertex {
+                                x: sanitize_f64(v.location.x),
+                                y: sanitize_f64(v.location.y),
+                                bulge: sanitize_f64(v.bulge),
+                            })
+                        } else {
+                            None
+                        }
+                    })
+                    .collect()
             };
             // 至少需要2个有效顶点才能构成线段
             if vertices.len() < 2 {
@@ -1696,7 +2056,9 @@ fn convert_entity(
             })
         }
         EntityType::Polyline(poly) => {
-            let vertices: Vec<CadPoint> = poly.vertices.iter()
+            let vertices: Vec<CadPoint> = poly
+                .vertices
+                .iter()
                 .filter_map(|v| sanitize_point(v.location.x, v.location.y, v.location.z))
                 .collect();
             // 至少需要2个有效顶点
@@ -1739,10 +2101,14 @@ fn convert_entity(
         }
         EntityType::Spline(spline) => {
             // Spline 的控制点和拟合点使用 sanitize_point 过滤无效坐标
-            let control_points: Vec<CadPoint> = spline.control_points.iter()
+            let control_points: Vec<CadPoint> = spline
+                .control_points
+                .iter()
                 .filter_map(|p| sanitize_point(p.x, p.y, p.z))
                 .collect();
-            let fit_points: Vec<CadPoint> = spline.fit_points.iter()
+            let fit_points: Vec<CadPoint> = spline
+                .fit_points
+                .iter()
                 .filter_map(|p| sanitize_point(p.x, p.y, p.z))
                 .collect();
             // 至少需要有控制点或拟合点
@@ -1826,21 +2192,50 @@ fn convert_entity(
             let points = if !is_standard_normal(&solid.normal) {
                 let matrix = Matrix3::arbitrary_axis(solid.normal);
                 vec![
-                    { let p = matrix * solid.first_corner; convert_point(p.x, p.y, p.z) },
-                    { let p = matrix * solid.second_corner; convert_point(p.x, p.y, p.z) },
-                    { let p = matrix * solid.third_corner; convert_point(p.x, p.y, p.z) },
-                    { let p = matrix * solid.fourth_corner; convert_point(p.x, p.y, p.z) },
+                    {
+                        let p = matrix * solid.first_corner;
+                        convert_point(p.x, p.y, p.z)
+                    },
+                    {
+                        let p = matrix * solid.second_corner;
+                        convert_point(p.x, p.y, p.z)
+                    },
+                    {
+                        let p = matrix * solid.third_corner;
+                        convert_point(p.x, p.y, p.z)
+                    },
+                    {
+                        let p = matrix * solid.fourth_corner;
+                        convert_point(p.x, p.y, p.z)
+                    },
                 ]
             } else {
                 vec![
-                    convert_point(solid.first_corner.x, solid.first_corner.y, solid.first_corner.z),
-                    convert_point(solid.second_corner.x, solid.second_corner.y, solid.second_corner.z),
-                    convert_point(solid.third_corner.x, solid.third_corner.y, solid.third_corner.z),
-                    convert_point(solid.fourth_corner.x, solid.fourth_corner.y, solid.fourth_corner.z),
+                    convert_point(
+                        solid.first_corner.x,
+                        solid.first_corner.y,
+                        solid.first_corner.z,
+                    ),
+                    convert_point(
+                        solid.second_corner.x,
+                        solid.second_corner.y,
+                        solid.second_corner.z,
+                    ),
+                    convert_point(
+                        solid.third_corner.x,
+                        solid.third_corner.y,
+                        solid.third_corner.z,
+                    ),
+                    convert_point(
+                        solid.fourth_corner.x,
+                        solid.fourth_corner.y,
+                        solid.fourth_corner.z,
+                    ),
                 ]
             };
             // 至少需要3个有效点才能构成面
-            let valid_points: Vec<CadPoint> = points.into_iter()
+            let valid_points: Vec<CadPoint> = points
+                .into_iter()
                 .filter(|p| is_valid_coord(p.x) && is_valid_coord(p.y))
                 .collect();
             if valid_points.len() < 3 {
@@ -1868,7 +2263,11 @@ fn convert_entity(
             })
         }
         EntityType::Insert(insert) => {
-            let position = sanitize_point(insert.insert_point.x, insert.insert_point.y, insert.insert_point.z)?;
+            let position = sanitize_point(
+                insert.insert_point.x,
+                insert.insert_point.y,
+                insert.insert_point.z,
+            )?;
             Some(CadEntity::Insert {
                 id,
                 layer,
@@ -1896,96 +2295,134 @@ fn convert_entity(
                     (sanitize_f64(x), sanitize_f64(y))
                 }
             };
-            let boundaries: Vec<Vec<CadLwVertex>> = hatch.paths.iter().map(|path| {
-                let edge_verts: Vec<Vec<CadLwVertex>> = path.edges.iter().map(|edge| {
-                    match edge {
-                        BoundaryEdge::Line(line_edge) => {
-                            let (sx, sy) = transform_hatch_point(line_edge.start.x, line_edge.start.y);
-                            let (ex, ey) = transform_hatch_point(line_edge.end.x, line_edge.end.y);
-                            vec![
-                                CadLwVertex { x: sx, y: sy, bulge: 0.0 },
-                                CadLwVertex { x: ex, y: ey, bulge: 0.0 },
-                            ]
-                        }
-                        BoundaryEdge::CircularArc(arc_edge) => {
-                            let radius = sanitize_f64(arc_edge.radius);
-                            if radius <= 0.0 {
-                                return vec![];
+            let boundaries: Vec<Vec<CadLwVertex>> = hatch
+                .paths
+                .iter()
+                .map(|path| {
+                    let edge_verts: Vec<Vec<CadLwVertex>> = path
+                        .edges
+                        .iter()
+                        .map(|edge| match edge {
+                            BoundaryEdge::Line(line_edge) => {
+                                let (sx, sy) =
+                                    transform_hatch_point(line_edge.start.x, line_edge.start.y);
+                                let (ex, ey) =
+                                    transform_hatch_point(line_edge.end.x, line_edge.end.y);
+                                vec![
+                                    CadLwVertex {
+                                        x: sx,
+                                        y: sy,
+                                        bulge: 0.0,
+                                    },
+                                    CadLwVertex {
+                                        x: ex,
+                                        y: ey,
+                                        bulge: 0.0,
+                                    },
+                                ]
                             }
-                            let segments = 16;
-                            let mut verts = Vec::with_capacity(segments + 1);
-                            let mut angle_range = sanitize_f64(arc_edge.end_angle) - sanitize_f64(arc_edge.start_angle);
-                            if angle_range < 0.0 {
-                                angle_range += std::f64::consts::PI * 2.0;
+                            BoundaryEdge::CircularArc(arc_edge) => {
+                                let radius = sanitize_f64(arc_edge.radius);
+                                if radius <= 0.0 {
+                                    return vec![];
+                                }
+                                let segments = 16;
+                                let mut verts = Vec::with_capacity(segments + 1);
+                                let mut angle_range = sanitize_f64(arc_edge.end_angle)
+                                    - sanitize_f64(arc_edge.start_angle);
+                                if angle_range < 0.0 {
+                                    angle_range += std::f64::consts::PI * 2.0;
+                                }
+                                let (cx, cy) =
+                                    transform_hatch_point(arc_edge.center.x, arc_edge.center.y);
+                                for i in 0..=segments {
+                                    let a = sanitize_f64(arc_edge.start_angle)
+                                        + (i as f64 / segments as f64) * angle_range;
+                                    verts.push(CadLwVertex {
+                                        x: cx + radius * a.cos(),
+                                        y: cy + radius * a.sin(),
+                                        bulge: 0.0,
+                                    });
+                                }
+                                verts
                             }
-                            let (cx, cy) = transform_hatch_point(arc_edge.center.x, arc_edge.center.y);
-                            for i in 0..=segments {
-                                let a = sanitize_f64(arc_edge.start_angle) + (i as f64 / segments as f64) * angle_range;
-                                verts.push(CadLwVertex {
-                                    x: cx + radius * a.cos(),
-                                    y: cy + radius * a.sin(),
-                                    bulge: 0.0,
-                                });
+                            BoundaryEdge::Polyline(poly_edge) => poly_edge
+                                .vertices
+                                .iter()
+                                .map(|v| {
+                                    let (px, py) = transform_hatch_point(v.x, v.y);
+                                    CadLwVertex {
+                                        x: px,
+                                        y: py,
+                                        bulge: sanitize_f64(v.z),
+                                    }
+                                })
+                                .collect(),
+                            BoundaryEdge::EllipticArc(ellipse_edge) => {
+                                let major_len = (ellipse_edge.major_axis_endpoint.x.powi(2)
+                                    + ellipse_edge.major_axis_endpoint.y.powi(2))
+                                .sqrt();
+                                let minor_len =
+                                    major_len * sanitize_f64(ellipse_edge.minor_axis_ratio);
+                                if major_len <= 0.0 || minor_len <= 0.0 {
+                                    return vec![];
+                                }
+                                let segments = 16;
+                                let mut verts = Vec::with_capacity(segments + 1);
+                                let mut angle_range = sanitize_f64(ellipse_edge.end_angle)
+                                    - sanitize_f64(ellipse_edge.start_angle);
+                                if angle_range < 0.0 {
+                                    angle_range += std::f64::consts::PI * 2.0;
+                                }
+                                let rotation = (ellipse_edge.major_axis_endpoint.y)
+                                    .atan2(ellipse_edge.major_axis_endpoint.x);
+                                let (cx, cy) = transform_hatch_point(
+                                    ellipse_edge.center.x,
+                                    ellipse_edge.center.y,
+                                );
+                                for i in 0..=segments {
+                                    let a = sanitize_f64(ellipse_edge.start_angle)
+                                        + (i as f64 / segments as f64) * angle_range;
+                                    let x = a.cos() * major_len;
+                                    let y = a.sin() * minor_len;
+                                    let rot_x = x * rotation.cos() - y * rotation.sin();
+                                    let rot_y = x * rotation.sin() + y * rotation.cos();
+                                    verts.push(CadLwVertex {
+                                        x: cx + rot_x,
+                                        y: cy + rot_y,
+                                        bulge: 0.0,
+                                    });
+                                }
+                                verts
                             }
-                            verts
-                        }
-                        BoundaryEdge::Polyline(poly_edge) => {
-                            poly_edge.vertices.iter().map(|v| {
-                                let (px, py) = transform_hatch_point(v.x, v.y);
-                                CadLwVertex { x: px, y: py, bulge: sanitize_f64(v.z) }
-                            }).collect()
-                        }
-                        BoundaryEdge::EllipticArc(ellipse_edge) => {
-                            let major_len = (ellipse_edge.major_axis_endpoint.x.powi(2) + ellipse_edge.major_axis_endpoint.y.powi(2)).sqrt();
-                            let minor_len = major_len * sanitize_f64(ellipse_edge.minor_axis_ratio);
-                            if major_len <= 0.0 || minor_len <= 0.0 {
-                                return vec![];
-                            }
-                            let segments = 16;
-                            let mut verts = Vec::with_capacity(segments + 1);
-                            let mut angle_range = sanitize_f64(ellipse_edge.end_angle) - sanitize_f64(ellipse_edge.start_angle);
-                            if angle_range < 0.0 {
-                                angle_range += std::f64::consts::PI * 2.0;
-                            }
-                            let rotation = (ellipse_edge.major_axis_endpoint.y).atan2(ellipse_edge.major_axis_endpoint.x);
-                            let (cx, cy) = transform_hatch_point(ellipse_edge.center.x, ellipse_edge.center.y);
-                            for i in 0..=segments {
-                                let a = sanitize_f64(ellipse_edge.start_angle) + (i as f64 / segments as f64) * angle_range;
-                                let x = a.cos() * major_len;
-                                let y = a.sin() * minor_len;
-                                let rot_x = x * rotation.cos() - y * rotation.sin();
-                                let rot_y = x * rotation.sin() + y * rotation.cos();
-                                verts.push(CadLwVertex {
-                                    x: cx + rot_x,
-                                    y: cy + rot_y,
-                                    bulge: 0.0,
-                                });
-                            }
-                            verts
-                        }
-                        _ => vec![],
-                    }
-                }).collect();
+                            _ => vec![],
+                        })
+                        .collect();
 
-                let mut merged: Vec<CadLwVertex> = Vec::new();
-                for (ei, verts) in edge_verts.iter().enumerate() {
-                    if verts.is_empty() { continue; }
-                    if ei == 0 {
-                        merged.extend_from_slice(verts);
-                    } else {
-                        if let (Some(last), Some(first)) = (merged.last(), verts.first()) {
-                            if (last.x - first.x).abs() < 1e-6 && (last.y - first.y).abs() < 1e-6 {
-                                merged.extend_from_slice(&verts[1..]);
+                    let mut merged: Vec<CadLwVertex> = Vec::new();
+                    for (ei, verts) in edge_verts.iter().enumerate() {
+                        if verts.is_empty() {
+                            continue;
+                        }
+                        if ei == 0 {
+                            merged.extend_from_slice(verts);
+                        } else {
+                            if let (Some(last), Some(first)) = (merged.last(), verts.first()) {
+                                if (last.x - first.x).abs() < 1e-6
+                                    && (last.y - first.y).abs() < 1e-6
+                                {
+                                    merged.extend_from_slice(&verts[1..]);
+                                } else {
+                                    merged.extend_from_slice(verts);
+                                }
                             } else {
                                 merged.extend_from_slice(verts);
                             }
-                        } else {
-                            merged.extend_from_slice(verts);
                         }
                     }
-                }
-                merged
-            }).collect();
+                    merged
+                })
+                .collect();
             Some(CadEntity::Hatch {
                 id,
                 layer,
@@ -2005,14 +2442,19 @@ fn convert_entity(
                     HatchStyleType::Outer => 1,
                     HatchStyleType::Ignore => 2,
                 },
-                pattern_lines: hatch.pattern.lines.iter().map(|pl| crate::domain::cad::CadHatchPatternLine {
-                    angle: sanitize_f64(pl.angle),
-                    base_x: sanitize_f64(pl.base_point.x),
-                    base_y: sanitize_f64(pl.base_point.y),
-                    offset_x: sanitize_f64(pl.offset.x),
-                    offset_y: sanitize_f64(pl.offset.y),
-                    dashes: pl.dash_lengths.iter().map(|d| sanitize_f64(*d)).collect(),
-                }).collect(),
+                pattern_lines: hatch
+                    .pattern
+                    .lines
+                    .iter()
+                    .map(|pl| crate::domain::cad::CadHatchPatternLine {
+                        angle: sanitize_f64(pl.angle),
+                        base_x: sanitize_f64(pl.base_point.x),
+                        base_y: sanitize_f64(pl.base_point.y),
+                        offset_x: sanitize_f64(pl.offset.x),
+                        offset_y: sanitize_f64(pl.offset.y),
+                        dashes: pl.dash_lengths.iter().map(|d| sanitize_f64(*d)).collect(),
+                    })
+                    .collect(),
             })
         }
         EntityType::Dimension(dim) => {
@@ -2036,7 +2478,9 @@ fn convert_entity(
             })
         }
         EntityType::Leader(leader) => {
-            let vertices: Vec<CadPoint> = leader.vertices.iter()
+            let vertices: Vec<CadPoint> = leader
+                .vertices
+                .iter()
                 .filter_map(|v| sanitize_point(v.x, v.y, v.z))
                 .collect();
             if vertices.len() < 2 {
@@ -2055,7 +2499,11 @@ fn convert_entity(
             if height <= 0.0 {
                 return None;
             }
-            let position = sanitize_point(attr.insertion_point.x, attr.insertion_point.y, attr.insertion_point.z)?;
+            let position = sanitize_point(
+                attr.insertion_point.x,
+                attr.insertion_point.y,
+                attr.insertion_point.z,
+            )?;
             Some(CadEntity::AttributeEntity {
                 id,
                 layer,
@@ -2069,13 +2517,30 @@ fn convert_entity(
         }
         EntityType::Face3D(face) => {
             let points: Vec<CadPoint> = vec![
-                convert_point(face.first_corner.x, face.first_corner.y, face.first_corner.z),
-                convert_point(face.second_corner.x, face.second_corner.y, face.second_corner.z),
-                convert_point(face.third_corner.x, face.third_corner.y, face.third_corner.z),
-                convert_point(face.fourth_corner.x, face.fourth_corner.y, face.fourth_corner.z),
-            ].into_iter()
-                .filter(|p| is_valid_coord(p.x) && is_valid_coord(p.y))
-                .collect();
+                convert_point(
+                    face.first_corner.x,
+                    face.first_corner.y,
+                    face.first_corner.z,
+                ),
+                convert_point(
+                    face.second_corner.x,
+                    face.second_corner.y,
+                    face.second_corner.z,
+                ),
+                convert_point(
+                    face.third_corner.x,
+                    face.third_corner.y,
+                    face.third_corner.z,
+                ),
+                convert_point(
+                    face.fourth_corner.x,
+                    face.fourth_corner.y,
+                    face.fourth_corner.z,
+                ),
+            ]
+            .into_iter()
+            .filter(|p| is_valid_coord(p.x) && is_valid_coord(p.y))
+            .collect();
             if points.len() < 3 {
                 return None;
             }
@@ -2088,7 +2553,9 @@ fn convert_entity(
             })
         }
         EntityType::Polyline2D(poly2d) => {
-            let vertices: Vec<CadLwVertex> = poly2d.vertices.iter()
+            let vertices: Vec<CadLwVertex> = poly2d
+                .vertices
+                .iter()
                 .filter_map(|v| {
                     if is_valid_coord(v.location.x) && is_valid_coord(v.location.y) {
                         Some(CadLwVertex {
@@ -2114,20 +2581,26 @@ fn convert_entity(
             })
         }
         EntityType::Table(table) => {
-            let position = sanitize_point(table.insertion_point.x, table.insertion_point.y, table.insertion_point.z)?;
+            let position = sanitize_point(
+                table.insertion_point.x,
+                table.insertion_point.y,
+                table.insertion_point.z,
+            )?;
             let row_count = table.rows.len() as u32;
             let col_count = table.columns.len() as u32;
-            let row_heights: Vec<f64> = table.rows.iter()
-                .map(|r| sanitize_f64(r.height))
-                .collect();
-            let col_widths: Vec<f64> = table.columns.iter()
+            let row_heights: Vec<f64> = table.rows.iter().map(|r| sanitize_f64(r.height)).collect();
+            let col_widths: Vec<f64> = table
+                .columns
+                .iter()
                 .map(|c| sanitize_f64(c.width))
                 .collect();
             // 提取单元格文字
             let mut cell_texts = Vec::new();
             for row in &table.rows {
                 for cell in &row.cells {
-                    let text = cell.contents.iter()
+                    let text = cell
+                        .contents
+                        .iter()
                         .map(|c| fix_garbled_text(&c.value.text))
                         .collect::<Vec<_>>()
                         .join("");
@@ -2159,20 +2632,20 @@ pub async fn parse_cad_file(file_path: String) -> ParseResult {
 
 pub fn parse_cad_file_sync(file_path: String) -> ParseResult {
     let path = std::path::Path::new(&file_path);
-    let file_name = path.file_name()
+    let file_name = path
+        .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("unknown")
         .to_string();
-    
-    let extension = path.extension()
+
+    let extension = path
+        .extension()
         .and_then(|e| e.to_str())
         .map(|e| e.to_lowercase())
         .unwrap_or_default();
 
     let data = match std::fs::read(path) {
-        Ok(d) => {
-            d
-        }
+        Ok(d) => d,
         Err(e) => {
             return ParseResult {
                 success: false,
@@ -2196,14 +2669,13 @@ pub fn parse_cad_file_sync(file_path: String) -> ParseResult {
             };
         }
     };
-    
+
     match result {
         Ok(doc) => {
             let entity_count_before = doc.entities().count();
             let layer_count = doc.layers.len();
             let (cad_doc, diagnostics) = convert_document(doc, file_name, file_size);
-            if cad_doc.entity_count == 0 {
-            }
+            if cad_doc.entity_count == 0 {}
             ParseResult {
                 success: true,
                 document: Some(cad_doc),
@@ -2211,14 +2683,12 @@ pub fn parse_cad_file_sync(file_path: String) -> ParseResult {
                 diagnostics: Some(diagnostics),
             }
         }
-        Err(e) => {
-            ParseResult {
-                success: false,
-                document: None,
-                error: Some(format!("Failed to parse CAD file: {}", e)),
-                diagnostics: None,
-            }
-        }
+        Err(e) => ParseResult {
+            success: false,
+            document: None,
+            error: Some(format!("Failed to parse CAD file: {}", e)),
+            diagnostics: None,
+        },
     }
 }
 
@@ -2228,7 +2698,8 @@ pub async fn parse_cad_from_bytes(data: Vec<u8>, file_name: String) -> ParseResu
 }
 
 pub fn parse_cad_from_bytes_sync(data: Vec<u8>, file_name: String) -> ParseResult {
-    let extension = file_name.rsplit('.')
+    let extension = file_name
+        .rsplit('.')
         .next()
         .map(|e| e.to_lowercase())
         .unwrap_or_default();
@@ -2246,14 +2717,13 @@ pub fn parse_cad_from_bytes_sync(data: Vec<u8>, file_name: String) -> ParseResul
             };
         }
     };
-    
+
     match result {
         Ok(doc) => {
             let entity_count_before = doc.entities().count();
             let layer_count = doc.layers.len();
             let (cad_doc, diagnostics) = convert_document(doc, file_name, file_size);
-            if cad_doc.entity_count == 0 {
-            }
+            if cad_doc.entity_count == 0 {}
             ParseResult {
                 success: true,
                 document: Some(cad_doc),
@@ -2261,41 +2731,47 @@ pub fn parse_cad_from_bytes_sync(data: Vec<u8>, file_name: String) -> ParseResul
                 diagnostics: Some(diagnostics),
             }
         }
-        Err(e) => {
-            ParseResult {
-                success: false,
-                document: None,
-                error: Some(format!("Failed to parse CAD file: {}", e)),
-                diagnostics: None,
-            }
-        }
+        Err(e) => ParseResult {
+            success: false,
+            document: None,
+            error: Some(format!("Failed to parse CAD file: {}", e)),
+            diagnostics: None,
+        },
     }
 }
 
 #[tauri::command]
-pub async fn import_cad_to_cadbin(file_path: String, output_dir: Option<String>) -> Result<String, String> {
+pub async fn import_cad_to_cadbin(
+    file_path: String,
+    output_dir: Option<String>,
+) -> Result<String, String> {
     let parse_result = parse_cad_file_sync(file_path.clone());
     if !parse_result.success {
-        return Err(parse_result.error.unwrap_or_else(|| "Parse failed".to_string()));
+        return Err(parse_result
+            .error
+            .unwrap_or_else(|| "Parse failed".to_string()));
     }
-    let doc = parse_result.document.ok_or_else(|| "No document after parse".to_string())?;
+    let doc = parse_result
+        .document
+        .ok_or_else(|| "No document after parse".to_string())?;
 
     let cadbin_data = crate::cad_runtime::cadbin_writer::CadbinWriter::write_to_bytes(&doc);
 
     let path = std::path::Path::new(&file_path);
-    let stem = path.file_stem()
+    let stem = path
+        .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("output");
 
     let out_dir = match &output_dir {
         Some(dir) => std::path::PathBuf::from(dir),
-        None => path.parent()
+        None => path
+            .parent()
             .map(|p| p.to_path_buf())
             .unwrap_or_else(|| std::path::PathBuf::from(".")),
     };
 
-    std::fs::create_dir_all(&out_dir)
-        .map_err(|e| format!("Failed to create output dir: {}", e))?;
+    std::fs::create_dir_all(&out_dir).map_err(|e| format!("Failed to create output dir: {}", e))?;
 
     let output_path = out_dir.join(format!("{}.cadbin", stem));
     let output_str = output_path.to_string_lossy().to_string();
@@ -2308,8 +2784,8 @@ pub async fn import_cad_to_cadbin(file_path: String, output_dir: Option<String>)
 
 #[tauri::command]
 pub async fn read_cadbin_file(file_path: String) -> Result<Vec<u8>, String> {
-    let data = std::fs::read(&file_path)
-        .map_err(|e| format!("Failed to read cadbin file: {}", e))?;
+    let data =
+        std::fs::read(&file_path).map_err(|e| format!("Failed to read cadbin file: {}", e))?;
 
     let info = crate::cad_runtime::cadbin_writer::CadbinReader::read_header(&data)
         .map_err(|e| format!("Invalid cadbin file: {}", e))?;
@@ -2360,7 +2836,9 @@ pub fn analyze_cad_files(directory: String) -> Result<Vec<CadFileAnalysis>, Stri
 
     for entry in std::fs::read_dir(dir).map_err(|e| format!("read_dir failed: {}", e))? {
         let entry = entry.map_err(|e| format!("entry failed: {}", e))?;
-        let ext = entry.path().extension()
+        let ext = entry
+            .path()
+            .extension()
             .and_then(|e| e.to_str())
             .map(|e| e.to_lowercase())
             .unwrap_or_default();
@@ -2374,7 +2852,8 @@ pub fn analyze_cad_files(directory: String) -> Result<Vec<CadFileAnalysis>, Stri
     for path in entries {
         let file_name = path.file_name().unwrap().to_string_lossy().to_string();
         let file_size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
-        let extension = path.extension()
+        let extension = path
+            .extension()
             .and_then(|e| e.to_str())
             .map(|e| e.to_lowercase())
             .unwrap_or_default();
@@ -2490,7 +2969,9 @@ pub fn analyze_cad_files(directory: String) -> Result<Vec<CadFileAnalysis>, Stri
                         EntityType::LwPolyline(lw) => {
                             lwpoly_count += 1;
                             lwpoly_max_v = lwpoly_max_v.max(lw.vertices.len());
-                            if lw.vertices.len() > 1000 { lwpoly_huge += 1; }
+                            if lw.vertices.len() > 1000 {
+                                lwpoly_huge += 1;
+                            }
                         }
                         EntityType::Text(t) => {
                             text_count += 1;
@@ -2561,8 +3042,16 @@ pub fn analyze_cad_files(directory: String) -> Result<Vec<CadFileAnalysis>, Stri
                     lwpoly_max_vertices: lwpoly_max_v,
                     lwpoly_huge_vertex_count: lwpoly_huge,
                     text_count,
-                    text_min_height: if text_min_h == f64::MAX { 0.0 } else { text_min_h },
-                    text_max_height: if text_max_h == f64::MIN { 0.0 } else { text_max_h },
+                    text_min_height: if text_min_h == f64::MAX {
+                        0.0
+                    } else {
+                        text_min_h
+                    },
+                    text_max_height: if text_max_h == f64::MIN {
+                        0.0
+                    } else {
+                        text_max_h
+                    },
                     converted_entity_count: converted_count,
                     converted_type_distribution: conv_type_dist,
                     outlier_rejected_count: outlier_rejected,

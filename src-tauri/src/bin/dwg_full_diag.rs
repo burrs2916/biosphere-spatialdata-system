@@ -1,5 +1,5 @@
+use acadrust::entities::{AttachmentPoint, TextHorizontalAlignment, TextVerticalAlignment};
 use acadrust::DwgReader;
-use acadrust::entities::{TextHorizontalAlignment, TextVerticalAlignment, AttachmentPoint};
 
 fn main() {
     let file_path = "/Users/liwenchao/EdgeView/biosphere/biosphere-spatialdata-system/docs/需求分析/20260510/雨田煤业井下降尘喷雾布置图22.7.1.dwg";
@@ -60,14 +60,20 @@ fn main() {
         if let acadrust::EntityType::MText(mt) = entity {
             if mt.attachment_point == AttachmentPoint::TopLeft && mt.rotation.abs() < 0.1 {
                 let p = &mt.insertion_point;
-                mtexts.push((p.x, p.y, mt.height, 1, mt.rectangle_width, mt.value.chars().take(60).collect::<String>()));
+                mtexts.push((
+                    p.x,
+                    p.y,
+                    mt.height,
+                    1,
+                    mt.rectangle_width,
+                    mt.value.chars().take(60).collect::<String>(),
+                ));
             }
         }
     }
     mtexts.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
 
-    for mt in mtexts.iter().take(50) {
-    }
+    for mt in mtexts.iter().take(50) {}
 
     let mut ap_counts: [usize; 10] = [0; 10];
     for entity in doc.entities() {
@@ -87,10 +93,20 @@ fn main() {
         }
     }
 
-    let ap_names = ["", "TopLeft", "TopCenter", "TopRight", "MiddleLeft", "MiddleCenter", "MiddleRight", "BottomLeft", "BottomCenter", "BottomRight"];
+    let ap_names = [
+        "",
+        "TopLeft",
+        "TopCenter",
+        "TopRight",
+        "MiddleLeft",
+        "MiddleCenter",
+        "MiddleRight",
+        "BottomLeft",
+        "BottomCenter",
+        "BottomRight",
+    ];
     for i in 1..=9 {
-        if ap_counts[i] > 0 {
-        }
+        if ap_counts[i] > 0 {}
     }
 
     let mut hv_counts: [[usize; 4]; 6] = [[0; 4]; 6];
@@ -118,8 +134,7 @@ fn main() {
     let v_names = ["Baseline", "Bottom", "Middle", "Top"];
     for h in 0..6 {
         for v in 0..4 {
-            if hv_counts[h][v] > 0 {
-            }
+            if hv_counts[h][v] > 0 {}
         }
     }
 }

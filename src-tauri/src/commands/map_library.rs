@@ -1,19 +1,23 @@
-use crate::domain::map_library::{MapLibrary, MapLibraryGroup, MapLibraryType, MapLibraryStatus};
-use crate::domain::cad::{CadDocument, CadEntity, CadPoint, CadLayer};
-use crate::error::AppError;
-use crate::infrastructure::database::map_library_repository::{MapLibraryRepository, MapLibraryGroupRepository};
-use crate::infrastructure::SqliteMapLibraryRepository;
 use crate::commands::cad::parse_cad_from_bytes_sync;
-use tauri::State;
-use tauri::Manager;
+use crate::domain::cad::{CadDocument, CadEntity, CadLayer, CadPoint};
+use crate::domain::map_library::{MapLibrary, MapLibraryGroup, MapLibraryStatus, MapLibraryType};
+use crate::error::AppError;
+use crate::infrastructure::database::map_library_repository::{
+    MapLibraryGroupRepository, MapLibraryRepository,
+};
+use crate::infrastructure::SqliteMapLibraryRepository;
 use std::path::Path;
+use tauri::Manager;
+use tauri::State;
 
 pub struct MapLibraryState {
     pub repository: SqliteMapLibraryRepository,
 }
 
 fn resolve_data_dir(app_handle: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
-    let app_data_dir = app_handle.path().app_data_dir()
+    let app_data_dir = app_handle
+        .path()
+        .app_data_dir()
         .map_err(|e| format!("Failed to get app data dir: {}", e))?;
     let data_dir = if cfg!(debug_assertions) {
         let project_root = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -27,12 +31,17 @@ fn resolve_data_dir(app_handle: &tauri::AppHandle) -> Result<std::path::PathBuf,
 }
 
 #[tauri::command]
-pub fn get_all_map_libraries(state: State<'_, MapLibraryState>) -> Result<Vec<MapLibrary>, AppError> {
+pub fn get_all_map_libraries(
+    state: State<'_, MapLibraryState>,
+) -> Result<Vec<MapLibrary>, AppError> {
     state.repository.get_all()
 }
 
 #[tauri::command]
-pub fn get_map_library(state: State<'_, MapLibraryState>, id: String) -> Result<Option<MapLibrary>, AppError> {
+pub fn get_map_library(
+    state: State<'_, MapLibraryState>,
+    id: String,
+) -> Result<Option<MapLibrary>, AppError> {
     state.repository.get_by_id(&id)
 }
 
@@ -46,7 +55,9 @@ pub fn get_map_libraries_by_type(
 }
 
 #[tauri::command]
-pub fn get_published_map_libraries(state: State<'_, MapLibraryState>) -> Result<Vec<MapLibrary>, AppError> {
+pub fn get_published_map_libraries(
+    state: State<'_, MapLibraryState>,
+) -> Result<Vec<MapLibrary>, AppError> {
     state.repository.get_published()
 }
 
@@ -75,8 +86,7 @@ pub fn delete_map_library(
 ) -> Result<(), AppError> {
     if let Some(lib) = state.repository.get_by_id(&id)? {
         if let Some(ref data_dir_rel) = lib.data_dir {
-            let data_dir = resolve_data_dir(&app_handle)
-                .map_err(|e| AppError::Internal(e))?;
+            let data_dir = resolve_data_dir(&app_handle).map_err(|e| AppError::Internal(e))?;
             let lib_dir = data_dir.join(data_dir_rel);
             if lib_dir.exists() {
                 let _ = std::fs::remove_dir_all(lib_dir);
@@ -91,65 +101,133 @@ fn compute_bounds_and_layers(doc: &CadDocument) -> (Option<String>, Option<Strin
     let mut min_y = f64::MAX;
     let mut max_x = f64::MIN;
     let mut max_y = f64::MIN;
-    let mut entity_count_per_layer: std::collections::HashMap<String, i32> = std::collections::HashMap::new();
+    let mut entity_count_per_layer: std::collections::HashMap<String, i32> =
+        std::collections::HashMap::new();
     let mut count = 0i32;
 
     for entity in &doc.entities {
         count += 1;
         let (layer, xs_ys): (String, Vec<(f64, f64)>) = match entity {
-            CadEntity::Line { layer, start, end, .. } => (layer.clone(), vec![(start.x, start.y), (end.x, end.y)]),
+            CadEntity::Line {
+                layer, start, end, ..
+            } => (layer.clone(), vec![(start.x, start.y), (end.x, end.y)]),
             CadEntity::Circle { layer, center, .. } => (layer.clone(), vec![(center.x, center.y)]),
             CadEntity::Arc { layer, center, .. } => (layer.clone(), vec![(center.x, center.y)]),
             CadEntity::Ellipse { layer, center, .. } => (layer.clone(), vec![(center.x, center.y)]),
-            CadEntity::Polyline { layer, vertices, .. } => (layer.clone(), vertices.iter().map(|v| (v.x, v.y)).collect()),
-            CadEntity::LwPolyline { layer, vertices, .. } => (layer.clone(), vertices.iter().map(|v| (v.x, v.y)).collect()),
-            CadEntity::Spline { layer, control_points, fit_points, .. } => {
+            CadEntity::Polyline {
+                layer, vertices, ..
+            } => (layer.clone(), vertices.iter().map(|v| (v.x, v.y)).collect()),
+            CadEntity::LwPolyline {
+                layer, vertices, ..
+            } => (layer.clone(), vertices.iter().map(|v| (v.x, v.y)).collect()),
+            CadEntity::Spline {
+                layer,
+                control_points,
+                fit_points,
+                ..
+            } => {
                 let mut pts: Vec<(f64, f64)> = control_points.iter().map(|p| (p.x, p.y)).collect();
                 pts.extend(fit_points.iter().map(|p| (p.x, p.y)));
                 (layer.clone(), pts)
             }
-            CadEntity::Text { layer, position, .. } | CadEntity::MText { layer, position, .. } => (layer.clone(), vec![(position.x, position.y)]),
-            CadEntity::Point { layer, position, .. } => (layer.clone(), vec![(position.x, position.y)]),
-            CadEntity::Insert { layer, position, .. } => (layer.clone(), vec![(position.x, position.y)]),
-            CadEntity::Solid { layer, points, .. } => (layer.clone(), points.iter().map(|p| (p.x, p.y)).collect()),
-            CadEntity::Hatch { layer, boundaries, .. } => {
+            CadEntity::Text {
+                layer, position, ..
+            }
+            | CadEntity::MText {
+                layer, position, ..
+            } => (layer.clone(), vec![(position.x, position.y)]),
+            CadEntity::Point {
+                layer, position, ..
+            } => (layer.clone(), vec![(position.x, position.y)]),
+            CadEntity::Insert {
+                layer, position, ..
+            } => (layer.clone(), vec![(position.x, position.y)]),
+            CadEntity::Solid { layer, points, .. } => {
+                (layer.clone(), points.iter().map(|p| (p.x, p.y)).collect())
+            }
+            CadEntity::Hatch {
+                layer, boundaries, ..
+            } => {
                 let mut pts = Vec::new();
-                for path in boundaries { for v in path { pts.push((v.x, v.y)); } }
+                for path in boundaries {
+                    for v in path {
+                        pts.push((v.x, v.y));
+                    }
+                }
                 (layer.clone(), pts)
             }
-            CadEntity::Dimension { layer, definition_point, text_midpoint, .. } => {
-                (layer.clone(), vec![(definition_point.x, definition_point.y), (text_midpoint.x, text_midpoint.y)])
+            CadEntity::Dimension {
+                layer,
+                definition_point,
+                text_midpoint,
+                ..
+            } => (
+                layer.clone(),
+                vec![
+                    (definition_point.x, definition_point.y),
+                    (text_midpoint.x, text_midpoint.y),
+                ],
+            ),
+            CadEntity::Leader {
+                layer, vertices, ..
+            } => (layer.clone(), vertices.iter().map(|v| (v.x, v.y)).collect()),
+            CadEntity::AttributeEntity {
+                layer, position, ..
+            } => (layer.clone(), vec![(position.x, position.y)]),
+            CadEntity::Face3D { layer, points, .. } => {
+                (layer.clone(), points.iter().map(|p| (p.x, p.y)).collect())
             }
-            CadEntity::Leader { layer, vertices, .. } => (layer.clone(), vertices.iter().map(|v| (v.x, v.y)).collect()),
-            CadEntity::AttributeEntity { layer, position, .. } => (layer.clone(), vec![(position.x, position.y)]),
-            CadEntity::Face3D { layer, points, .. } => (layer.clone(), points.iter().map(|p| (p.x, p.y)).collect()),
-            CadEntity::Polyline2D { layer, vertices, .. } => (layer.clone(), vertices.iter().map(|v| (v.x, v.y)).collect()),
-            CadEntity::Table { layer, position, .. } => (layer.clone(), vec![(position.x, position.y)]),
+            CadEntity::Polyline2D {
+                layer, vertices, ..
+            } => (layer.clone(), vertices.iter().map(|v| (v.x, v.y)).collect()),
+            CadEntity::Table {
+                layer, position, ..
+            } => (layer.clone(), vec![(position.x, position.y)]),
         };
         *entity_count_per_layer.entry(layer).or_insert(0) += 1;
         for (x, y) in xs_ys {
-            if x < min_x { min_x = x; }
-            if x > max_x { max_x = x; }
-            if y < min_y { min_y = y; }
-            if y > max_y { max_y = y; }
+            if x < min_x {
+                min_x = x;
+            }
+            if x > max_x {
+                max_x = x;
+            }
+            if y < min_y {
+                min_y = y;
+            }
+            if y > max_y {
+                max_y = y;
+            }
         }
     }
 
     let bounds = if min_x <= max_x && min_y <= max_y {
-        Some(serde_json::to_string(&crate::domain::map_library::MapLibraryBounds { min_x, min_y, max_x, max_y }).unwrap_or_else(|_| "{}".to_string()))
+        Some(
+            serde_json::to_string(&crate::domain::map_library::MapLibraryBounds {
+                min_x,
+                min_y,
+                max_x,
+                max_y,
+            })
+            .unwrap_or_else(|_| "{}".to_string()),
+        )
     } else {
         None
     };
 
-    let mut layer_infos: Vec<serde_json::Value> = doc.layers.iter().map(|l| {
-        let ec = entity_count_per_layer.get(&l.name).copied().unwrap_or(0);
-        serde_json::json!({
-            "name": l.name,
-            "entityCount": ec,
-            "visible": l.visible,
-            "locked": l.locked,
+    let mut layer_infos: Vec<serde_json::Value> = doc
+        .layers
+        .iter()
+        .map(|l| {
+            let ec = entity_count_per_layer.get(&l.name).copied().unwrap_or(0);
+            serde_json::json!({
+                "name": l.name,
+                "entityCount": ec,
+                "visible": l.visible,
+                "locked": l.locked,
+            })
         })
-    }).collect();
+        .collect();
     layer_infos.sort_by(|a, b| a["name"].as_str().cmp(&b["name"].as_str()));
     let layers_json = serde_json::to_string(&layer_infos).unwrap_or_else(|_| "[]".to_string());
 
@@ -165,10 +243,12 @@ fn persist_cad_library(
     target_crs: Option<String>,
     source_bytes: Option<&[u8]>,
 ) -> Result<MapLibrary, AppError> {
-    let data_dir = resolve_data_dir(app_handle)
-        .map_err(|e| AppError::Internal(e))?;
+    let data_dir = resolve_data_dir(app_handle).map_err(|e| AppError::Internal(e))?;
 
-    let lib_id = format!("maplib_{}", uuid::Uuid::new_v4().to_string().replace("-", ""));
+    let lib_id = format!(
+        "maplib_{}",
+        uuid::Uuid::new_v4().to_string().replace("-", "")
+    );
     let data_dir_rel = format!("map_libraries/{}", lib_id);
 
     let lib_dir = data_dir.join(&data_dir_rel);
@@ -237,13 +317,26 @@ pub fn import_cad_to_map_library(
     let parse_result = parse_cad_from_bytes_sync(data.clone(), file_name.clone());
 
     if !parse_result.success {
-        return Err(AppError::Domain(parse_result.error.unwrap_or_else(|| "Parse failed".to_string())));
+        return Err(AppError::Domain(
+            parse_result
+                .error
+                .unwrap_or_else(|| "Parse failed".to_string()),
+        ));
     }
 
-    let doc = parse_result.document
+    let doc = parse_result
+        .document
         .ok_or_else(|| AppError::Domain("No document after parse".to_string()))?;
 
-    persist_cad_library(&state, &app_handle, doc, file_name, name, target_crs, Some(&data))
+    persist_cad_library(
+        &state,
+        &app_handle,
+        doc,
+        file_name,
+        name,
+        target_crs,
+        Some(&data),
+    )
 }
 
 #[tauri::command]
@@ -255,7 +348,8 @@ pub fn import_cad_file_to_map_library(
     target_crs: Option<String>,
 ) -> Result<MapLibrary, AppError> {
     let path = Path::new(&file_path);
-    let file_name = path.file_name()
+    let file_name = path
+        .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("unknown")
         .to_string();
@@ -300,7 +394,10 @@ pub fn create_tile_map_library(
     api_key: Option<String>,
 ) -> Result<MapLibrary, AppError> {
     let now = chrono::Utc::now().timestamp();
-    let lib_id = format!("maplib_{}", uuid::Uuid::new_v4().to_string().replace("-", ""));
+    let lib_id = format!(
+        "maplib_{}",
+        uuid::Uuid::new_v4().to_string().replace("-", "")
+    );
 
     let tile_config = serde_json::json!({
         "tileUrl": tile_url,
@@ -348,7 +445,8 @@ pub fn create_blueprint_map_library(
     coordinate_system: Option<String>,
 ) -> Result<MapLibrary, AppError> {
     let src_path = Path::new(&image_path);
-    let image_name = src_path.file_name()
+    let image_name = src_path
+        .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("image.png")
         .to_string();
@@ -357,17 +455,25 @@ pub fn create_blueprint_map_library(
         .map_err(|e| AppError::Internal(format!("Failed to read image file: {}", e)))?;
 
     let now = chrono::Utc::now().timestamp();
-    let lib_id = format!("maplib_{}", uuid::Uuid::new_v4().to_string().replace("-", ""));
+    let lib_id = format!(
+        "maplib_{}",
+        uuid::Uuid::new_v4().to_string().replace("-", "")
+    );
     let data_dir_rel = format!("map_libraries/{}", lib_id);
 
-    let data_dir = resolve_data_dir(&app_handle)
-        .map_err(|e| AppError::Internal(e))?;
+    let data_dir = resolve_data_dir(&app_handle).map_err(|e| AppError::Internal(e))?;
     let lib_dir = data_dir.join(&data_dir_rel);
-    std::fs::create_dir_all(&lib_dir).map_err(|e| AppError::Internal(format!("Failed to create library dir: {}", e)))?;
+    std::fs::create_dir_all(&lib_dir)
+        .map_err(|e| AppError::Internal(format!("Failed to create library dir: {}", e)))?;
 
-    let image_ext = image_name.rsplit('.').next().unwrap_or("png").to_lowercase();
+    let image_ext = image_name
+        .rsplit('.')
+        .next()
+        .unwrap_or("png")
+        .to_lowercase();
     let image_dest = lib_dir.join(format!("image.{}", image_ext));
-    std::fs::write(&image_dest, &image_data).map_err(|e| AppError::Internal(format!("Failed to save image: {}", e)))?;
+    std::fs::write(&image_dest, &image_data)
+        .map_err(|e| AppError::Internal(format!("Failed to save image: {}", e)))?;
 
     let image_rel = format!("map_libraries/{}/image.{}", lib_id, image_ext);
 
@@ -408,7 +514,9 @@ pub fn publish_map_library(
     state: State<'_, MapLibraryState>,
     id: String,
 ) -> Result<MapLibrary, AppError> {
-    let mut library = state.repository.get_by_id(&id)?
+    let mut library = state
+        .repository
+        .get_by_id(&id)?
         .ok_or_else(|| AppError::NotFound(format!("Map library not found: {}", id)))?;
 
     let now = chrono::Utc::now().timestamp();
@@ -425,7 +533,9 @@ pub fn unpublish_map_library(
     state: State<'_, MapLibraryState>,
     id: String,
 ) -> Result<MapLibrary, AppError> {
-    let mut library = state.repository.get_by_id(&id)?
+    let mut library = state
+        .repository
+        .get_by_id(&id)?
         .ok_or_else(|| AppError::NotFound(format!("Map library not found: {}", id)))?;
 
     library.status = MapLibraryStatus::Draft;
@@ -442,14 +552,16 @@ pub fn read_map_library_cadbin(
     app_handle: tauri::AppHandle,
     id: String,
 ) -> Result<Vec<u8>, AppError> {
-    let library = state.repository.get_by_id(&id)?
+    let library = state
+        .repository
+        .get_by_id(&id)?
         .ok_or_else(|| AppError::NotFound(format!("Map library not found: {}", id)))?;
 
-    let cadbin_rel = library.cadbin_path
+    let cadbin_rel = library
+        .cadbin_path
         .ok_or_else(|| AppError::Domain("No cadbin file for this library".to_string()))?;
 
-    let data_dir = resolve_data_dir(&app_handle)
-        .map_err(|e| AppError::Internal(e))?;
+    let data_dir = resolve_data_dir(&app_handle).map_err(|e| AppError::Internal(e))?;
     let full_path = data_dir.join(&cadbin_rel);
 
     std::fs::read(&full_path)
@@ -462,14 +574,16 @@ pub fn read_map_library_layer_manifest(
     app_handle: tauri::AppHandle,
     id: String,
 ) -> Result<serde_json::Value, AppError> {
-    let library = state.repository.get_by_id(&id)?
+    let library = state
+        .repository
+        .get_by_id(&id)?
         .ok_or_else(|| AppError::NotFound(format!("Map library not found: {}", id)))?;
 
-    let data_dir_rel = library.data_dir
+    let data_dir_rel = library
+        .data_dir
         .ok_or_else(|| AppError::Domain("No data dir for this library".to_string()))?;
 
-    let data_dir = resolve_data_dir(&app_handle)
-        .map_err(|e| AppError::Internal(e))?;
+    let data_dir = resolve_data_dir(&app_handle).map_err(|e| AppError::Internal(e))?;
     let manifest_path = data_dir.join(&data_dir_rel).join("layers_manifest.json");
 
     let content = std::fs::read_to_string(&manifest_path)
@@ -497,7 +611,10 @@ pub fn create_map_library_group(
 ) -> Result<MapLibraryGroup, AppError> {
     let now = chrono::Utc::now().timestamp();
     let group = MapLibraryGroup {
-        id: format!("mlgrp_{}", uuid::Uuid::new_v4().to_string().replace("-", "")),
+        id: format!(
+            "mlgrp_{}",
+            uuid::Uuid::new_v4().to_string().replace("-", "")
+        ),
         name,
         description,
         map_type: MapLibraryType::from(map_type),
@@ -517,7 +634,9 @@ pub fn update_map_library_group(
     name: String,
     description: Option<String>,
 ) -> Result<MapLibraryGroup, AppError> {
-    let mut group = state.repository.get_group_by_id(&id)?
+    let mut group = state
+        .repository
+        .get_group_by_id(&id)?
         .ok_or_else(|| AppError::NotFound(format!("Group not found: {}", id)))?;
     group.name = name;
     group.description = description;
@@ -540,7 +659,9 @@ pub fn move_library_to_group(
     library_id: String,
     group_id: Option<String>,
 ) -> Result<(), AppError> {
-    let mut library = state.repository.get_by_id(&library_id)?
+    let mut library = state
+        .repository
+        .get_by_id(&library_id)?
         .ok_or_else(|| AppError::NotFound(format!("Library not found: {}", library_id)))?;
     library.group_id = group_id;
     library.updated_at = chrono::Utc::now().timestamp();
@@ -558,14 +679,17 @@ pub fn update_cadbin_text_entity(
     entity_id: u32,
     new_content: String,
 ) -> Result<(), AppError> {
-    let library = state.repository.get_by_id(&library_id)?
+    let library = state
+        .repository
+        .get_by_id(&library_id)?
         .ok_or_else(|| AppError::NotFound(format!("Map library not found: {}", library_id)))?;
 
-    let data_dir_rel = library.data_dir.clone()
+    let data_dir_rel = library
+        .data_dir
+        .clone()
         .ok_or_else(|| AppError::Domain("No data dir for this library".to_string()))?;
 
-    let data_dir = resolve_data_dir(&app_handle)
-        .map_err(|e| AppError::Internal(e))?;
+    let data_dir = resolve_data_dir(&app_handle).map_err(|e| AppError::Internal(e))?;
     let lib_dir = data_dir.join(&data_dir_rel);
     let doc_json_path = lib_dir.join("doc.json");
 
@@ -585,20 +709,30 @@ pub fn update_cadbin_text_entity(
                 break;
             }
         }
-        let source_path = found_source.ok_or_else(|| AppError::Domain(
-            "无法编辑文字：doc.json 与 source.{dwg,dxf} 都不存在。请重新导入该 CAD 图库。".to_string()
-        ))?;
-        let source_name = library.source_file.clone()
-            .unwrap_or_else(|| source_path.file_name().and_then(|n| n.to_str()).unwrap_or("source.dwg").to_string());
+        let source_path = found_source.ok_or_else(|| {
+            AppError::Domain(
+                "无法编辑文字：doc.json 与 source.{dwg,dxf} 都不存在。请重新导入该 CAD 图库。"
+                    .to_string(),
+            )
+        })?;
+        let source_name = library.source_file.clone().unwrap_or_else(|| {
+            source_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("source.dwg")
+                .to_string()
+        });
         let bytes = std::fs::read(&source_path)
             .map_err(|e| AppError::Internal(format!("Failed to read source file: {}", e)))?;
         let pr = parse_cad_from_bytes_sync(bytes, source_name);
         if !pr.success {
             return Err(AppError::Domain(format!(
-                "源文件重解析失败: {}", pr.error.unwrap_or_default()
+                "源文件重解析失败: {}",
+                pr.error.unwrap_or_default()
             )));
         }
-        let parsed_doc = pr.document
+        let parsed_doc = pr
+            .document
             .ok_or_else(|| AppError::Domain("源文件解析后 document 为空".to_string()))?;
         // 顺手把 doc.json 补上，方便下次直接编辑
         if let Ok(j) = serde_json::to_string(&parsed_doc) {
@@ -611,7 +745,8 @@ pub fn update_cadbin_text_entity(
     if idx >= doc.entities.len() {
         return Err(AppError::Domain(format!(
             "entity_id 越界: {} (总 {} 个实体)",
-            entity_id, doc.entities.len()
+            entity_id,
+            doc.entities.len()
         )));
     }
 
@@ -629,7 +764,9 @@ pub fn update_cadbin_text_entity(
 
     let cadbin_data = crate::cad_runtime::cadbin_writer::CadbinWriter::write_to_bytes(&doc);
 
-    let cadbin_rel = library.cadbin_path.clone()
+    let cadbin_rel = library
+        .cadbin_path
+        .clone()
         .ok_or_else(|| AppError::Domain("No cadbin file for this library".to_string()))?;
     let cadbin_full_path = data_dir.join(&cadbin_rel);
 
@@ -659,18 +796,32 @@ fn load_cad_document_for_edit(
     state: &State<'_, MapLibraryState>,
     app_handle: &tauri::AppHandle,
     library_id: &str,
-) -> Result<(MapLibrary, std::path::PathBuf, std::path::PathBuf, std::path::PathBuf, CadDocument), AppError> {
-    let library = state.repository.get_by_id(library_id)?
+) -> Result<
+    (
+        MapLibrary,
+        std::path::PathBuf,
+        std::path::PathBuf,
+        std::path::PathBuf,
+        CadDocument,
+    ),
+    AppError,
+> {
+    let library = state
+        .repository
+        .get_by_id(library_id)?
         .ok_or_else(|| AppError::NotFound(format!("Map library not found: {}", library_id)))?;
 
-    let data_dir_rel = library.data_dir.clone()
+    let data_dir_rel = library
+        .data_dir
+        .clone()
         .ok_or_else(|| AppError::Domain("No data dir for this library".to_string()))?;
-    let data_dir = resolve_data_dir(app_handle)
-        .map_err(|e| AppError::Internal(e))?;
+    let data_dir = resolve_data_dir(app_handle).map_err(|e| AppError::Internal(e))?;
     let lib_dir = data_dir.join(&data_dir_rel);
     let doc_json_path = lib_dir.join("doc.json");
 
-    let cadbin_rel = library.cadbin_path.clone()
+    let cadbin_rel = library
+        .cadbin_path
+        .clone()
         .ok_or_else(|| AppError::Domain("No cadbin file for this library".to_string()))?;
     let cadbin_full_path = data_dir.join(&cadbin_rel);
 
@@ -684,20 +835,35 @@ fn load_cad_document_for_edit(
         let mut found_source: Option<std::path::PathBuf> = None;
         for name in &candidates {
             let p = lib_dir.join(name);
-            if p.exists() { found_source = Some(p); break; }
+            if p.exists() {
+                found_source = Some(p);
+                break;
+            }
         }
-        let source_path = found_source.ok_or_else(|| AppError::Domain(
-            "无法编辑：doc.json 与 source.{dwg,dxf} 都不存在。请重新导入该 CAD 图库。".to_string()
-        ))?;
-        let source_name = library.source_file.clone()
-            .unwrap_or_else(|| source_path.file_name().and_then(|n| n.to_str()).unwrap_or("source.dwg").to_string());
+        let source_path = found_source.ok_or_else(|| {
+            AppError::Domain(
+                "无法编辑：doc.json 与 source.{dwg,dxf} 都不存在。请重新导入该 CAD 图库。"
+                    .to_string(),
+            )
+        })?;
+        let source_name = library.source_file.clone().unwrap_or_else(|| {
+            source_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("source.dwg")
+                .to_string()
+        });
         let bytes = std::fs::read(&source_path)
             .map_err(|e| AppError::Internal(format!("Failed to read source file: {}", e)))?;
         let pr = parse_cad_from_bytes_sync(bytes, source_name);
         if !pr.success {
-            return Err(AppError::Domain(format!("源文件重解析失败: {}", pr.error.unwrap_or_default())));
+            return Err(AppError::Domain(format!(
+                "源文件重解析失败: {}",
+                pr.error.unwrap_or_default()
+            )));
         }
-        let parsed_doc = pr.document
+        let parsed_doc = pr
+            .document
             .ok_or_else(|| AppError::Domain("源文件解析后 document 为空".to_string()))?;
         if let Ok(j) = serde_json::to_string(&parsed_doc) {
             let _ = std::fs::write(&doc_json_path, j.as_bytes());
@@ -782,34 +948,82 @@ fn entity_color_mut(e: &mut CadEntity) -> &mut i32 {
 
 /// 平移实体所有几何点。注意 hatch/polyline 类的 vertices 也要走。
 fn translate_entity(e: &mut CadEntity, dx: f64, dy: f64) {
-    let shift_pt = |p: &mut CadPoint| { p.x += dx; p.y += dy; };
+    let shift_pt = |p: &mut CadPoint| {
+        p.x += dx;
+        p.y += dy;
+    };
     match e {
-        CadEntity::Line { start, end, .. } => { shift_pt(start); shift_pt(end); }
+        CadEntity::Line { start, end, .. } => {
+            shift_pt(start);
+            shift_pt(end);
+        }
         CadEntity::Circle { center, .. }
         | CadEntity::Arc { center, .. }
         | CadEntity::Ellipse { center, .. } => shift_pt(center),
-        CadEntity::Polyline { vertices, .. } => for v in vertices { shift_pt(v); },
-        CadEntity::LwPolyline { vertices, .. } => for v in vertices { v.x += dx; v.y += dy; },
-        CadEntity::Spline { control_points, fit_points, .. } => {
-            for p in control_points { shift_pt(p); }
-            for p in fit_points { shift_pt(p); }
+        CadEntity::Polyline { vertices, .. } => {
+            for v in vertices {
+                shift_pt(v);
+            }
+        }
+        CadEntity::LwPolyline { vertices, .. } => {
+            for v in vertices {
+                v.x += dx;
+                v.y += dy;
+            }
+        }
+        CadEntity::Spline {
+            control_points,
+            fit_points,
+            ..
+        } => {
+            for p in control_points {
+                shift_pt(p);
+            }
+            for p in fit_points {
+                shift_pt(p);
+            }
         }
         CadEntity::Text { position, .. } | CadEntity::MText { position, .. } => shift_pt(position),
-        CadEntity::Solid { points, .. } => for p in points { shift_pt(p); },
+        CadEntity::Solid { points, .. } => {
+            for p in points {
+                shift_pt(p);
+            }
+        }
         CadEntity::Point { position, .. } => shift_pt(position),
         CadEntity::Insert { position, .. } => shift_pt(position),
         CadEntity::Hatch { boundaries, .. } => {
             for path in boundaries {
-                for v in path { v.x += dx; v.y += dy; }
+                for v in path {
+                    v.x += dx;
+                    v.y += dy;
+                }
             }
         }
-        CadEntity::Dimension { definition_point, text_midpoint, .. } => {
-            shift_pt(definition_point); shift_pt(text_midpoint);
+        CadEntity::Dimension {
+            definition_point,
+            text_midpoint,
+            ..
+        } => {
+            shift_pt(definition_point);
+            shift_pt(text_midpoint);
         }
-        CadEntity::Leader { vertices, .. } => for v in vertices { shift_pt(v); },
+        CadEntity::Leader { vertices, .. } => {
+            for v in vertices {
+                shift_pt(v);
+            }
+        }
         CadEntity::AttributeEntity { position, .. } => shift_pt(position),
-        CadEntity::Face3D { points, .. } => for p in points { shift_pt(p); },
-        CadEntity::Polyline2D { vertices, .. } => for v in vertices { v.x += dx; v.y += dy; },
+        CadEntity::Face3D { points, .. } => {
+            for p in points {
+                shift_pt(p);
+            }
+        }
+        CadEntity::Polyline2D { vertices, .. } => {
+            for v in vertices {
+                v.x += dx;
+                v.y += dy;
+            }
+        }
         CadEntity::Table { position, .. } => shift_pt(position),
     }
 }
@@ -826,7 +1040,11 @@ pub fn update_cadbin_entity_color(
         load_cad_document_for_edit(&state, &app_handle, &library_id)?;
     let idx = entity_id as usize;
     if idx >= doc.entities.len() {
-        return Err(AppError::Domain(format!("entity_id 越界: {} (总 {} 个实体)", entity_id, doc.entities.len())));
+        return Err(AppError::Domain(format!(
+            "entity_id 越界: {} (总 {} 个实体)",
+            entity_id,
+            doc.entities.len()
+        )));
     }
     *entity_color_mut(&mut doc.entities[idx]) = new_color;
     let _bytes = save_doc_and_cadbin(&state, lib, &doc, &doc_json_path, &cadbin_full_path)?;
@@ -845,7 +1063,11 @@ pub fn update_cadbin_entity_layer(
         load_cad_document_for_edit(&state, &app_handle, &library_id)?;
     let idx = entity_id as usize;
     if idx >= doc.entities.len() {
-        return Err(AppError::Domain(format!("entity_id 越界: {} (总 {} 个实体)", entity_id, doc.entities.len())));
+        return Err(AppError::Domain(format!(
+            "entity_id 越界: {} (总 {} 个实体)",
+            entity_id,
+            doc.entities.len()
+        )));
     }
     *entity_layer_mut(&mut doc.entities[idx]) = new_layer.clone();
     let _bytes = save_doc_and_cadbin(&state, lib, &doc, &doc_json_path, &cadbin_full_path)?;
@@ -864,7 +1086,11 @@ pub fn update_cadbin_entity_props(
         load_cad_document_for_edit(&state, &app_handle, &library_id)?;
     let idx = entity_id as usize;
     if idx >= doc.entities.len() {
-        return Err(AppError::Domain(format!("entity_id 越界: {} (总 {} 个实体)", entity_id, doc.entities.len())));
+        return Err(AppError::Domain(format!(
+            "entity_id 越界: {} (总 {} 个实体)",
+            entity_id,
+            doc.entities.len()
+        )));
     }
     let props: serde_json::Value = serde_json::from_str(&props_json)
         .map_err(|e| AppError::Domain(format!("解析属性 JSON 失败: {}", e)))?;
@@ -879,7 +1105,9 @@ pub fn update_cadbin_entity_props(
 }
 
 fn json_merge(mut base: serde_json::Value, patch: serde_json::Value) -> serde_json::Value {
-    if let (serde_json::Value::Object(ref mut base_map), serde_json::Value::Object(patch_map)) = (&mut base, patch) {
+    if let (serde_json::Value::Object(ref mut base_map), serde_json::Value::Object(patch_map)) =
+        (&mut base, patch)
+    {
         for (k, v) in patch_map {
             base_map.insert(k, v);
         }
@@ -900,7 +1128,11 @@ pub fn move_cadbin_entity(
         load_cad_document_for_edit(&state, &app_handle, &library_id)?;
     let idx = entity_id as usize;
     if idx >= doc.entities.len() {
-        return Err(AppError::Domain(format!("entity_id 越界: {} (总 {} 个实体)", entity_id, doc.entities.len())));
+        return Err(AppError::Domain(format!(
+            "entity_id 越界: {} (总 {} 个实体)",
+            entity_id,
+            doc.entities.len()
+        )));
     }
     translate_entity(&mut doc.entities[idx], dx, dy);
     let _bytes = save_doc_and_cadbin(&state, lib, &doc, &doc_json_path, &cadbin_full_path)?;
@@ -923,26 +1155,90 @@ pub fn delete_cadbin_entity(
         load_cad_document_for_edit(&state, &app_handle, &library_id)?;
     let idx = entity_id as usize;
     if idx >= doc.entities.len() {
-        return Err(AppError::Domain(format!("entity_id 越界: {} (总 {} 个实体)", entity_id, doc.entities.len())));
+        return Err(AppError::Domain(format!(
+            "entity_id 越界: {} (总 {} 个实体)",
+            entity_id,
+            doc.entities.len()
+        )));
     }
 
     // 取一个原始坐标作为墓碑位置
     let pos = match &doc.entities[idx] {
         CadEntity::Line { start, .. } => start.clone(),
-        CadEntity::Circle { center, .. } | CadEntity::Arc { center, .. } | CadEntity::Ellipse { center, .. } => center.clone(),
-        CadEntity::Polyline { vertices, .. } => vertices.first().cloned().unwrap_or(CadPoint{ x:0.0, y:0.0, z:0.0 }),
-        CadEntity::LwPolyline { vertices, .. } => vertices.first().map(|v| CadPoint{ x:v.x, y:v.y, z:0.0 }).unwrap_or(CadPoint{ x:0.0, y:0.0, z:0.0 }),
-        CadEntity::Spline { control_points, .. } => control_points.first().cloned().unwrap_or(CadPoint{ x:0.0, y:0.0, z:0.0 }),
+        CadEntity::Circle { center, .. }
+        | CadEntity::Arc { center, .. }
+        | CadEntity::Ellipse { center, .. } => center.clone(),
+        CadEntity::Polyline { vertices, .. } => vertices.first().cloned().unwrap_or(CadPoint {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }),
+        CadEntity::LwPolyline { vertices, .. } => vertices
+            .first()
+            .map(|v| CadPoint {
+                x: v.x,
+                y: v.y,
+                z: 0.0,
+            })
+            .unwrap_or(CadPoint {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            }),
+        CadEntity::Spline { control_points, .. } => {
+            control_points.first().cloned().unwrap_or(CadPoint {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            })
+        }
         CadEntity::Text { position, .. } | CadEntity::MText { position, .. } => position.clone(),
-        CadEntity::Solid { points, .. } => points.first().cloned().unwrap_or(CadPoint{ x:0.0, y:0.0, z:0.0 }),
+        CadEntity::Solid { points, .. } => points.first().cloned().unwrap_or(CadPoint {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }),
         CadEntity::Point { position, .. } => position.clone(),
         CadEntity::Insert { position, .. } => position.clone(),
-        CadEntity::Hatch { boundaries, .. } => boundaries.first().and_then(|b| b.first()).map(|v| CadPoint{ x:v.x, y:v.y, z:0.0 }).unwrap_or(CadPoint{ x:0.0, y:0.0, z:0.0 }),
-        CadEntity::Dimension { definition_point, .. } => definition_point.clone(),
-        CadEntity::Leader { vertices, .. } => vertices.first().cloned().unwrap_or(CadPoint{ x:0.0, y:0.0, z:0.0 }),
+        CadEntity::Hatch { boundaries, .. } => boundaries
+            .first()
+            .and_then(|b| b.first())
+            .map(|v| CadPoint {
+                x: v.x,
+                y: v.y,
+                z: 0.0,
+            })
+            .unwrap_or(CadPoint {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            }),
+        CadEntity::Dimension {
+            definition_point, ..
+        } => definition_point.clone(),
+        CadEntity::Leader { vertices, .. } => vertices.first().cloned().unwrap_or(CadPoint {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }),
         CadEntity::AttributeEntity { position, .. } => position.clone(),
-        CadEntity::Face3D { points, .. } => points.first().cloned().unwrap_or(CadPoint{ x:0.0, y:0.0, z:0.0 }),
-        CadEntity::Polyline2D { vertices, .. } => vertices.first().map(|v| CadPoint{ x:v.x, y:v.y, z:0.0 }).unwrap_or(CadPoint{ x:0.0, y:0.0, z:0.0 }),
+        CadEntity::Face3D { points, .. } => points.first().cloned().unwrap_or(CadPoint {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }),
+        CadEntity::Polyline2D { vertices, .. } => vertices
+            .first()
+            .map(|v| CadPoint {
+                x: v.x,
+                y: v.y,
+                z: 0.0,
+            })
+            .unwrap_or(CadPoint {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            }),
         CadEntity::Table { position, .. } => position.clone(),
     };
 
@@ -1011,13 +1307,24 @@ pub fn update_cadbin_layer_props(
     let (lib, _lib_dir, doc_json_path, cadbin_full_path, mut doc) =
         load_cad_document_for_edit(&state, &app_handle, &library_id)?;
 
-    let layer = doc.layers.iter_mut().find(|l| l.name == layer_name)
+    let layer = doc
+        .layers
+        .iter_mut()
+        .find(|l| l.name == layer_name)
         .ok_or_else(|| AppError::Domain(format!("图层不存在: {}", layer_name)))?;
 
-    if let Some(c) = props.color { layer.color = c; }
-    if let Some(v) = props.visible { layer.visible = v; }
-    if let Some(f) = props.frozen { layer.frozen = f; }
-    if let Some(l) = props.locked { layer.locked = l; }
+    if let Some(c) = props.color {
+        layer.color = c;
+    }
+    if let Some(v) = props.visible {
+        layer.visible = v;
+    }
+    if let Some(f) = props.frozen {
+        layer.frozen = f;
+    }
+    if let Some(l) = props.locked {
+        layer.locked = l;
+    }
 
     let _bytes = save_doc_and_cadbin(&state, lib, &doc, &doc_json_path, &cadbin_full_path)?;
     // 仅在 debug 模式下输出，避免生产环境日志泛滥
@@ -1063,7 +1370,10 @@ pub fn delete_cadbin_layer(
     let (lib, _lib_dir, doc_json_path, cadbin_full_path, mut doc) =
         load_cad_document_for_edit(&state, &app_handle, &library_id)?;
 
-    let layer_idx = doc.layers.iter().position(|l| l.name == layer_name)
+    let layer_idx = doc
+        .layers
+        .iter()
+        .position(|l| l.name == layer_name)
         .ok_or_else(|| AppError::Domain(format!("图层不存在: {}", layer_name)))?;
 
     if delete_entities {
@@ -1090,7 +1400,9 @@ pub fn rename_cadbin_layer(
     old_name: String,
     new_name: String,
 ) -> Result<(), AppError> {
-    if old_name == new_name { return Ok(()); }
+    if old_name == new_name {
+        return Ok(());
+    }
     let (lib, _lib_dir, doc_json_path, cadbin_full_path, mut doc) =
         load_cad_document_for_edit(&state, &app_handle, &library_id)?;
 
@@ -1098,7 +1410,10 @@ pub fn rename_cadbin_layer(
         return Err(AppError::Domain(format!("图层名称已存在: {}", new_name)));
     }
 
-    let layer = doc.layers.iter_mut().find(|l| l.name == old_name)
+    let layer = doc
+        .layers
+        .iter_mut()
+        .find(|l| l.name == old_name)
         .ok_or_else(|| AppError::Domain(format!("图层不存在: {}", old_name)))?;
     layer.name = new_name.clone();
 
@@ -1127,14 +1442,16 @@ pub fn restore_cadbin_entity(
         load_cad_document_for_edit(&state, &app_handle, &library_id)?;
     let idx = entity_id as usize;
     if idx >= doc.entities.len() {
-        return Err(AppError::Domain(format!("entity_id 越界: {} (总 {} 个实体)", entity_id, doc.entities.len())));
+        return Err(AppError::Domain(format!(
+            "entity_id 越界: {} (总 {} 个实体)",
+            entity_id,
+            doc.entities.len()
+        )));
     }
 
-    let original = doc.deleted_snapshots.remove(&entity_id)
-        .ok_or_else(|| AppError::Domain(format!(
-            "找不到实体 {} 的删除快照，无法恢复",
-            entity_id
-        )))?;
+    let original = doc.deleted_snapshots.remove(&entity_id).ok_or_else(|| {
+        AppError::Domain(format!("找不到实体 {} 的删除快照，无法恢复", entity_id))
+    })?;
 
     doc.entities[idx] = original;
 

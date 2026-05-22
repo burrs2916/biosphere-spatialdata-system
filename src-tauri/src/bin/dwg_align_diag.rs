@@ -1,5 +1,5 @@
+use acadrust::entities::{AttachmentPoint, TextHorizontalAlignment, TextVerticalAlignment};
 use acadrust::DwgReader;
-use acadrust::entities::{TextHorizontalAlignment, TextVerticalAlignment, AttachmentPoint};
 
 fn main() {
     let file_path = "/Users/liwenchao/EdgeView/biosphere/biosphere-spatialdata-system/docs/需求分析/20260510/雨田煤业井下降尘喷雾布置图22.7.1.dwg";
@@ -25,8 +25,7 @@ fn main() {
     }
     v_lines.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
     v_lines.dedup_by(|a, b| (a.0 - b.0).abs() < 0.5);
-    for vl in &v_lines {
-    }
+    for vl in &v_lines {}
 
     for entity in doc.entities() {
         if let acadrust::EntityType::MText(mt) = entity {
@@ -38,7 +37,8 @@ fn main() {
             }
 
             let p = &mt.insertion_point;
-            let content_clean = mt.value
+            let content_clean = mt
+                .value
                 .replace("{\\fFangSong_GB2312|b0|i0|c134|p49;", "")
                 .replace("{\\fSimSun|b0|i0|c134|p2;", "")
                 .replace("{\\fSimSun|b0|i0|c129|p2;", "")
@@ -83,7 +83,8 @@ fn main() {
             }
 
             let p = &mt.insertion_point;
-            let content_clean = mt.value
+            let content_clean = mt
+                .value
                 .replace("{\\fFangSong_GB2312|b0|i0|c134|p49;", "")
                 .replace("{\\fSimSun|b0|i0|c134|p2;", "")
                 .replace("{\\fSimSun|b0|i0|c129|p2;", "")
@@ -126,7 +127,10 @@ fn main() {
             if t.vertical_alignment != TextVerticalAlignment::Baseline {
                 continue;
             }
-            if t.rotation.abs() > 0.1 && (t.rotation - 1.5708).abs() > 0.1 && (t.rotation - 6.28).abs() > 0.1 {
+            if t.rotation.abs() > 0.1
+                && (t.rotation - 1.5708).abs() > 0.1
+                && (t.rotation - 6.28).abs() > 0.1
+            {
                 continue;
             }
 

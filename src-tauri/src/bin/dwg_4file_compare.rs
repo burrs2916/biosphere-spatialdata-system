@@ -1,5 +1,5 @@
-use acadrust::DwgReader;
 use acadrust::entities::AttachmentPoint;
+use acadrust::DwgReader;
 
 fn main() {
     let dwg_path = "/Users/liwenchao/EdgeView/biosphere/biosphere-spatialdata-system/docs/需求分析/20260510/雨田煤业井下降尘喷雾布置图22.7.1.dwg";
@@ -20,7 +20,11 @@ fn main() {
     for entity in doc.entities() {
         if let acadrust::EntityType::MText(mt) = entity {
             let p = &mt.insertion_point;
-            if p.x >= legend_x_min && p.x <= legend_x_max && p.y >= legend_y_min && p.y <= legend_y_max {
+            if p.x >= legend_x_min
+                && p.x <= legend_x_max
+                && p.y >= legend_y_min
+                && p.y <= legend_y_max
+            {
                 let ap: u8 = match mt.attachment_point {
                     AttachmentPoint::TopLeft => 1,
                     AttachmentPoint::TopCenter => 2,
@@ -33,7 +37,15 @@ fn main() {
                     AttachmentPoint::BottomRight => 9,
                 };
                 let cleaned = clean_mtext_format(&mt.value);
-                dwg_mtexts.push((p.x, p.y, mt.height, mt.rectangle_width, ap, mt.value.clone(), cleaned));
+                dwg_mtexts.push((
+                    p.x,
+                    p.y,
+                    mt.height,
+                    mt.rectangle_width,
+                    ap,
+                    mt.value.clone(),
+                    cleaned,
+                ));
             }
         }
     }
@@ -99,7 +111,12 @@ fn main() {
     let legend_dxf_y_min = 90.0;
     let legend_dxf_y_max = 110.0;
 
-    dxf_mtexts.retain(|m| m.x >= legend_dxf_x_min && m.x <= legend_dxf_x_max && m.y >= legend_dxf_y_min && m.y <= legend_dxf_y_max);
+    dxf_mtexts.retain(|m| {
+        m.x >= legend_dxf_x_min
+            && m.x <= legend_dxf_x_max
+            && m.y >= legend_dxf_y_min
+            && m.y <= legend_dxf_y_max
+    });
     dxf_mtexts.sort_by(|a, b| b.y.partial_cmp(&a.y).unwrap_or(std::cmp::Ordering::Equal));
 
     for (i, m) in dxf_mtexts.iter().enumerate() {
@@ -120,13 +137,13 @@ fn main() {
         }
     }
 
-    let mut font_counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    let mut font_counts: std::collections::HashMap<String, usize> =
+        std::collections::HashMap::new();
     for m in &dxf_mtexts {
         let font = extract_font(&m.content);
         *font_counts.entry(font).or_insert(0) += 1;
     }
-    for (font, count) in &font_counts {
-    }
+    for (font, count) in &font_counts {}
 
     let mut h_values: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
     for m in &dxf_mtexts {
@@ -135,15 +152,13 @@ fn main() {
     }
     let mut h_sorted: Vec<_> = h_values.iter().collect();
     h_sorted.sort_by(|a, b| b.1.cmp(a.1));
-    for (h, count) in &h_sorted {
-    }
+    for (h, count) in &h_sorted {}
 
     let mut dir_counts: std::collections::HashMap<i32, usize> = std::collections::HashMap::new();
     for m in &dxf_mtexts {
         *dir_counts.entry(m.drawing_dir).or_insert(0) += 1;
     }
-    for (dir, count) in &dir_counts {
-    }
+    for (dir, count) in &dir_counts {}
 
     let mut attach_counts: std::collections::HashMap<i32, usize> = std::collections::HashMap::new();
     for m in &dxf_mtexts {
@@ -166,34 +181,46 @@ fn main() {
 
     if !dwg_mtexts.is_empty() && !dxf_mtexts.is_empty() {
         let dwg_x_min = dwg_mtexts.iter().map(|m| m.0).fold(f64::INFINITY, f64::min);
-        let dwg_x_max = dwg_mtexts.iter().map(|m| m.0).fold(f64::NEG_INFINITY, f64::max);
+        let dwg_x_max = dwg_mtexts
+            .iter()
+            .map(|m| m.0)
+            .fold(f64::NEG_INFINITY, f64::max);
         let dwg_y_min = dwg_mtexts.iter().map(|m| m.1).fold(f64::INFINITY, f64::min);
-        let dwg_y_max = dwg_mtexts.iter().map(|m| m.1).fold(f64::NEG_INFINITY, f64::max);
+        let dwg_y_max = dwg_mtexts
+            .iter()
+            .map(|m| m.1)
+            .fold(f64::NEG_INFINITY, f64::max);
 
         let dxf_x_min = dxf_mtexts.iter().map(|m| m.x).fold(f64::INFINITY, f64::min);
-        let dxf_x_max = dxf_mtexts.iter().map(|m| m.x).fold(f64::NEG_INFINITY, f64::max);
+        let dxf_x_max = dxf_mtexts
+            .iter()
+            .map(|m| m.x)
+            .fold(f64::NEG_INFINITY, f64::max);
         let dxf_y_min = dxf_mtexts.iter().map(|m| m.y).fold(f64::INFINITY, f64::min);
-        let dxf_y_max = dxf_mtexts.iter().map(|m| m.y).fold(f64::NEG_INFINITY, f64::max);
+        let dxf_y_max = dxf_mtexts
+            .iter()
+            .map(|m| m.y)
+            .fold(f64::NEG_INFINITY, f64::max);
 
         let dwg_w = dwg_x_max - dwg_x_min;
         let dwg_h = dwg_y_max - dwg_y_min;
         let dxf_w = dxf_x_max - dxf_x_min;
         let dxf_h = dxf_y_max - dxf_y_min;
 
-        if dwg_w > 0.0 && dwg_h > 0.0 {
-        }
+        if dwg_w > 0.0 && dwg_h > 0.0 {}
 
         let dwg_h_avg: f64 = dwg_mtexts.iter().map(|m| m.2).sum::<f64>() / dwg_mtexts.len() as f64;
-        let dxf_h_avg: f64 = dxf_mtexts.iter().map(|m| m.height).sum::<f64>() / dxf_mtexts.len() as f64;
+        let dxf_h_avg: f64 =
+            dxf_mtexts.iter().map(|m| m.height).sum::<f64>() / dxf_mtexts.len() as f64;
 
-        if dwg_h_avg > 0.0 {
-        }
+        if dwg_h_avg > 0.0 {}
     }
 
     let mut w075_total = 0;
     let mut w1_total = 0;
     let mut w_other_total = 0;
-    let mut w_other_values: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    let mut w_other_values: std::collections::HashMap<String, usize> =
+        std::collections::HashMap::new();
 
     for m in &dxf_mtexts {
         // already filtered to legend area, let's check all
@@ -214,8 +241,7 @@ fn main() {
         }
     }
     if w_other_total > 0 {
-        for (w, count) in &w_other_values {
-        }
+        for (w, count) in &w_other_values {}
     }
 
     let mut all_dwg_mtexts: Vec<(f64, f64, f64, u8, String)> = Vec::new();
@@ -244,25 +270,39 @@ fn main() {
     let mut dwg_has_leading_space = 0;
 
     for (_, _, _, _, content) in &all_dwg_mtexts {
-        if content.contains("\\f") || content.contains("\\F") { dwg_has_font += 1; }
-        if content.contains("\\W") { dwg_has_w += 1; }
-        if content.contains("\\H") { dwg_has_h += 1; }
-        if content.contains("\\A") { dwg_has_a += 1; }
+        if content.contains("\\f") || content.contains("\\F") {
+            dwg_has_font += 1;
+        }
+        if content.contains("\\W") {
+            dwg_has_w += 1;
+        }
+        if content.contains("\\H") {
+            dwg_has_h += 1;
+        }
+        if content.contains("\\A") {
+            dwg_has_a += 1;
+        }
         let cleaned = clean_mtext_format(content);
-        if cleaned.starts_with(' ') { dwg_has_leading_space += 1; }
+        if cleaned.starts_with(' ') {
+            dwg_has_leading_space += 1;
+        }
     }
     let mut count = 0;
     for (_, _, _, _, content) in &all_dwg_mtexts {
         if content.contains("\\W") {
             count += 1;
-            if count >= 10 { break; }
+            if count >= 10 {
+                break;
+            }
         }
     }
     let mut count = 0;
     for (_, _, _, _, content) in &all_dwg_mtexts {
         if content.contains("\\H") {
             count += 1;
-            if count >= 10 { break; }
+            if count >= 10 {
+                break;
+            }
         }
     }
 }
@@ -288,7 +328,9 @@ fn parse_all_dxf_mtexts(content: &str) -> Vec<DxfMText> {
             let mut j = i + 1;
             while j + 1 < lines.len() {
                 let code = lines[j].trim();
-                if code == "0" { break; }
+                if code == "0" {
+                    break;
+                }
                 let value = lines[j + 1].trim();
                 match code {
                     "10" => mtext.x = value.parse().unwrap_or(0.0),
@@ -297,8 +339,16 @@ fn parse_all_dxf_mtexts(content: &str) -> Vec<DxfMText> {
                     "41" => mtext.rect_width = value.parse().unwrap_or(0.0),
                     "71" => mtext.drawing_dir = value.parse().unwrap_or(0),
                     "72" => mtext.attach = value.parse().unwrap_or(1),
-                    "1" => { if mtext.content.is_empty() { mtext.content = value.to_string(); } else { mtext.content.push_str(value); } }
-                    "3" => { mtext.content.push_str(value); }
+                    "1" => {
+                        if mtext.content.is_empty() {
+                            mtext.content = value.to_string();
+                        } else {
+                            mtext.content.push_str(value);
+                        }
+                    }
+                    "3" => {
+                        mtext.content.push_str(value);
+                    }
                     _ => {}
                 }
                 j += 2;
@@ -374,9 +424,14 @@ fn clean_mtext_format(s: &str) -> String {
     while i < chars.len() {
         if chars[i] == '\\' && i + 1 < chars.len() {
             let cmd = chars[i + 1];
-            if cmd == 'P' && i + 2 < chars.len() && (chars[i + 2] == 'X' || chars[i + 2] == 'Y' || chars[i + 2] == 'Z') {
+            if cmd == 'P'
+                && i + 2 < chars.len()
+                && (chars[i + 2] == 'X' || chars[i + 2] == 'Y' || chars[i + 2] == 'Z')
+            {
                 i += 3;
-                while i < chars.len() && chars[i] != '\\' { i += 1; }
+                while i < chars.len() && chars[i] != '\\' {
+                    i += 1;
+                }
                 continue;
             }
             if cmd == 'P' {
@@ -385,7 +440,12 @@ fn clean_mtext_format(s: &str) -> String {
                 continue;
             }
             let mut j = i + 1;
-            while j < chars.len() && chars[j] != ';' && chars[j] != '\\' && chars[j] != '{' && chars[j] != '}' {
+            while j < chars.len()
+                && chars[j] != ';'
+                && chars[j] != '\\'
+                && chars[j] != '{'
+                && chars[j] != '}'
+            {
                 j += 1;
             }
             if j < chars.len() && chars[j] == ';' {
@@ -393,7 +453,10 @@ fn clean_mtext_format(s: &str) -> String {
                 continue;
             }
         }
-        if chars[i] == '{' || chars[i] == '}' { i += 1; continue; }
+        if chars[i] == '{' || chars[i] == '}' {
+            i += 1;
+            continue;
+        }
         result.push(chars[i]);
         i += 1;
     }

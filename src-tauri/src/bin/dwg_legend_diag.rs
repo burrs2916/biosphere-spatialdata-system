@@ -1,5 +1,5 @@
+use acadrust::entities::{AttachmentPoint, TextHorizontalAlignment, TextVerticalAlignment};
 use acadrust::DwgReader;
-use acadrust::entities::{TextHorizontalAlignment, TextVerticalAlignment, AttachmentPoint};
 
 fn main() {
     let file_path = "/Users/liwenchao/EdgeView/biosphere/biosphere-spatialdata-system/docs/需求分析/20260510/雨田煤业井下降尘喷雾布置图22.7.1.dwg";
@@ -35,7 +35,17 @@ fn main() {
                     TextVerticalAlignment::Middle => 2,
                     TextVerticalAlignment::Top => 3,
                 };
-                all_texts.push((p.x, p.y, t.height, t.value.clone(), h_align, v_align, t.rotation, false, 0.0));
+                all_texts.push((
+                    p.x,
+                    p.y,
+                    t.height,
+                    t.value.clone(),
+                    h_align,
+                    v_align,
+                    t.rotation,
+                    false,
+                    0.0,
+                ));
             }
             acadrust::EntityType::MText(mt) => {
                 let p = &mt.insertion_point;
@@ -50,7 +60,17 @@ fn main() {
                     AttachmentPoint::BottomCenter => 8,
                     AttachmentPoint::BottomRight => 9,
                 };
-                all_texts.push((p.x, p.y, mt.height, mt.value.chars().take(60).collect::<String>(), ap, 0, mt.rotation, true, mt.rectangle_width));
+                all_texts.push((
+                    p.x,
+                    p.y,
+                    mt.height,
+                    mt.value.chars().take(60).collect::<String>(),
+                    ap,
+                    0,
+                    mt.rotation,
+                    true,
+                    mt.rectangle_width,
+                ));
             }
             _ => {}
         }
@@ -66,8 +86,7 @@ fn main() {
         }
     }
     v_lines.sort_by(|a, b| b.3.partial_cmp(&a.3).unwrap());
-    for vl in v_lines.iter().take(20) {
-    }
+    for vl in v_lines.iter().take(20) {}
 
     let mut h_lines: Vec<(f64, f64, f64, f64)> = Vec::new();
     for l in &all_lines {
@@ -79,8 +98,7 @@ fn main() {
         }
     }
     h_lines.sort_by(|a, b| b.3.partial_cmp(&a.3).unwrap());
-    for hl in h_lines.iter().take(20) {
-    }
+    for hl in h_lines.iter().take(20) {}
 
     let long_h: Vec<_> = h_lines.iter().filter(|l| l.3 > 100.0).collect();
     let long_v: Vec<_> = v_lines.iter().filter(|l| l.3 > 100.0).collect();
@@ -104,8 +122,7 @@ fn main() {
         }
         table_v_lines.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
         table_v_lines.dedup_by(|a, b| (a.0 - b.0).abs() < 0.5);
-        for vl in &table_v_lines {
-        }
+        for vl in &table_v_lines {}
 
         let mut table_h_lines: Vec<(f64, f64, f64)> = Vec::new();
         for hl in &long_h {
@@ -115,11 +132,19 @@ fn main() {
         }
         table_h_lines.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
         table_h_lines.dedup_by(|a, b| (a.0 - b.0).abs() < 0.5);
-        for hl in &table_h_lines {
-        }
+        for hl in &table_h_lines {}
         for t in &all_texts {
             let (px, py, height, content, ap, _va, rotation, is_mtext, rect_width) = t;
-            let (px, py, height, content, ap, rotation, is_mtext, rect_width) = (*px, *py, *height, content.as_str(), *ap, *rotation, *is_mtext, *rect_width);
+            let (px, py, height, content, ap, rotation, is_mtext, rect_width) = (
+                *px,
+                *py,
+                *height,
+                content.as_str(),
+                *ap,
+                *rotation,
+                *is_mtext,
+                *rect_width,
+            );
             if px >= table_x_min && px <= table_x_max && py >= table_y_min && py <= table_y_max {
                 if rotation.abs() > 0.1 && (rotation - 1.5708).abs() > 0.1 {
                     continue;
@@ -137,13 +162,20 @@ fn main() {
                 }
 
                 let type_str = if is_mtext { "MText" } else { "Text" };
-                let cell_info = if nearest_left_x > f64::NEG_INFINITY && nearest_right_x < f64::INFINITY {
-                    format!("左线={:.4} 右线={:.4} 单元宽={:.4} 距左={:.4}", nearest_left_x, nearest_right_x, nearest_right_x - nearest_left_x, px - nearest_left_x)
-                } else if nearest_left_x > f64::NEG_INFINITY {
-                    format!("左线={:.4} 距左={:.4}", nearest_left_x, px - nearest_left_x)
-                } else {
-                    "无左线".to_string()
-                };
+                let cell_info =
+                    if nearest_left_x > f64::NEG_INFINITY && nearest_right_x < f64::INFINITY {
+                        format!(
+                            "左线={:.4} 右线={:.4} 单元宽={:.4} 距左={:.4}",
+                            nearest_left_x,
+                            nearest_right_x,
+                            nearest_right_x - nearest_left_x,
+                            px - nearest_left_x
+                        )
+                    } else if nearest_left_x > f64::NEG_INFINITY {
+                        format!("左线={:.4} 距左={:.4}", nearest_left_x, px - nearest_left_x)
+                    } else {
+                        "无左线".to_string()
+                    };
             }
         }
     }

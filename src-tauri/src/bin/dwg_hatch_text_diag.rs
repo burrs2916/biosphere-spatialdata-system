@@ -1,4 +1,4 @@
-use acadrust::{DwgReader, EntityType, entities::BoundaryEdge};
+use acadrust::{entities::BoundaryEdge, DwgReader, EntityType};
 use std::collections::HashMap;
 
 fn main() {
@@ -46,8 +46,7 @@ fn main() {
     }
     let mut ov: Vec<_> = other_counts.iter().collect();
     ov.sort_by(|a, b| b.1.cmp(a.1));
-    for (name, count) in &ov {
-    }
+    for (name, count) in &ov {}
 
     let mut hatch_idx = 0;
     for entity in doc.entities() {
@@ -58,27 +57,25 @@ fn main() {
 
         if let EntityType::Hatch(hatch) = &entity {
             hatch_idx += 1;
-            for (li, line) in hatch.pattern.lines.iter().enumerate() {
-            }
+            for (li, line) in hatch.pattern.lines.iter().enumerate() {}
 
             for (pi, path) in hatch.paths.iter().enumerate() {
                 for (ei, edge) in path.edges.iter().enumerate() {
                     match edge {
-                        BoundaryEdge::Line(le) => {
-                        }
-                        BoundaryEdge::CircularArc(ae) => {
-                        }
+                        BoundaryEdge::Line(le) => {}
+                        BoundaryEdge::CircularArc(ae) => {}
                         BoundaryEdge::Polyline(pe) => {
                             for (vi, v) in pe.vertices.iter().enumerate() {
                                 print!("      v[{}]: ({:.4},{:.4}) bulge={:.4}", vi, v.x, v.y, v.z);
-                                if vi % 3 == 2 { } else { print!("  "); }
+                                if vi % 3 == 2 {
+                                } else {
+                                    print!("  ");
+                                }
                             }
-                            if pe.vertices.len() % 3 != 0 { }
+                            if pe.vertices.len() % 3 != 0 {}
                         }
-                        BoundaryEdge::EllipticArc(ee) => {
-                        }
-                        BoundaryEdge::Spline(se) => {
-                        }
+                        BoundaryEdge::EllipticArc(ee) => {}
+                        BoundaryEdge::Spline(se) => {}
                     }
                 }
             }
@@ -89,17 +86,24 @@ fn main() {
                 for edge in &path.edges {
                     match edge {
                         BoundaryEdge::Line(le) => {
-                            all_x.push(le.start.x); all_y.push(le.start.y);
-                            all_x.push(le.end.x); all_y.push(le.end.y);
+                            all_x.push(le.start.x);
+                            all_y.push(le.start.y);
+                            all_x.push(le.end.x);
+                            all_y.push(le.end.y);
                         }
                         BoundaryEdge::CircularArc(ae) => {
-                            all_x.push(ae.center.x); all_y.push(ae.center.y);
+                            all_x.push(ae.center.x);
+                            all_y.push(ae.center.y);
                         }
                         BoundaryEdge::Polyline(pe) => {
-                            for v in &pe.vertices { all_x.push(v.x); all_y.push(v.y); }
+                            for v in &pe.vertices {
+                                all_x.push(v.x);
+                                all_y.push(v.y);
+                            }
                         }
                         BoundaryEdge::EllipticArc(ee) => {
-                            all_x.push(ee.center.x); all_y.push(ee.center.y);
+                            all_x.push(ee.center.x);
+                            all_y.push(ee.center.y);
                         }
                         _ => {}
                     }
@@ -123,16 +127,14 @@ fn main() {
 
         if let EntityType::Text(text) = &entity {
             text_idx += 1;
-            if let Some(ap) = text.alignment_point {
-            }
+            if let Some(ap) = text.alignment_point {}
         }
 
         if let EntityType::MText(mtext) = &entity {
             text_idx += 1;
         }
     }
-    for layer in doc.layers.iter() {
-    }
+    for layer in doc.layers.iter() {}
 }
 
 fn entity_type_name(entity: &EntityType) -> &'static str {
