@@ -35,15 +35,13 @@ Download the latest release from [GitHub Releases](https://github.com/burrs2916/
 
 ### macOS
 
-Due to unsigned binaries, you may see a "damaged" warning on first launch. Fix it with:
+The app uses ad-hoc code signing. On first launch, you may need to:
 
-```bash
-# Option 1: Remove quarantine from DMG
-xattr -cr ~/Downloads/SpatialData.System*.dmg
+1. Right-click the app and select "Open"
+2. Click "Open" in the security dialog
+3. Alternatively, go to **System Settings > Privacy & Security** and click "Open Anyway"
 
-# Option 2: Remove quarantine from installed app
-xattr -cr /Applications/SpatialData\ System.app
-```
+No `xattr` commands needed.
 
 ### Linux
 
