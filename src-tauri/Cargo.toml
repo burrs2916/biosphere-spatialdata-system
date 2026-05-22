@@ -1,0 +1,77 @@
+[package]
+name = "biosphere-spatialdata-system"
+version = "0.1.0"
+description = "SpatialData System - Biosphere Desktop Application"
+authors = ["you"]
+edition = "2021"
+# 与 `[[bin]] dwg_diag` 并存时，需显式指定 `cargo run` 的默认目标，否则 Tauri 开发模式会报无法选择二进制。
+default-run = "biosphere-spatialdata-system"
+
+[lib]
+name = "biosphere_spatialdata_system_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset"] }
+tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2.7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+bitflags = "2"
+
+rusqlite = { version = "0.37", features = ["bundled"] }
+sled = "0.34"
+duckdb = { version = "1.1", features = ["bundled"] }
+uuid = { version = "1", features = ["v4"] }
+chrono = "0.4"
+base64 = "0.22"
+rumqttc = "0.24"
+tokio = { version = "1", features = ["full"] }
+
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "postgres", "mysql", "tls-rustls"] }
+redis = { version = "0.27", features = ["tokio-comp"] }
+mongodb = "3"
+reqwest = { version = "0.12", features = ["json"] }
+urlencoding = "2"
+
+acadrust = "0.3"
+encoding_rs = "0.8"
+
+[[bin]]
+name = "dwg_diag"
+path = "src/bin/dwg_diag.rs"
+
+[[bin]]
+name = "dwg_hatch_text_diag"
+path = "src/bin/dwg_hatch_text_diag.rs"
+
+[[bin]]
+name = "dwg_multi_diag"
+path = "src/bin/dwg_multi_diag.rs"
+
+[[bin]]
+name = "dwg_mtext_raw"
+path = "src/bin/dwg_mtext_raw.rs"
+
+[[bin]]
+name = "dwg_4file_compare"
+path = "src/bin/dwg_4file_compare.rs"
+
+[[bin]]
+name = "dwg_batch_analyzer"
+path = "src/bin/dwg_batch_analyzer.rs"
+
+[[bin]]
+name = "dwg_deep_profile"
+path = "src/bin/dwg_deep_profile.rs"
+
+[[bin]]
+name = "dwg_shajihai_diag"
+path = "src/bin/dwg_shajihai_diag.rs"
+
+[[bin]]
+name = "dwg_verify_normalize"
+path = "src/bin/dwg_verify_normalize.rs"

@@ -1,0 +1,80 @@
+明白了，现在你已经有了技术栈 + 数据流 + Runtime 内核，下一步要做的是前端大屏的页面布局，这个主要是可视化组件 + 场景绑定 + 配置管理的设计。
+
+我帮你规划一个适合 工业 / 空间数据驱动系统 的前端布局方案。
+
+一、前端页面总体思路
+大屏为中心
+占据主要显示区域
+支持多分辨率（1920x1080 默认，可自适应）
+工具面板 / 控制面板
+配置场景 / 布局 / 组件
+绑定数据源 / Binding DSL
+调试、预览、告警列表
+实时数据展示 + GIS / 地图
+Scene DSL 渲染 Layer
+支持 2D / 3D 矢量图、矿井巷道、城市地图
+布局模式
+拖拽式组件布局
+可保存 / 导出布局模板
+二、前端页面布局方案（React / TypeScript + TailwindCSS 示例）
+┌─────────────────────────────────────────────────────────┐
+│                    顶部导航栏 (Header)                  │
+│  - 大屏选择 / 场景切换 / 全屏 / 用户信息               │
+└─────────────────────────────────────────────────────────┘
+┌──────────────┬───────────────────────────────────────┐
+│ 左侧面板     │               主显示区域               │
+│ (Sidebar)    │ ┌─────────────────────────────────┐  │
+│ - 场景列表   │ │           大屏 Scene 渲染区       │  │
+│ - 组件库     │ │  - 图表、指标卡、地图、表格、文本  │  │
+│ - 数据源     │ │  - 支持拖拽、缩放、动态刷新        │  │
+│ - 告警面板   │ │  - Scene DSL Layer 渲染绑定       │  │
+│ - 配置管理   │ └─────────────────────────────────┘  │
+└──────────────┴───────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│                   底部状态栏 (Footer)                  │
+│  - 数据刷新状态 / 连接状态 / 告警计数 / 日志           │
+└─────────────────────────────────────────────────────────┘
+三、布局模块说明
+模块	功能	可用组件
+Header	场景切换 / 用户操作 / 全屏切换	Dropdown, Button, Icon
+Sidebar	工具面板	Tabs / Accordion / Tree
+Main Scene	大屏渲染	WebGL / Canvas / ECharts / Deck.gl / Three.js
+Footer	状态信息	Label, Icon, ProgressBar
+四、布局交互设计
+拖拽 + 网格化布局
+每个组件可以拖拽移动、缩放
+绑定到 Grid 或自由布局
+保存布局到 SQLite
+组件数据绑定
+绑定 RuntimeState 或 Pipeline 输出的 metric
+支持动态刷新和阈值告警显示
+多场景支持
+左侧场景列表切换不同 Scene
+每个 Scene 对应一组组件布局 + Layer
+主题 & 样式
+浅色 / 深色 / 工业蓝等主题
+TailwindCSS + 组件样式统一
+五、前端目录结构建议
+src/
+├─ components/        # 通用组件：ChartCard, MetricCard, MapLayer, Table
+├─ pages/             # 页面：DashboardPage, SceneEditorPage
+├─ layouts/           # 页面布局：Header, Sidebar, Footer
+├─ store/             # 状态管理：RuntimeState, SceneStore
+├─ services/          # Tauri IPC 服务：获取 RuntimeState, 数据源
+├─ hooks/             # 自定义 hook：useScene, useBinding
+├─ utils/             # 工具函数：grid utils, format utils
+└─ styles/            # Tailwind / SCSS
+六、渲染思路
+Scene DSL → Layer → Component
+Scene DSL 定义 Layer（图层、地图、矿井巷道、拓扑）
+每个 Layer 渲染多个组件（Chart, Metric, Table, Map）
+组件绑定 RuntimeState 数据，实时刷新
+拖拽 / 缩放
+网格化布局（react-grid-layout）
+拖拽保存布局到 SQLite
+事件绑定
+点击 / hover / 动作触发告警或跳转
+
+如果你愿意，我可以帮你画一张完整前端大屏页面布局图，标出 Header / Sidebar / Scene / Footer 的位置，以及 Scene 内部组件 Layer 的层次结构，让你直接拿去开发参考。
+
+你希望我画吗
