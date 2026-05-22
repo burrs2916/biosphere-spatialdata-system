@@ -58,16 +58,5 @@ TEST_REPORT-*.md
 cad_*_report.md
 cad_*_analysis.md
 
-# Draft documentation (exclude github构建规则)
-docs/*
-!docs/github构建规则/
-
-# Development drafts
-docs/工作总结/
-docs/需求分析/
-docs/2026*/
-deliverables/
-*.md.backup
-
-# Logo files (use public/fonts/ instead)
-docs/logo/
+# All documentation
+docs/
