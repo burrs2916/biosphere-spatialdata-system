@@ -401,6 +401,7 @@ function ConfigFieldRenderer({
               <input
                 type="color"
                 value={String(value ?? field.defaultValue ?? "#000000")}
+                onInput={(e) => onChange(field.key, (e.target as HTMLInputElement).value)}
                 onChange={(e) => onChange(field.key, e.target.value)}
                 style={{
                   position: "absolute",
@@ -550,7 +551,7 @@ const ComponentConfigPanel = memo(function ComponentConfigPanel({ component }: {
 
   const handleChange = useCallback((key: string, value: unknown) => {
     updateComponentConfig(component.id, { [key]: value });
-  }, [component.id, updateComponentConfig]);
+  }, [component.id, component.type, updateComponentConfig]);
 
   const schema = definition?.configSchema || [];
   const groups = new Map<string, ConfigField[]>();

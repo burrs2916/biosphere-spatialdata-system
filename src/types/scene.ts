@@ -21,6 +21,7 @@ export interface SceneView {
   icon?: string;
   components: SceneComponent[];
   layers: LayerNode[];
+  canvasConfig?: import("../store/editorStore").CanvasConfig;
 }
 
 export interface SceneDSL {

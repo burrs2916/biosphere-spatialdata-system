@@ -8,7 +8,7 @@ import UndoIcon from "@mui/icons-material/Undo";
 import RedoIcon from "@mui/icons-material/Redo";
 import SaveIcon from "@mui/icons-material/Save";
 import PreviewIcon from "@mui/icons-material/Preview";
-import FullscreenIcon from "@mui/icons-material/Fullscreen";
+
 import PublishIcon from "@mui/icons-material/Publish";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
@@ -155,14 +155,6 @@ export function SceneEditor() {
     }
   }, [activeSceneId]);
 
-  const handleFullscreen = useCallback(() => {
-    if (document.fullscreenElement) {
-      document.exitFullscreen();
-    } else {
-      document.documentElement.requestFullscreen();
-    }
-  }, []);
-
   return (
     <SceneEditorProvider>
     <Box
@@ -259,11 +251,6 @@ export function SceneEditor() {
               </IconButton>
             </Tooltip>
           )}
-          <Tooltip title="全屏">
-            <IconButton size="small" onClick={handleFullscreen}>
-              <FullscreenIcon sx={{ fontSize: 15 }} />
-            </IconButton>
-          </Tooltip>
         </Box>
       </Box>
 

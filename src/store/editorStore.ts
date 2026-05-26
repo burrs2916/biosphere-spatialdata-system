@@ -194,6 +194,8 @@ const DEFAULT_VIEWPORT: ViewportState = {
 
 const ZOOM_STEP = 0.15;
 
+let _configHistoryTimer: ReturnType<typeof setTimeout> | null = null;
+
 export type EditorStore = EditorState & EditorActions;
 
 export const useEditorStore = create<EditorStore>()(
@@ -297,7 +299,6 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     updateComponentConfig: (id, config) => {
-      get().pushHistory("update");
       set((draft: EditorState) => {
         const comp = draft.components.find((c: SceneComponent) => c.id === id);
         if (comp) {
@@ -305,6 +306,11 @@ export const useEditorStore = create<EditorStore>()(
           draft.isDirty = true;
         }
       });
+      if (_configHistoryTimer) clearTimeout(_configHistoryTimer);
+      _configHistoryTimer = setTimeout(() => {
+        get().pushHistory("update");
+        _configHistoryTimer = null;
+      }, 300);
     },
 
     moveComponentToLayer: (id, layerId) => {
@@ -936,6 +942,9 @@ export const useEditorStore = create<EditorStore>()(
         if (activeView) {
           draft.components = activeView.components;
           draft.layers = activeView.layers;
+          if (activeView.canvasConfig) {
+            draft.canvasConfig = { ...activeView.canvasConfig };
+          }
         }
         draft.selection = { selectedIds: [], hoveredId: null, isMultiSelect: false };
         draft.history = [];
@@ -951,7 +960,7 @@ export const useEditorStore = create<EditorStore>()(
       const state = get();
       const views = state.views.map((v) => {
         if (v.id === state.activeViewId) {
-          return { ...v, components: JSON.parse(JSON.stringify(state.components)), layers: JSON.parse(JSON.stringify(state.layers)) };
+          return { ...v, components: JSON.parse(JSON.stringify(state.components)), layers: JSON.parse(JSON.stringify(state.layers)), canvasConfig: { ...state.canvasConfig } };
         }
         return { ...v, components: v.components ? JSON.parse(JSON.stringify(v.components)) : [], layers: v.layers ? JSON.parse(JSON.stringify(v.layers)) : [] };
       });
@@ -968,6 +977,7 @@ export const useEditorStore = create<EditorStore>()(
         if (currentView) {
           currentView.components = draft.components;
           currentView.layers = draft.layers;
+          currentView.canvasConfig = { ...draft.canvasConfig };
         }
         const viewId = `view-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
         const defaultLayer = createDefaultLayer("默认图层", "layer", null, true);
@@ -995,6 +1005,9 @@ export const useEditorStore = create<EditorStore>()(
           draft.activeViewId = nextView.id;
           draft.components = nextView.components || [];
           draft.layers = nextView.layers || [];
+          if (nextView.canvasConfig) {
+            draft.canvasConfig = { ...nextView.canvasConfig };
+          }
           draft.selection = { selectedIds: [], hoveredId: null, isMultiSelect: false };
           const defaultLayer = draft.layers.find((l) => l.isDefault);
           draft.activeLayerId = defaultLayer?.id || (draft.layers.length > 0 ? draft.layers[0].id : null);
@@ -1009,12 +1022,16 @@ export const useEditorStore = create<EditorStore>()(
         if (currentView) {
           currentView.components = draft.components;
           currentView.layers = draft.layers;
+          currentView.canvasConfig = { ...draft.canvasConfig };
         }
         const targetView = draft.views.find((v) => v.id === viewId);
         if (!targetView) return;
         draft.activeViewId = viewId;
         draft.components = targetView.components || [];
         draft.layers = targetView.layers || [];
+        if (targetView.canvasConfig) {
+          draft.canvasConfig = { ...targetView.canvasConfig };
+        }
         draft.selection = { selectedIds: [], hoveredId: null, isMultiSelect: false };
         draft.history = [];
         draft.historyIndex = -1;

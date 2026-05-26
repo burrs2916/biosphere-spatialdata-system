@@ -298,20 +298,24 @@ export function SceneTabBar() {
                         </span>
                         {activeViewId === view.id && views.length > 1 && (
                           <>
-                            <IconButton
-                              size="small"
+                            <Box
+                              component="span"
+                              role="button"
+                              tabIndex={0}
                               onClick={(e) => startEdit(view.id, view.name, e)}
-                              sx={{ p: 0.15, opacity: 0.3, "&:hover": { opacity: 1 } }}
+                              sx={{ display: "inline-flex", alignItems: "center", justifyContent: "center", p: 0.15, opacity: 0.3, cursor: "pointer", borderRadius: 0.5, "&:hover": { opacity: 1 } }}
                             >
                               <EditIcon sx={{ fontSize: 10 }} />
-                            </IconButton>
-                            <IconButton
-                              size="small"
+                            </Box>
+                            <Box
+                              component="span"
+                              role="button"
+                              tabIndex={0}
                               onClick={(e) => handleRemove(view.id, e)}
-                              sx={{ p: 0.15, opacity: 0.3, "&:hover": { opacity: 1 } }}
+                              sx={{ display: "inline-flex", alignItems: "center", justifyContent: "center", p: 0.15, opacity: 0.3, cursor: "pointer", borderRadius: 0.5, "&:hover": { opacity: 1 } }}
                             >
                               <CloseIcon sx={{ fontSize: 10 }} />
-                            </IconButton>
+                            </Box>
                           </>
                         )}
                       </>

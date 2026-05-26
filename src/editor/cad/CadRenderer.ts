@@ -280,7 +280,7 @@ export class CadRenderer {
     this._renderer.setSize(cw, ch);
     this._renderer.setPixelRatio(window.devicePixelRatio);
     if (this._transparentBackground) {
-      this._renderer.setClearColor(0x000000, 0);
+      this._renderer.setClearColor(bgColor, 1);
     }
     config.container.appendChild(this._renderer.domElement);
 
@@ -3233,16 +3233,20 @@ export class CadRenderer {
     return luma < 0.5;
   }
 
-  setBackgroundColor(color: string): void {
+  setBackgroundColor(color: string, opacity?: number): void {
     const newBg = new THREE.Color(color);
     const wasDark = this._isDarkBackground;
     this._isDarkBackground = this._computeIsDark(newBg);
     this._backgroundColor = newBg;
     if (!this._transparentBackground) {
       this._scene.background = newBg;
+    } else {
+      this._renderer.setClearColor(newBg, opacity ?? 1);
     }
     if (wasDark !== this._isDarkBackground) {
       this._refreshAllEntityColors();
+    } else {
+      this._requestRender();
     }
   }
 

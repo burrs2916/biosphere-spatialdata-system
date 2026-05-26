@@ -954,8 +954,8 @@ export class CadViewerEngine {
     await this._flushLayerProps();
   }
 
-  setBackgroundColor(color: string): void {
-    this._renderer?.setBackgroundColor(color);
+  setBackgroundColor(color: string, opacity?: number): void {
+    this._renderer?.setBackgroundColor(color, opacity);
   }
 
   setLineColor(color: string): void {

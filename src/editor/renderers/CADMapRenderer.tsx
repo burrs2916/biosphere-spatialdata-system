@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useLayoutEffect } from "react";
 import Box from "@mui/material/Box";
 import CircularProgress from "@mui/material/CircularProgress";
 import Typography from "@mui/material/Typography";
@@ -276,6 +276,7 @@ function CadViewer({
   onInteractionLockChange,
 }: CadViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<CadViewerEngine | null>(null);
   const setViewportDelegate = useViewportDelegate(componentId);
   const [loading, setLoading] = useState(true);
@@ -313,8 +314,14 @@ function CadViewer({
   useEffect(() => {
     const engine = engineRef.current;
     if (!engine) return;
-    engine.setBackgroundColor(backgroundColor);
-  }, [backgroundColor]);
+    engine.setBackgroundColor(backgroundColor, backgroundOpacity);
+  }, [backgroundColor, backgroundOpacity]);
+
+  useLayoutEffect(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
+    el.style.backgroundColor = hexToRgba(backgroundColor, backgroundOpacity);
+  }, [backgroundColor, backgroundOpacity]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -664,11 +671,11 @@ function CadViewer({
 
   return (
     <Box
+      ref={wrapperRef}
       sx={{
         width: "100%",
         height: "100%",
         position: "relative",
-        backgroundColor: hexToRgba(backgroundColor, backgroundOpacity),
         overflow: "hidden",
         border: showBorder ? `${borderWidth}px solid ${borderColor}` : "none",
         boxSizing: "border-box",
