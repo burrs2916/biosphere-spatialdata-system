@@ -42,17 +42,21 @@ impl SqliteSceneRepository {
         let bounds: Option<String> = row.get(5)?;
         let layers: String = row.get(6)?;
         let bindings: String = row.get(7)?;
-        let layout: String = row.get(8)?;
-        let editor_components: Option<String> = row.get(9)?;
-        let editor_layers: Option<String> = row.get(10)?;
-        let canvas_config: Option<String> = row.get(11)?;
-        let category_id: Option<String> = row.get(12)?;
-        let tags: String = row.get(13)?;
-        let thumbnail: Option<String> = row.get(14)?;
-        let status_str: String = row.get(15)?;
-        let metadata: String = row.get(16)?;
-        let created_at: i64 = row.get(17)?;
-        let updated_at: i64 = row.get(18)?;
+        let variables: Option<String> = row.get(8)?;
+        let layout: String = row.get(9)?;
+        let editor_components: Option<String> = row.get(10)?;
+        let editor_layers: Option<String> = row.get(11)?;
+        let canvas_config: Option<String> = row.get(12)?;
+        let global_components: Option<String> = row.get(13)?;
+        let views: Option<String> = row.get(14)?;
+        let active_view_id: Option<String> = row.get(15)?;
+        let category_id: Option<String> = row.get(16)?;
+        let tags: String = row.get(17)?;
+        let thumbnail: Option<String> = row.get(18)?;
+        let status_str: String = row.get(19)?;
+        let metadata: String = row.get(20)?;
+        let created_at: i64 = row.get(21)?;
+        let updated_at: i64 = row.get(22)?;
 
         Ok(Scene {
             id,
@@ -63,10 +67,14 @@ impl SqliteSceneRepository {
             bounds,
             layers,
             bindings,
+            variables,
             layout,
             editor_components,
             editor_layers,
             canvas_config,
+            global_components,
+            views,
+            active_view_id,
             category_id,
             tags,
             thumbnail,
@@ -111,7 +119,7 @@ impl SceneRepository for SqliteSceneRepository {
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
         let mut stmt = conn.prepare(
-            "SELECT id, name, description, coordinate_system, camera, bounds, layers, bindings, layout, editor_components, editor_layers, canvas_config, category_id, tags, thumbnail, status, metadata, created_at, updated_at
+            "SELECT id, name, description, coordinate_system, camera, bounds, layers, bindings, variables, layout, editor_components, editor_layers, canvas_config, global_components, views, active_view_id, category_id, tags, thumbnail, status, metadata, created_at, updated_at
              FROM scenes
              ORDER BY updated_at DESC"
         )?;
@@ -134,7 +142,7 @@ impl SceneRepository for SqliteSceneRepository {
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
         let result = conn.query_row(
-            "SELECT id, name, description, coordinate_system, camera, bounds, layers, bindings, layout, editor_components, editor_layers, canvas_config, category_id, tags, thumbnail, status, metadata, created_at, updated_at
+            "SELECT id, name, description, coordinate_system, camera, bounds, layers, bindings, variables, layout, editor_components, editor_layers, canvas_config, global_components, views, active_view_id, category_id, tags, thumbnail, status, metadata, created_at, updated_at
              FROM scenes WHERE id = ?1",
             [id],
             |row| self.row_to_scene(row),
@@ -155,7 +163,7 @@ impl SceneRepository for SqliteSceneRepository {
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
         let mut stmt = conn.prepare(
-            "SELECT id, name, description, coordinate_system, camera, bounds, layers, bindings, layout, editor_components, editor_layers, canvas_config, category_id, tags, thumbnail, status, metadata, created_at, updated_at
+            "SELECT id, name, description, coordinate_system, camera, bounds, layers, bindings, variables, layout, editor_components, editor_layers, canvas_config, global_components, views, active_view_id, category_id, tags, thumbnail, status, metadata, created_at, updated_at
              FROM scenes WHERE category_id = ?1
              ORDER BY updated_at DESC"
         )?;
@@ -180,8 +188,8 @@ impl SceneRepository for SqliteSceneRepository {
         let status_str: String = scene.status.clone().into();
 
         conn.execute(
-            "INSERT OR REPLACE INTO scenes (id, name, description, coordinate_system, camera, bounds, layers, bindings, layout, editor_components, editor_layers, canvas_config, category_id, tags, thumbnail, status, metadata, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, strftime('%s', 'now'))",
+            "INSERT OR REPLACE INTO scenes (id, name, description, coordinate_system, camera, bounds, layers, bindings, variables, layout, editor_components, editor_layers, canvas_config, global_components, views, active_view_id, category_id, tags, thumbnail, status, metadata, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, strftime('%s', 'now'))",
             rusqlite::params![
                 &scene.id,
                 &scene.name,
@@ -191,10 +199,14 @@ impl SceneRepository for SqliteSceneRepository {
                 &scene.bounds,
                 &scene.layers,
                 &scene.bindings,
+                &scene.variables,
                 &scene.layout,
                 &scene.editor_components,
                 &scene.editor_layers,
                 &scene.canvas_config,
+                &scene.global_components,
+                &scene.views,
+                &scene.active_view_id,
                 &scene.category_id,
                 &scene.tags,
                 &scene.thumbnail,

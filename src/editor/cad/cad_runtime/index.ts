@@ -39,7 +39,8 @@ export type { SelectionChangeListener } from './selection_manager';
 export { LayerManager } from './layer_manager';
 export type { LayerChangeListener, LayerChange } from './layer_manager';
 
-export { SpatialIndex } from './spatial_index';
+export { GridSpatialIndex } from './grid_spatial_index';
+export type { LineSegment } from './grid_spatial_index';
 
 export { SdfTextRenderer } from './sdf_text_renderer';
 

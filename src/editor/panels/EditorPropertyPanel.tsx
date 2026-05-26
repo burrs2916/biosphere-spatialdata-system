@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, memo } from "react";
+import { useState, useEffect, useCallback, useMemo, memo } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import TextField from "@mui/material/TextField";
@@ -27,6 +27,7 @@ import { useEditorStore } from "../../store/editorStore";
 import { componentRegistry } from "../registry";
 import type { ConfigField, SceneComponent } from "../../types/editor";
 import type { MapLibrary } from "../../types/mapLibrary";
+import { useDataSourceStore } from "../../store/datasourceStore";
 import { PanelWrapper } from "../components/PanelWrapper";
 
 interface EditorPropertyPanelProps {
@@ -37,7 +38,7 @@ interface EditorPropertyPanelProps {
 const fieldSx = {
   "& .MuiInputBase-input": { fontSize: 11.5, py: 0.4, px: 0.75 },
   "& .MuiOutlinedInput-root": { borderRadius: 0.75 },
-  "& .MuiInputLabel-root": { fontSize: 10.5 },
+  "& .MuiInputLabel-root": { fontSize: 10.5, transform: "translate(14px, 6px) scale(1)", "&.MuiInputLabel-shrink": { transform: "translate(14px, -9px) scale(0.75)" } },
   "& .MuiFormHelperText-root": { fontSize: 9, ml: 0 },
 };
 
@@ -149,6 +150,95 @@ function MapLibrarySelectField({
       </MenuItem>
       {maps.map((m) => (
         <MenuItem key={m.id} value={m.id} sx={{ fontSize: 11 }}>{m.name}</MenuItem>
+      ))}
+    </TextField>
+  );
+}
+
+function DataSourceSelectField({
+  field,
+  value,
+  onChange,
+}: {
+  field: ConfigField;
+  value: unknown;
+  onChange: (key: string, value: unknown) => void;
+}) {
+  const dataSources = useDataSourceStore((s) => s.dataSources);
+
+  return (
+    <TextField
+      label={field.label}
+      value={String(value ?? "")}
+      size="small"
+      fullWidth
+      select
+      onChange={(e) => onChange(field.key, e.target.value || undefined)}
+      sx={fieldSx}
+    >
+      <MenuItem value="" sx={{ fontSize: 11 }}>
+        -- 无数据源 --
+      </MenuItem>
+      {dataSources.map((ds) => (
+        <MenuItem key={ds.id} value={ds.id} sx={{ fontSize: 11 }}>
+          {ds.name || ds.id}
+          {ds.type !== "http" ? ` (${ds.type.toUpperCase()})` : ""}
+        </MenuItem>
+      ))}
+    </TextField>
+  );
+}
+
+function DataFieldSelectField({
+  field,
+  value,
+  onChange,
+  config,
+}: {
+  field: ConfigField;
+  value: unknown;
+  onChange: (key: string, value: unknown) => void;
+  config: Record<string, unknown>;
+}) {
+  const dataSourceId = config.dataSourceId as string | undefined;
+  const cache = useDataSourceStore((s) => (dataSourceId ? s.dataCache[dataSourceId] : undefined));
+  const fields = useMemo(() => {
+    if (!cache || typeof cache !== "object") return [];
+    return Object.keys(cache as Record<string, unknown>);
+  }, [cache]);
+
+  if (!dataSourceId || fields.length === 0) {
+    return (
+      <TextField
+        label={field.label}
+        value={value ?? ""}
+        size="small"
+        fullWidth
+        placeholder={dataSourceId ? "暂无数据字段" : "请先选择数据源"}
+        onChange={(e) => onChange(field.key, e.target.value)}
+        sx={fieldSx}
+        disabled={!dataSourceId}
+      />
+    );
+  }
+
+  return (
+    <TextField
+      label={field.label}
+      value={String(value ?? "")}
+      size="small"
+      fullWidth
+      select
+      onChange={(e) => onChange(field.key, e.target.value)}
+      sx={fieldSx}
+    >
+      <MenuItem value="" sx={{ fontSize: 11 }}>
+        -- 选择字段 --
+      </MenuItem>
+      {fields.map((f: string) => (
+        <MenuItem key={f} value={f} sx={{ fontSize: 11 }}>
+          {f}
+        </MenuItem>
       ))}
     </TextField>
   );
@@ -422,6 +512,12 @@ function ConfigFieldRenderer({
     case "mapLibrary":
       return <MapLibrarySelectField field={field} value={value} onChange={onChange} />;
 
+    case "datasource":
+      return <DataSourceSelectField field={field} value={value} onChange={onChange} />;
+
+    case "datafield":
+      return <DataFieldSelectField field={field} value={value} onChange={onChange} config={config} />;
+
     default:
       return null;
   }
@@ -438,12 +534,12 @@ function CollapsibleSection({
 }) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   return (
-    <Box>
+    <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
       <Box onClick={() => setExpanded(!expanded)} sx={sectionHeaderSx}>
         <Typography sx={sectionTitleSx}>{title}</Typography>
         {expanded ? <ExpandLessIcon sx={{ fontSize: 13, color: "text.disabled" }} /> : <ExpandMoreIcon sx={{ fontSize: 13, color: "text.disabled" }} />}
       </Box>
-      {expanded && <Box sx={{ mt: 0.25, mb: 0.25 }}>{children}</Box>}
+      {expanded && <Box sx={{ mt: 0.25, mb: 0.5 }}>{children}</Box>}
     </Box>
   );
 }
@@ -466,11 +562,13 @@ const ComponentConfigPanel = memo(function ComponentConfigPanel({ component }: {
 
   if (schema.length === 0) return null;
 
+  const PRIORITY_GROUPS = new Set(["内容", "排版", "颜色", "动画"]);
+
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
       {Array.from(groups.entries()).map(([group, fields]) => (
-        <CollapsibleSection key={group} title={group} defaultExpanded={groups.size <= 2}>
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75, pt: 0.25 }}>
+        <CollapsibleSection key={group} title={group} defaultExpanded={groups.size <= 3 || PRIORITY_GROUPS.has(group)}>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25, pt: 0.5, px: 0.25 }}>
             {fields.map((field) => (
               <ConfigFieldRenderer
                 key={field.key}

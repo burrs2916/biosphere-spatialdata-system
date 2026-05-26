@@ -1,10 +1,13 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useMemo } from "react";
 import Box from "@mui/material/Box";
 import CircularProgress from "@mui/material/CircularProgress";
 import Typography from "@mui/material/Typography";
 import type { ComponentRendererProps } from "../../types/editor";
 import { MapLibreEngine } from "../map-engines/MapLibreEngine";
 import type { MapEngine } from "../map-engines/types";
+import { useViewportDelegate } from "../hooks/useViewportDelegate";
+import type { ViewportDelegate } from "../layers/ComponentLayerAdapter";
+import type { CRSType } from "../../types/spatial";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 interface HeatmapPoint {
@@ -13,25 +16,23 @@ interface HeatmapPoint {
   weight?: number;
 }
 
-export function HeatmapMapRenderer({ config, componentId }: ComponentRendererProps) {
+export function HeatmapMapRenderer({ config, componentId, width, height, spatialContext }: ComponentRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<MapEngine | null>(null);
   const initRef = useRef(false);
+  const setViewportDelegate = useViewportDelegate(componentId);
 
   const baseMapUrl = (config.baseMapUrl as string) || "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
   const heatmapRadius = (config.heatmapRadius as number) ?? 30;
   const heatmapIntensity = (config.heatmapIntensity as number) ?? 1;
   const heatmapOpacity = (config.heatmapOpacity as number) ?? 0.8;
+  const crs = spatialContext?.crs || (config.crs as string) || "EPSG:3857";
+  const center = config.center as [number, number] | undefined;
+  const zoom = (config.zoom as number) ?? 10;
   const data = (config.data as HeatmapPoint[]) || [];
 
-  useEffect(() => {
-    if (!containerRef.current || initRef.current) return;
-    initRef.current = true;
-
-    const engine = new MapLibreEngine();
-    engineRef.current = engine;
-
-    const features = data.map((point, index) => ({
+  const features = useMemo(() => {
+    return data.map((point, index) => ({
       type: "Feature" as const,
       properties: { weight: point.weight ?? 1, id: index },
       geometry: {
@@ -39,6 +40,14 @@ export function HeatmapMapRenderer({ config, componentId }: ComponentRendererPro
         coordinates: [point.lng, point.lat],
       },
     }));
+  }, [data]);
+
+  useEffect(() => {
+    if (!containerRef.current || initRef.current) return;
+    initRef.current = true;
+
+    const engine = new MapLibreEngine();
+    engineRef.current = engine;
 
     const style = {
       version: 8,
@@ -90,25 +99,99 @@ export function HeatmapMapRenderer({ config, componentId }: ComponentRendererPro
     engine
       .mount({
         container: containerRef.current,
-        crs: "EPSG:3857",
+        crs: crs as "EPSG:3857" | "EPSG:4326" | "EPSG:4490" | "local",
         style: JSON.stringify(style),
         camera: {
-          center: { x: 116.397, y: 39.908 },
-          zoom: 10,
+          center: center ? { x: center[0], y: center[1] } : { x: 116.397, y: 39.908 },
+          zoom,
         },
         interactive: true,
         attributionControl: false,
+      })
+      .then(() => {
+        const delegate: ViewportDelegate = {
+          getViewport: () => {
+            const cam = engine.getCamera();
+            return {
+              centerX: cam.center.x,
+              centerY: cam.center.y,
+              zoom: cam.zoom,
+              bearing: cam.bearing,
+              pitch: cam.pitch,
+              width: width ?? 0,
+              height: height ?? 0,
+              crs: crs as CRSType,
+            };
+          },
+          setViewport: (snapshot) => {
+            engine.flyTo({
+              center: { x: snapshot.centerX, y: snapshot.centerY },
+              zoom: snapshot.zoom,
+              bearing: snapshot.bearing,
+              pitch: snapshot.pitch,
+              duration: 0,
+            });
+          },
+          onViewportChange: (handler) => {
+            const unsubs: (() => void)[] = [];
+            unsubs.push(engine.on("move", () => {
+              const cam = engine.getCamera();
+              handler({
+                centerX: cam.center.x,
+                centerY: cam.center.y,
+                zoom: cam.zoom,
+                bearing: cam.bearing,
+                pitch: cam.pitch,
+                width: width ?? 0,
+                height: height ?? 0,
+                crs: crs as CRSType,
+              }, componentId);
+            }));
+            unsubs.push(engine.on("zoom", () => {
+              const cam = engine.getCamera();
+              handler({
+                centerX: cam.center.x,
+                centerY: cam.center.y,
+                zoom: cam.zoom,
+                bearing: cam.bearing,
+                pitch: cam.pitch,
+                width: width ?? 0,
+                height: height ?? 0,
+                crs: crs as CRSType,
+              }, componentId);
+            }));
+            return () => unsubs.forEach(u => u());
+          },
+        };
+        setViewportDelegate(delegate);
       })
       .catch((err) => {
         console.error(`[HeatmapMap:${componentId}] Mount failed:`, err);
       });
 
     return () => {
+      setViewportDelegate(null);
       engine.unmount();
       engineRef.current = null;
       initRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine || !engine.isReady) return;
+
+    const map = (engine as any)._map;
+    if (!map) return;
+
+    const source = map.getSource("heatmap-source");
+    if (source) {
+      source.setData({
+        type: "FeatureCollection",
+        features,
+      });
+    }
+  }, [features]);
 
   useEffect(() => {
     const engine = engineRef.current;

@@ -3,6 +3,7 @@ import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import DoneIcon from "@mui/icons-material/Done";
 import PanToolAltIcon from "@mui/icons-material/PanToolAlt";
+import { fitTextToBox, measureTextSize } from "../../utils/fitText";
 import { useCallback, useRef, useState, useEffect, useMemo } from "react";
 import Moveable from "react-moveable";
 import type { SceneComponent, ComponentRendererProps } from "../../types/editor";
@@ -12,6 +13,10 @@ import { componentRegistry } from "../registry";
 import { rendererCache } from "../plugins";
 import { FallbackRenderer } from "../renderers";
 import { EditorContextMenu } from "../components/EditorContextMenu";
+import { useComponentDataBinding } from "../hooks/useComponentDataBinding";
+import { useSpatialRendererContext } from "../hooks/useSpatialRendererContext";
+import { useDataSourceStore } from "../../store/datasourceStore";
+import { dataSourceEventBus } from "../../datasource/events";
 
 interface EditorCanvasComponentProps {
   component: SceneComponent;
@@ -38,11 +43,128 @@ export function EditorCanvasComponent({
   const updateComponentConfig = useEditorStore((s) => s.updateComponentConfig);
   const allComponents = useEditorStore((s) => s.components);
 
+  useComponentDataBinding(component.id);
+
+  const dataSourceId = component.config.dataSourceId as string | undefined;
+
+  useEffect(() => {
+    if (!dataSourceId) return;
+
+    const handler = (payload: { sourceId: string; data: unknown; extracted?: Record<string, unknown> }) => {
+      if (payload.sourceId !== dataSourceId) return;
+
+      const store = useEditorStore.getState();
+      const comp = store.components.find((c) => c.id === component.id);
+      if (!comp) return;
+
+      let boundData: Record<string, unknown> = {};
+
+      if (payload.extracted && typeof payload.extracted === "object") {
+        for (const [, v] of Object.entries(payload.extracted)) {
+          if (v && typeof v === "object") {
+            Object.assign(boundData, v as Record<string, unknown>);
+          } else {
+            boundData.value = v;
+          }
+        }
+      } else if (payload.data && typeof payload.data === "object") {
+        const data = payload.data as Record<string, unknown>;
+        if (data.values && typeof data.values === "object") {
+          boundData = { ...(data.values as Record<string, unknown>) };
+        } else {
+          for (const [k, v] of Object.entries(data)) {
+            if (k !== "sourceId" && k !== "timestamp" && typeof v !== "function") {
+              boundData[k] = Array.isArray(v) ? v[0] : v;
+            }
+          }
+        }
+      }
+
+      if (Object.keys(boundData).length > 0) {
+        store.updateComponentConfig(component.id, { data: boundData });
+      }
+    };
+
+    const unsub = dataSourceEventBus.on("data:updated", handler);
+
+    const cache = useDataSourceStore.getState().dataCache[dataSourceId];
+    if (cache && typeof cache === "object") {
+      const boundData: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(cache)) {
+        boundData[k] = Array.isArray(v) ? v[0] : v;
+      }
+      if (Object.keys(boundData).length > 0) {
+        useEditorStore.getState().updateComponentConfig(component.id, { data: boundData });
+      }
+    }
+
+    return unsub;
+  }, [dataSourceId, component.id]);
+
+  const spatialContext = useSpatialRendererContext(component.config.crs as import("../../types/spatial").CRSType | undefined);
+
   const handleConfigChange = useCallback(
     (key: string, value: unknown) => {
+      if (key === "_autoFitSize" && value && typeof value === "object") {
+        const size = value as { width: number; height: number };
+        updateComponentTransform(component.id, { width: size.width, height: size.height });
+        return;
+      }
       updateComponentConfig(component.id, { [key]: value });
+
+      if (component.type === "text") {
+        const cfg = component.config;
+        const text = (cfg.content as string) || "文本内容";
+        const fontFamily = (cfg.fontFamily as string) || "inherit";
+        const lineHeight = (cfg.lineHeight as number) || 1.5;
+        const letterSpacing = (cfg.letterSpacing as number) || 0;
+        const padding = (cfg.padding as number) ?? 8;
+        const borderEnabled = (cfg.borderEnabled as boolean) || false;
+        const borderWidth = borderEnabled ? ((cfg.borderWidth as number) || 1) : 0;
+
+        if (key === "fontSize" && typeof value === "number") {
+          if (cfg.autoFit) {
+            updateComponentConfig(component.id, { autoFit: false });
+          }
+          const availW = component.transform.width - padding * 2 - borderWidth * 2;
+          const textSize = measureTextSize({ text, fontFamily, fontSize: value, lineHeight, letterSpacing, containerWidth: availW > 0 ? availW : undefined });
+          const newW = textSize.width + padding * 2 + borderWidth * 2;
+          const newH = textSize.height + padding * 2 + borderWidth * 2;
+          if (newW >= 20 && newH >= 20) {
+            updateComponentTransform(component.id, { width: Math.ceil(newW), height: Math.ceil(newH) });
+          }
+        }
+
+        const layoutKeys = new Set(["padding", "borderEnabled", "borderWidth", "lineHeight", "letterSpacing", "fontFamily", "content"]);
+        if (layoutKeys.has(key)) {
+          const newCfg = { ...cfg, [key]: value };
+          const newText = (newCfg.content as string) || "文本内容";
+          const newPadding = (newCfg.padding as number) ?? 8;
+          const newBorderEnabled = (newCfg.borderEnabled as boolean) || false;
+          const newBorderWidth = newBorderEnabled ? ((newCfg.borderWidth as number) || 1) : 0;
+          const newLineHeight = (newCfg.lineHeight as number) || 1.5;
+          const newLetterSpacing = (newCfg.letterSpacing as number) || 0;
+          const newFontFamily = (newCfg.fontFamily as string) || "inherit";
+          const availW = component.transform.width - newPadding * 2 - newBorderWidth * 2;
+          const availH = component.transform.height - newPadding * 2 - newBorderWidth * 2;
+          if (availW > 0 && availH > 0) {
+            const newFontSize = fitTextToBox({
+              text: newText,
+              fontFamily: newFontFamily,
+              availW,
+              availH,
+              lineHeight: newLineHeight,
+              letterSpacing: newLetterSpacing,
+            });
+            const oldFontSize = (cfg.fontSize as number) || 16;
+            if (newFontSize !== oldFontSize) {
+              updateComponentConfig(component.id, { fontSize: newFontSize });
+            }
+          }
+        }
+      }
     },
-    [component.id, updateComponentConfig],
+    [component.id, component.type, component.config, component.transform.width, component.transform.height, updateComponentConfig, updateComponentTransform],
   );
   const targetRef = useRef<HTMLDivElement>(null);
   const moveableRef = useRef<Moveable>(null);
@@ -169,19 +291,47 @@ export function EditorCanvasComponent({
       target.style.height = `${newH}px`;
       target.style.transform = `translate(${newX}px, ${newY}px)`;
       setFrame({ translate: [newX, newY], size: [newW, newH] });
+
+      if (component.type === "text") {
+        const cfg = component.config;
+        const text = (cfg.content as string) || "文本内容";
+        const fontFamily = (cfg.fontFamily as string) || "inherit";
+        const lineHeight = (cfg.lineHeight as number) || 1.5;
+        const letterSpacing = (cfg.letterSpacing as number) || 0;
+        const padding = (cfg.padding as number) ?? 8;
+        const borderEnabled = (cfg.borderEnabled as boolean) || false;
+        const borderWidth = borderEnabled ? ((cfg.borderWidth as number) || 1) : 0;
+        const availW = newW - padding * 2 - borderWidth * 2;
+        const availH = newH - padding * 2 - borderWidth * 2;
+        if (availW > 0 && availH > 0) {
+          const newFontSize = fitTextToBox({ text, fontFamily, availW, availH, lineHeight, letterSpacing });
+          const oldFontSize = (cfg.fontSize as number) || 16;
+          if (newFontSize !== oldFontSize) {
+            updateComponentConfig(component.id, { fontSize: newFontSize });
+          }
+        }
+      }
     },
-    []
+    [component.id, component.type, component.config, updateComponentConfig]
   );
 
   const handleResizeEnd = useCallback(() => {
     setIsResizing(false);
+    const newW = Math.max(frame.size[0], 20);
+    const newH = Math.max(frame.size[1], 20);
     updateComponentTransform(component.id, {
       x: frame.translate[0],
       y: frame.translate[1],
-      width: frame.size[0],
-      height: frame.size[1],
+      width: newW,
+      height: newH,
     });
-  }, [component.id, frame.translate, frame.size, updateComponentTransform]);
+    if (component.type === "text") {
+      const latestConfig = useEditorStore.getState().components.find(c => c.id === component.id)?.config;
+      if (latestConfig?.autoFit) {
+        updateComponentConfig(component.id, { autoFit: false });
+      }
+    }
+  }, [component.id, component.type, frame.translate, frame.size, updateComponentTransform, updateComponentConfig]);
 
   const [Renderer, setRenderer] = useState<React.ComponentType<ComponentRendererProps> | null>(
     () => rendererCache.get(type) || definition?.renderer.cached || null
@@ -246,6 +396,7 @@ export function EditorCanvasComponent({
               onConfigChange={handleConfigChange}
               contentInteractionActive={isCadViewAdjusting}
               onInteractionLockChange={setIsRendererInteractionLocked}
+              spatialContext={spatialContext}
             />
           ) : <FallbackRenderer config={config} componentId={component.id} />}
           {previewMode && <Box sx={{ position: "absolute", inset: 0, zIndex: 1 }} />}

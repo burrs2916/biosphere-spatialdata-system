@@ -2,6 +2,7 @@ import type { DataSource, DataSourceStatus } from "../../types/dataSource";
 import { adapterRegistry } from "../adapters/registry";
 import type { AdapterFetchResult, FetchRequestConfig } from "../adapters/types";
 import { dataSourceEventBus } from "../events";
+import { adapterResultToDataFrame } from "../pipeline/DataPipeline";
 
 class DataSourceScheduler {
   private onFetchResult: (id: string, result: AdapterFetchResult) => void;
@@ -40,9 +41,10 @@ class DataSourceScheduler {
       const result = await adapter.fetch(config);
       this.onFetchResult(ds.id, result);
       this.onStatusChange(ds.id, "connected");
+      const df = adapterResultToDataFrame(result.raw, result.extracted, ds.name, ds.id);
       dataSourceEventBus.emit("data:updated", {
         sourceId: ds.id,
-        data: result.raw,
+        data: df,
         extracted: result.extracted,
         timestamp: result.timestamp,
       });
@@ -64,9 +66,10 @@ class DataSourceScheduler {
         },
         onData: (result) => {
           this.onFetchResult(ds.id, result);
+          const df = adapterResultToDataFrame(result.raw, result.extracted, ds.name, ds.id);
           dataSourceEventBus.emit("data:updated", {
             sourceId: ds.id,
-            data: result.raw,
+            data: df,
             extracted: result.extracted,
             timestamp: result.timestamp,
           });

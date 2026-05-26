@@ -1,5 +1,5 @@
 import type { SceneNode, BoundingBox } from './scene_node';
-import { SpatialIndex } from './spatial_index';
+import { GridSpatialIndex } from './grid_spatial_index';
 import { LayerManager } from './layer_manager';
 
 export interface ViewportState {
@@ -11,11 +11,11 @@ export interface ViewportState {
 }
 
 export class ViewportQuery {
-  private spatialIndex: SpatialIndex;
+  private spatialIndex: GridSpatialIndex;
   private layerManager: LayerManager;
   private viewport: ViewportState = { centerX: 0, centerY: 0, width: 1000, height: 800, zoom: 1 };
 
-  constructor(spatialIndex: SpatialIndex, layerManager: LayerManager) {
+  constructor(spatialIndex: GridSpatialIndex, layerManager: LayerManager) {
     this.spatialIndex = spatialIndex;
     this.layerManager = layerManager;
   }
@@ -41,10 +41,11 @@ export class ViewportQuery {
 
   queryVisibleNodes(nodes: Map<number, SceneNode>): SceneNode[] {
     const bounds = this.getViewportBounds();
-    const candidateIds = this.spatialIndex.query(bounds.minX, bounds.minY, bounds.maxX, bounds.maxY);
+    const candidateIds = this.spatialIndex.queryRect(bounds.minX, bounds.minY, bounds.maxX, bounds.maxY);
 
     const result: SceneNode[] = [];
-    for (const id of candidateIds) {
+    for (const idStr of candidateIds) {
+      const id = Number(idStr);
       const node = nodes.get(id);
       if (node && node.visible && this.layerManager.isLayerVisible(node.layer)) {
         result.push(node);
@@ -55,10 +56,11 @@ export class ViewportQuery {
 
   queryVisibleByLayer(nodes: Map<number, SceneNode>, layerName: string): SceneNode[] {
     const bounds = this.getViewportBounds();
-    const candidateIds = this.spatialIndex.query(bounds.minX, bounds.minY, bounds.maxX, bounds.maxY);
+    const candidateIds = this.spatialIndex.queryRect(bounds.minX, bounds.minY, bounds.maxX, bounds.maxY);
 
     const result: SceneNode[] = [];
-    for (const id of candidateIds) {
+    for (const idStr of candidateIds) {
+      const id = Number(idStr);
       const node = nodes.get(id);
       if (node && node.layer === layerName && node.visible) {
         result.push(node);
@@ -68,16 +70,20 @@ export class ViewportQuery {
   }
 
   hitTest(x: number, y: number, tolerance: number, nodes: Map<number, SceneNode>): SceneNode | null {
-    const candidateIds = this.spatialIndex.queryPoint(x, y, tolerance);
+    const closestIdStr = this.spatialIndex.queryPoint(x, y, tolerance);
+    if (!closestIdStr) return null;
+
+    const candidates = this.spatialIndex.queryPointCandidates(x, y, tolerance, 10);
 
     let closest: SceneNode | null = null;
     let closestDist = Infinity;
 
-    for (const id of candidateIds) {
+    for (const candidate of candidates) {
+      const id = Number(candidate.entityId);
       const node = nodes.get(id);
       if (!node || !node.visible || !this.layerManager.isLayerVisible(node.layer)) continue;
 
-      const dist = this.distanceToNode(node, x, y);
+      const dist = Math.sqrt(candidate.distSq);
       if (dist < closestDist && dist <= tolerance) {
         closestDist = dist;
         closest = node;
@@ -104,11 +110,5 @@ export class ViewportQuery {
       height: this.viewport.height,
       zoom,
     };
-  }
-
-  private distanceToNode(node: SceneNode, x: number, y: number): number {
-    const cx = (node.bbox.minX + node.bbox.maxX) / 2;
-    const cy = (node.bbox.minY + node.bbox.maxY) / 2;
-    return Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
   }
 }

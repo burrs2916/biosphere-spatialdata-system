@@ -195,10 +195,225 @@ export class SnapManager {
     return closest;
   }
 
-  private _findIntersection(_worldX: number, _worldY: number, _radius: number): SnapPoint | null {
-    // 交点捕捉实现较复杂，先返回 null
-    // TODO: 实现线段-线段、线段-圆、圆-圆交点计算
-    return null;
+  private _findIntersection(worldX: number, worldY: number, radius: number): SnapPoint | null {
+    let closest: SnapPoint | null = null;
+    let closestDist = radius;
+
+    const lineEntities: Array<{ id: string; x1: number; y1: number; x2: number; y2: number }> = [];
+    const arcEntities: Array<{ id: string; cx: number; cy: number; r: number; startAngle: number; endAngle: number }> = [];
+    const circleEntities: Array<{ id: string; cx: number; cy: number; r: number }> = [];
+
+    for (const [id, node] of this._nodeIndex) {
+      if (this._isEntityHidden(id)) continue;
+
+      switch (node.type) {
+        case 'line':
+          lineEntities.push({ id, x1: (node as any).startX, y1: (node as any).startY, x2: (node as any).endX, y2: (node as any).endY });
+          break;
+        case 'arc':
+          arcEntities.push({ id, cx: (node as any).centerX, cy: (node as any).centerY, r: (node as any).radius, startAngle: (node as any).startAngle, endAngle: (node as any).endAngle });
+          break;
+        case 'circle':
+          circleEntities.push({ id, cx: (node as any).centerX, cy: (node as any).centerY, r: (node as any).radius });
+          break;
+        case 'lwPolyline':
+        case 'polyline': {
+          const vertices = (node as any).vertices || [];
+          for (let i = 0; i < vertices.length - 1; i++) {
+            lineEntities.push({ id: `${id}_seg${i}`, x1: vertices[i].x, y1: vertices[i].y, x2: vertices[i + 1].x, y2: vertices[i + 1].y });
+          }
+          break;
+        }
+      }
+    }
+
+    for (let i = 0; i < lineEntities.length; i++) {
+      for (let j = i + 1; j < lineEntities.length; j++) {
+        const pts = this._lineLineIntersection(lineEntities[i], lineEntities[j]);
+        for (const pt of pts) {
+          const dist = Math.hypot(pt.x - worldX, pt.y - worldY);
+          if (dist < closestDist) {
+            closestDist = dist;
+            closest = {
+              x: pt.x,
+              y: pt.y,
+              type: 'intersection',
+              entityId: lineEntities[i].id,
+              description: `交点: (${pt.x.toFixed(2)}, ${pt.y.toFixed(2)})`,
+              distance: dist,
+            } as SnapPoint & { distance: number };
+          }
+        }
+      }
+    }
+
+    for (const line of lineEntities) {
+      for (const circle of circleEntities) {
+        const pts = this._lineCircleIntersection(line.x1, line.y1, line.x2, line.y2, circle.cx, circle.cy, circle.r);
+        for (const pt of pts) {
+          const dist = Math.hypot(pt.x - worldX, pt.y - worldY);
+          if (dist < closestDist) {
+            closestDist = dist;
+            closest = {
+              x: pt.x,
+              y: pt.y,
+              type: 'intersection',
+              entityId: line.id,
+              description: `交点: (${pt.x.toFixed(2)}, ${pt.y.toFixed(2)})`,
+              distance: dist,
+            } as SnapPoint & { distance: number };
+          }
+        }
+      }
+    }
+
+    for (let i = 0; i < circleEntities.length; i++) {
+      for (let j = i + 1; j < circleEntities.length; j++) {
+        const pts = this._circleCircleIntersection(
+          circleEntities[i].cx, circleEntities[i].cy, circleEntities[i].r,
+          circleEntities[j].cx, circleEntities[j].cy, circleEntities[j].r
+        );
+        for (const pt of pts) {
+          const dist = Math.hypot(pt.x - worldX, pt.y - worldY);
+          if (dist < closestDist) {
+            closestDist = dist;
+            closest = {
+              x: pt.x,
+              y: pt.y,
+              type: 'intersection',
+              entityId: circleEntities[i].id,
+              description: `交点: (${pt.x.toFixed(2)}, ${pt.y.toFixed(2)})`,
+              distance: dist,
+            } as SnapPoint & { distance: number };
+          }
+        }
+      }
+    }
+
+    for (const line of lineEntities) {
+      for (const arc of arcEntities) {
+        const pts = this._lineCircleIntersection(line.x1, line.y1, line.x2, line.y2, arc.cx, arc.cy, arc.r);
+        for (const pt of pts) {
+          const angle = Math.atan2(pt.y - arc.cy, pt.x - arc.cx);
+          if (this._isAngleInRange(angle, arc.startAngle, arc.endAngle)) {
+            const dist = Math.hypot(pt.x - worldX, pt.y - worldY);
+            if (dist < closestDist) {
+              closestDist = dist;
+              closest = {
+                x: pt.x,
+                y: pt.y,
+                type: 'intersection',
+                entityId: line.id,
+                description: `交点: (${pt.x.toFixed(2)}, ${pt.y.toFixed(2)})`,
+                distance: dist,
+              } as SnapPoint & { distance: number };
+            }
+          }
+        }
+      }
+    }
+
+    return closest;
+  }
+
+  private _lineLineIntersection(
+    l1: { x1: number; y1: number; x2: number; y2: number },
+    l2: { x1: number; y1: number; x2: number; y2: number }
+  ): Array<{ x: number; y: number }> {
+    const dx1 = l1.x2 - l1.x1;
+    const dy1 = l1.y2 - l1.y1;
+    const dx2 = l2.x2 - l2.x1;
+    const dy2 = l2.y2 - l2.y1;
+
+    const denom = dx1 * dy2 - dy1 * dx2;
+    if (Math.abs(denom) < 1e-10) return [];
+
+    const t = ((l2.x1 - l1.x1) * dy2 - (l2.y1 - l1.y1) * dx2) / denom;
+    const u = ((l2.x1 - l1.x1) * dy1 - (l2.y1 - l1.y1) * dx1) / denom;
+
+    if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
+      return [{ x: l1.x1 + t * dx1, y: l1.y1 + t * dy1 }];
+    }
+    return [];
+  }
+
+  private _lineCircleIntersection(
+    x1: number, y1: number, x2: number, y2: number,
+    cx: number, cy: number, r: number
+  ): Array<{ x: number; y: number }> {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const fx = x1 - cx;
+    const fy = y1 - cy;
+
+    const a = dx * dx + dy * dy;
+    const b = 2 * (fx * dx + fy * dy);
+    const c = fx * fx + fy * fy - r * r;
+
+    let discriminant = b * b - 4 * a * c;
+    if (discriminant < 0 || a < 1e-10) return [];
+
+    discriminant = Math.sqrt(discriminant);
+    const results: Array<{ x: number; y: number }> = [];
+
+    const t1 = (-b - discriminant) / (2 * a);
+    const t2 = (-b + discriminant) / (2 * a);
+
+    if (t1 >= 0 && t1 <= 1) {
+      results.push({ x: x1 + t1 * dx, y: y1 + t1 * dy });
+    }
+    if (t2 >= 0 && t2 <= 1 && Math.abs(t2 - t1) > 1e-10) {
+      results.push({ x: x1 + t2 * dx, y: y1 + t2 * dy });
+    }
+
+    return results;
+  }
+
+  private _circleCircleIntersection(
+    cx1: number, cy1: number, r1: number,
+    cx2: number, cy2: number, r2: number
+  ): Array<{ x: number; y: number }> {
+    const dx = cx2 - cx1;
+    const dy = cy2 - cy1;
+    const d = Math.sqrt(dx * dx + dy * dy);
+
+    if (d > r1 + r2 || d < Math.abs(r1 - r2) || d < 1e-10) return [];
+
+    const a = (r1 * r1 - r2 * r2 + d * d) / (2 * d);
+    const hSq = r1 * r1 - a * a;
+    if (hSq < 0) return [];
+    const h = Math.sqrt(hSq);
+
+    const px = cx1 + a * dx / d;
+    const py = cy1 + a * dy / d;
+
+    const results: Array<{ x: number; y: number }> = [];
+    results.push({ x: px + h * dy / d, y: py - h * dx / d });
+
+    if (h > 1e-10) {
+      results.push({ x: px - h * dy / d, y: py + h * dx / d });
+    }
+
+    return results;
+  }
+
+  private _isAngleInRange(angle: number, startAngle: number, endAngle: number): boolean {
+    const TWO_PI = Math.PI * 2;
+    const normalizeAngle = (a: number): number => {
+      let na = a % TWO_PI;
+      if (na < 0) na += TWO_PI;
+      return na;
+    };
+
+    const na = normalizeAngle(angle);
+    const ns = normalizeAngle(startAngle);
+    const ne = normalizeAngle(endAngle);
+
+    if (ns <= ne) {
+      return na >= ns && na <= ne;
+    } else {
+      return na >= ns || na <= ne;
+    }
   }
 
   private _getEndpointPoints(node: SceneNode): Array<{ x: number; y: number }> {

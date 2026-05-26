@@ -241,24 +241,134 @@ export class RotateCommand implements Command {
       const node = nodes.get(id);
       if (!node) continue;
 
-      const cx = (node.bbox.minX + node.bbox.maxX) / 2;
-      const cy = (node.bbox.minY + node.bbox.maxY) / 2;
-      const dx = cx - this.pivotX;
-      const dy = cy - this.pivotY;
-      const newCx = this.pivotX + dx * cos - dy * sin;
-      const newCy = this.pivotY + dx * sin + dy * cos;
-      const offsetX = newCx - cx;
-      const offsetY = newCy - cy;
-
-      node.bbox.minX += offsetX;
-      node.bbox.minY += offsetY;
-      node.bbox.maxX += offsetX;
-      node.bbox.maxY += offsetY;
-
-      if ('rotation' in node) {
-        node.rotation = (node.rotation || 0) + angle;
-      }
+      this.rotateNodeGeometry(node, angle, cos, sin);
       node.dirty = true;
     }
+  }
+
+  private rotateNodeGeometry(node: SceneNode, angle: number, cos: number, sin: number): void {
+    const rotatePoint = (px: number, py: number): { x: number; y: number } => {
+      const dx = px - this.pivotX;
+      const dy = py - this.pivotY;
+      return {
+        x: this.pivotX + dx * cos - dy * sin,
+        y: this.pivotY + dx * sin + dy * cos,
+      };
+    };
+
+    switch (node.type) {
+      case 'line': {
+        const start = rotatePoint(node.startX, node.startY);
+        const end = rotatePoint(node.endX, node.endY);
+        node.startX = start.x; node.startY = start.y;
+        node.endX = end.x; node.endY = end.y;
+        break;
+      }
+      case 'circle': {
+        const center = rotatePoint(node.centerX, node.centerY);
+        node.centerX = center.x; node.centerY = center.y;
+        break;
+      }
+      case 'arc': {
+        const center = rotatePoint(node.centerX, node.centerY);
+        node.centerX = center.x; node.centerY = center.y;
+        node.startAngle += angle;
+        node.endAngle += angle;
+        break;
+      }
+      case 'ellipse': {
+        const center = rotatePoint(node.centerX, node.centerY);
+        node.centerX = center.x; node.centerY = center.y;
+        const major = rotatePoint(node.centerX + node.majorX, node.centerY + node.majorY);
+        node.majorX = major.x - node.centerX;
+        node.majorY = major.y - node.centerY;
+        node.startAngle += angle;
+        node.endAngle += angle;
+        break;
+      }
+      case 'point': {
+        const pos = rotatePoint(node.posX, node.posY);
+        node.posX = pos.x; node.posY = pos.y;
+        break;
+      }
+      case 'text': {
+        const pos = rotatePoint(node.posX, node.posY);
+        node.posX = pos.x; node.posY = pos.y;
+        node.rotation += angle;
+        break;
+      }
+      case 'mText': {
+        const pos = rotatePoint(node.posX, node.posY);
+        node.posX = pos.x; node.posY = pos.y;
+        node.rotation += angle;
+        break;
+      }
+      case 'insert': {
+        const pos = rotatePoint(node.posX, node.posY);
+        node.posX = pos.x; node.posY = pos.y;
+        node.rotation += angle;
+        break;
+      }
+      case 'lwPolyline': {
+        for (const v of node.vertices) {
+          const rotated = rotatePoint(v.x, v.y);
+          v.x = rotated.x; v.y = rotated.y;
+        }
+        break;
+      }
+      case 'polyline': {
+        for (const v of node.vertices) {
+          const rotated = rotatePoint(v.x, v.y);
+          v.x = rotated.x; v.y = rotated.y;
+        }
+        break;
+      }
+      case 'spline': {
+        for (const p of node.controlPoints) {
+          const rotated = rotatePoint(p.x, p.y);
+          p.x = rotated.x; p.y = rotated.y;
+        }
+        for (const p of node.fitPoints) {
+          const rotated = rotatePoint(p.x, p.y);
+          p.x = rotated.x; p.y = rotated.y;
+        }
+        break;
+      }
+      case 'solid': {
+        for (const p of node.points) {
+          const rotated = rotatePoint(p.x, p.y);
+          p.x = rotated.x; p.y = rotated.y;
+        }
+        break;
+      }
+      case 'hatch': {
+        for (const path of node.boundaries) {
+          for (const v of path) {
+            const rotated = rotatePoint(v.x, v.y);
+            v.x = rotated.x; v.y = rotated.y;
+          }
+        }
+        break;
+      }
+      case 'dimension': {
+        const defPt = rotatePoint(node.defX, node.defY);
+        const midPt = rotatePoint(node.midX, node.midY);
+        node.defX = defPt.x; node.defY = defPt.y;
+        node.midX = midPt.x; node.midY = midPt.y;
+        node.rotation += angle;
+        break;
+      }
+    }
+
+    const corners = [
+      rotatePoint(node.bbox.minX, node.bbox.minY),
+      rotatePoint(node.bbox.minX, node.bbox.maxY),
+      rotatePoint(node.bbox.maxX, node.bbox.minY),
+      rotatePoint(node.bbox.maxX, node.bbox.maxY),
+    ];
+    node.bbox.minX = Math.min(...corners.map(c => c.x));
+    node.bbox.minY = Math.min(...corners.map(c => c.y));
+    node.bbox.maxX = Math.max(...corners.map(c => c.x));
+    node.bbox.maxY = Math.max(...corners.map(c => c.y));
   }
 }

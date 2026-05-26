@@ -259,8 +259,10 @@ class PluginLoaderImpl {
       const rendererFormat = plugin.rendererFormat;
 
       let loader: RendererLoader;
-      if (rendererEntry) {
-        loader = () => import(/* @vite-ignore */ rendererEntry);
+      if (rendererEntry && rendererFormat === 'external') {
+        loader = () => this.loadExternalRenderer(rendererEntry);
+      } else if (rendererEntry && rendererFormat === 'builtin') {
+        loader = () => this.loadBuiltinRenderer(rendererEntry);
       } else if (rendererFormat === "schema" || !rendererEntry) {
         loader = () =>
           import("../renderers/SchemaDrivenRenderer").then((m) => ({
@@ -387,6 +389,72 @@ class PluginLoaderImpl {
 
   isInitialized(): boolean {
     return this.initialized;
+  }
+
+  private async loadExternalRenderer(entryPath: string): Promise<{ default: React.ComponentType<any> }> {
+    try {
+      if (entryPath.startsWith('http://') || entryPath.startsWith('https://')) {
+        const module = await import(/* @vite-ignore */ entryPath);
+        return { default: module.default ?? module };
+      }
+
+      if (entryPath.startsWith('./') || entryPath.startsWith('../') || entryPath.startsWith('/')) {
+        const module = await import(/* @vite-ignore */ entryPath);
+        return { default: module.default ?? module };
+      }
+
+      const { invoke } = await import("@tauri-apps/api/core");
+      const pluginCode = await invoke<string>("read_plugin_file", { path: entryPath });
+      if (!pluginCode) {
+        throw new Error(`Plugin file "${entryPath}" is empty or not found`);
+      }
+
+      const blob = new Blob([pluginCode], { type: 'text/javascript' });
+      const blobUrl = URL.createObjectURL(blob);
+      try {
+        const module = await import(/* @vite-ignore */ blobUrl);
+        return { default: module.default ?? module };
+      } finally {
+        URL.revokeObjectURL(blobUrl);
+      }
+    } catch (err) {
+      console.error(`[PluginLoader] Failed to load external renderer from "${entryPath}":`, err);
+      const { FallbackRenderer } = await import("../renderers/FallbackRenderer");
+      return { default: FallbackRenderer };
+    }
+  }
+
+  private async loadBuiltinRenderer(entryPath: string): Promise<{ default: React.ComponentType<any> }> {
+    try {
+      const builtinRenderers: Record<string, () => Promise<{ default: React.ComponentType<any> }>> = {
+        'TextRenderer': () => import("../renderers/TextRenderer").then(m => ({ default: m.TextRenderer })),
+        'ImageRenderer': () => import("../renderers/ImageRenderer").then(m => ({ default: m.ImageRenderer })),
+        'ShapeRenderer': () => import("../renderers/ShapeRenderer").then(m => ({ default: m.ShapeRenderer })),
+        'EchartRenderer': () => import("../renderers/EchartRenderer").then(m => ({ default: m.EchartRenderer })),
+        'MetricRenderer': () => import("../renderers/MetricRenderer").then(m => ({ default: m.MetricRenderer })),
+        'MapRenderer': () => import("../renderers/MapRenderer").then(m => ({ default: m.MapRenderer })),
+        'TileMapRenderer': () => import("../renderers/TileMapRenderer").then(m => ({ default: m.TileMapRenderer })),
+        'CADMapRenderer': () => import("../renderers/CADMapRenderer").then(m => ({ default: m.CADMapRenderer })),
+        'BlueprintMapRenderer': () => import("../renderers/BlueprintMapRenderer").then(m => ({ default: m.BlueprintMapRenderer })),
+        'GlobeMapRenderer': () => import("../renderers/GlobeMapRenderer").then(m => ({ default: m.GlobeMapRenderer })),
+        'HeatmapMapRenderer': () => import("../renderers/HeatmapMapRenderer").then(m => ({ default: m.HeatmapMapRenderer })),
+        'VideoRenderer': () => import("../renderers/VideoRenderer").then(m => ({ default: m.VideoRenderer })),
+        'SchemaDrivenRenderer': () => import("../renderers/SchemaDrivenRenderer").then(m => ({ default: m.SchemaDrivenRenderer })),
+        'FallbackRenderer': () => import("../renderers/FallbackRenderer").then(m => ({ default: m.FallbackRenderer })),
+      };
+
+      const loader = builtinRenderers[entryPath];
+      if (loader) {
+        return loader();
+      }
+
+      const module = await import(/* @vite-ignore */ entryPath);
+      return { default: module.default ?? module };
+    } catch (err) {
+      console.error(`[PluginLoader] Failed to load builtin renderer "${entryPath}":`, err);
+      const { FallbackRenderer } = await import("../renderers/FallbackRenderer");
+      return { default: FallbackRenderer };
+    }
   }
 }
 

@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import type { UnifiedBinding, DataStatus, WidgetDataResult, TransformStep } from "../types/widget";
 import { useDataSourceStore } from "../store/datasourceStore";
 import { dataSourceEventBus } from "../datasource/events";
+import { safeTransform, safeFilter, safeAggregate, createSafeFunction } from "../datasource/utils/safeEval";
 
 function applyTransformSteps(raw: unknown, steps: TransformStep[]): unknown {
   let result = raw;
@@ -9,33 +10,39 @@ function applyTransformSteps(raw: unknown, steps: TransformStep[]): unknown {
     switch (step.type) {
       case "map": {
         if (typeof result === "object" && result !== null && step.expression) {
-          try {
-            const fn = new Function("value", `return ${step.expression}`);
-            result = fn(result);
-          } catch {
-            result = result;
+          const fn = safeTransform(step.expression);
+          if (fn) {
+            try {
+              result = fn(result);
+            } catch {
+              // keep previous result
+            }
           }
         }
         break;
       }
       case "filter": {
         if (Array.isArray(result) && step.expression) {
-          try {
-            const fn = new Function("item", `return ${step.expression}`) as (item: unknown) => boolean;
-            result = result.filter(fn);
-          } catch {
-            result = result;
+          const fn = safeFilter(step.expression);
+          if (fn) {
+            try {
+              result = result.filter(fn);
+            } catch {
+              // keep previous result
+            }
           }
         }
         break;
       }
       case "aggregate": {
         if (Array.isArray(result) && step.expression) {
-          try {
-            const fn = new Function("values", `return ${step.expression}`);
-            result = fn(result);
-          } catch {
-            result = result;
+          const fn = safeAggregate(step.expression);
+          if (fn) {
+            try {
+              result = fn(result);
+            } catch {
+              // keep previous result
+            }
           }
         }
         break;
@@ -49,11 +56,13 @@ function applyTransformSteps(raw: unknown, steps: TransformStep[]): unknown {
       }
       case "custom": {
         if (step.function) {
-          try {
-            const fn = new Function("value", "params", step.function);
-            result = fn(result, step.params || {});
-          } catch {
-            result = result;
+          const fn = createSafeFunction<[unknown, Record<string, unknown>], unknown>(['value', 'params'], step.function);
+          if (fn) {
+            try {
+              result = fn(result, step.params || {});
+            } catch {
+              // keep previous result
+            }
           }
         }
         break;

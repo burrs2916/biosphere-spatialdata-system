@@ -167,8 +167,12 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       }));
       const { useEditorStore } = await import("./editorStore");
       const editorState = useEditorStore.getState();
-      if (originalScene.editorComponents && originalScene.editorLayers) {
-        editorState.loadScene(originalScene.editorComponents, originalScene.editorLayers);
+      if (originalScene.views && originalScene.views.length > 0) {
+        const activeVId = originalScene.activeViewId || originalScene.views[0].id;
+        editorState.loadSceneWithViews(originalScene.views, originalScene.globalComponents || [], activeVId);
+      } else if (originalScene.editorComponents && originalScene.editorLayers) {
+        const views = [{ id: "default", name: "默认视图", components: originalScene.editorComponents, layers: originalScene.editorLayers }];
+        editorState.loadSceneWithViews(views, [], "default");
       }
       if (originalScene.canvasConfig) {
         editorState.setCanvasConfig(originalScene.canvasConfig);

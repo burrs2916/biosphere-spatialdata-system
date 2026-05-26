@@ -1,5 +1,6 @@
 import type { DataSource } from "../../types/dataSource";
 import type { DataSourceAdapter, AdapterFetchResult, AdapterConnectOptions, FetchRequestConfig } from "./types";
+import { extractData } from "./types";
 import { createDefaultWebSocketConfig } from "../../types/websocket";
 
 export class WebSocketAdapter implements DataSourceAdapter {
@@ -39,9 +40,10 @@ export class WebSocketAdapter implements DataSourceAdapter {
       ws.onmessage = (event) => {
         try {
           const data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
+          const extracted = extractData(data, ds.responseMapping || []);
           options.onData({
             raw: data,
-            extracted: {},
+            extracted,
             timestamp: new Date().toISOString(),
           });
         } catch {

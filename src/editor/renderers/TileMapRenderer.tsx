@@ -6,12 +6,17 @@ import type { ComponentRendererProps } from "../../types/editor";
 import type { MapLibrary } from "../../types/mapLibrary";
 import { MapLibreEngine } from "../map-engines/MapLibreEngine";
 import type { MapEngine, MapEventData } from "../map-engines/types";
+import { useViewportDelegate } from "../hooks/useViewportDelegate";
+import type { ViewportDelegate } from "../layers/ComponentLayerAdapter";
+import { useEventDispatcher } from "../context/SceneEditorContext";
 import "maplibre-gl/dist/maplibre-gl.css";
 
-export function TileMapRenderer({ config, componentId }: ComponentRendererProps) {
+export function TileMapRenderer({ config, componentId, width, height }: ComponentRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<MapEngine | null>(null);
   const initRef = useRef(false);
+  const setViewportDelegate = useViewportDelegate(componentId);
+  const eventDispatcher = useEventDispatcher();
 
   const mapLibraryId = (config.mapLibraryId as string) || "";
   const [libraryConfig, setLibraryConfig] = useState<{ tileUrl: string; minZoom: number; maxZoom: number; apiKey: string } | null>(null);
@@ -52,8 +57,10 @@ export function TileMapRenderer({ config, componentId }: ComponentRendererProps)
   }, [mapLibraryId]);
 
   const handleMapEvent = useCallback((eventName: string, data: MapEventData) => {
-    console.log(`[TileMap:${componentId}] Event: ${eventName}`, data);
-  }, [componentId]);
+    if (eventDispatcher) {
+      eventDispatcher.emitToolEvent(`${componentId}:${eventName}`, data);
+    }
+  }, [componentId, eventDispatcher]);
 
   useEffect(() => {
     if (!containerRef.current || initRef.current) return;
@@ -106,12 +113,69 @@ export function TileMapRenderer({ config, componentId }: ComponentRendererProps)
         engine.on("click", (data) => handleMapEvent("click", data));
         engine.on("zoom", (data) => handleMapEvent("zoomChange", data));
         engine.on("move", (data) => handleMapEvent("moveEnd", data));
+
+        const delegate: ViewportDelegate = {
+          getViewport: () => {
+            const cam = engine.getCamera();
+            return {
+              centerX: cam.center.x,
+              centerY: cam.center.y,
+              zoom: cam.zoom,
+              bearing: cam.bearing,
+              pitch: cam.pitch,
+              width: width ?? 0,
+              height: height ?? 0,
+              crs: crs as import("../../types/spatial").CRSType,
+            };
+          },
+          setViewport: (snapshot) => {
+            engine.flyTo({
+              center: { x: snapshot.centerX, y: snapshot.centerY },
+              zoom: snapshot.zoom,
+              bearing: snapshot.bearing,
+              pitch: snapshot.pitch,
+              duration: 0,
+            });
+          },
+          onViewportChange: (handler) => {
+            const unsubs: (() => void)[] = [];
+            unsubs.push(engine.on("move", () => {
+              const cam = engine.getCamera();
+              handler({
+                centerX: cam.center.x,
+                centerY: cam.center.y,
+                zoom: cam.zoom,
+                bearing: cam.bearing,
+                pitch: cam.pitch,
+                width: width ?? 0,
+                height: height ?? 0,
+                crs: crs as import("../../types/spatial").CRSType,
+              }, componentId);
+            }));
+            unsubs.push(engine.on("zoom", () => {
+              const cam = engine.getCamera();
+              handler({
+                centerX: cam.center.x,
+                centerY: cam.center.y,
+                zoom: cam.zoom,
+                bearing: cam.bearing,
+                pitch: cam.pitch,
+                width: width ?? 0,
+                height: height ?? 0,
+                crs: crs as import("../../types/spatial").CRSType,
+              }, componentId);
+            }));
+            return () => unsubs.forEach(u => u());
+          },
+        };
+        setViewportDelegate(delegate);
       })
       .catch((err) => {
         console.error(`[TileMap:${componentId}] Mount failed:`, err);
       });
 
     return () => {
+      setViewportDelegate(null);
       engine.unmount();
       engineRef.current = null;
       initRef.current = false;

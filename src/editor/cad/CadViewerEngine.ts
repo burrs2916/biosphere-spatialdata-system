@@ -8,6 +8,7 @@ import type { ParseResult } from './types';
 import { CadbinReader } from './cad_runtime/cadbin_reader';
 import { SceneGraph } from './cad_runtime/scene_graph';
 import type { LayerNode, SceneNode } from './cad_runtime/scene_node';
+import { entityRendererRegistry } from './cad_runtime/entity_renderers';
 
 export interface CadEngineConfig {
   container: HTMLElement;
@@ -93,6 +94,10 @@ export class CadViewerEngine {
     return this._container;
   }
 
+  get renderer(): CadRenderer | null {
+    return this._renderer;
+  }
+
   async initialize(config: CadEngineConfig): Promise<void> {
     if (this._destroyed) {
       throw new Error(`[CadViewerEngine:${this._id}] Engine has been destroyed, cannot re-initialize`);
@@ -142,6 +147,8 @@ export class CadViewerEngine {
           this._handleDrawComplete(entityJson);
         },
       });
+
+      this._renderer.setEntityRendererRegistry(entityRendererRegistry);
 
       if (config.autoResize !== false) {
         this._resizeObserver = new ResizeObserver(() => {
@@ -959,7 +966,6 @@ export class CadViewerEngine {
     return this._renderer?.isDarkBackground() ?? true;
   }
 
-  /** 当前光标世界坐标（cadbin 状态栏读取） */
   getCursorWorldCoord(): { x: number; y: number } | null {
     return this._renderer?.getLastWorldCoord() ?? null;
   }
@@ -969,7 +975,6 @@ export class CadViewerEngine {
     return info?.worldHeight ?? 100;
   }
 
-  /** 当前相机视图信息 */
   getCameraInfo(): CameraInfo | null {
     return this._renderer?.getCameraInfo() ?? null;
   }
@@ -1043,49 +1048,8 @@ export class CadViewerEngine {
     this._renderer?.resize();
   }
 
-  zoomIn(): void {
-    this._renderer?.zoomIn();
-  }
-
-  zoomOut(): void {
-    this._renderer?.zoomOut();
-  }
-
-  fitToView(): void {
-    this._renderer?.fitToView();
-  }
-
-  setFitMode(mode: 'contain' | 'cover' | 'stretch' | 'custom'): void {
-    this._renderer?.setFitMode(mode);
-  }
-
-  getFitMode(): 'contain' | 'cover' | 'stretch' | 'custom' {
-    return this._renderer?.getFitMode() ?? 'contain';
-  }
-
-  getCameraState(): { centerX: number; centerY: number; halfW: number; halfH: number } | null {
-    return this._renderer?.getCameraState() ?? null;
-  }
-
-  getDrawingBounds(): { minX: number; minY: number; maxX: number; maxY: number } | null {
-    return this._renderer?.getDrawingBounds() ?? null;
-  }
-
-  setCameraState(state: { centerX: number; centerY: number; halfW: number; halfH: number }): void {
-    this._renderer?.setCameraState(state);
-  }
-
   private _documentLayers: import('./types').CadLayer[] = [];
 
-  setLayerVisible(layerName: string, visible: boolean): void {
-    this._renderer?.setLayerVisible(layerName, visible);
-  }
-
-  setMultipleLayersVisible(changes: Array<{ layerName: string; visible: boolean }>): void {
-    this._renderer?.setMultipleLayersVisible(changes);
-  }
-
-  /** 显示所有图层（批量操作，避免通知风暴） */
   showAllLayers(): void {
     this._assertInitialized('show all layers');
     const layerNames = this._renderer?.getLayers() || [];
@@ -1113,69 +1077,56 @@ export class CadViewerEngine {
     this._emit('layersVisibilityChanged', { visible: false });
   }
 
-  isLayerVisible(layerName: string): boolean {
-    return this._renderer?.isLayerVisible(layerName) ?? true;
-  }
-
-  getLayers(): string[] {
-    return this._renderer?.getLayers() ?? [];
-  }
-
   getDocumentLayers(): import('./types').CadLayer[] {
     return this._documentLayers;
   }
 
-  selectEntity(entityId: string, additive: boolean = false): void {
-    this._renderer?.selectEntity(entityId, additive);
-  }
-
-  deselectEntity(entityId?: string): void {
-    if (entityId) {
-      this._renderer?.deselectEntity(entityId);
-    } else {
-      this._renderer?.deselectAll();
-    }
-  }
-
-  deselectAll(): void {
-    this._renderer?.deselectAll();
-  }
-
-  getSelectedEntityIds(): string[] {
-    return this._renderer?.getSelectedEntityIds() ?? [];
-  }
-
-  selectEntitiesInRect(minX: number, minY: number, maxX: number, maxY: number, additive: boolean = false): string[] {
-    return this._renderer?.selectEntitiesInRect(minX, minY, maxX, maxY, additive) ?? [];
-  }
-
-  setInteractionMode(mode: 'select' | 'pan' | 'draw_line' | 'draw_circle' | 'draw_text'): void {
-    this._renderer?.setInteractionMode(mode);
-  }
-
-  getInteractionMode(): 'select' | 'pan' | 'draw_line' | 'draw_circle' | 'draw_text' {
-    return this._renderer?.getInteractionMode() ?? 'select';
-  }
-
-  getSelectedEntityId(): string | null {
-    return this._renderer?.getSelectedEntityId() ?? null;
-  }
-
-  /**
-   * 切换调试模式（控制日志输出详细程度）
-   */
-  setDebugMode(enabled: boolean): void {
-    this._renderer?.setDebugMode(enabled);
-    logger.info(`CadViewerEngine:${this._id}`, `Debug mode ${enabled ? 'enabled' : 'disabled'}`);
-  }
-
-  setSnapEnabled(type: string, enabled: boolean): void {
-    this._renderer?.setSnapEnabled(type, enabled);
-  }
-
-  getSnapManager(): import('./snap/SnapManager').SnapManager | null {
-    return this._renderer?.getSnapManager() ?? null;
-  }
+  /** @deprecated Use engine.renderer?.xxx() instead */
+  zoomIn(): void { this._renderer?.zoomIn(); }
+  /** @deprecated Use engine.renderer?.xxx() instead */
+  zoomOut(): void { this._renderer?.zoomOut(); }
+  /** @deprecated Use engine.renderer?.xxx() instead */
+  fitToView(): void { this._renderer?.fitToView(); }
+  /** @deprecated Use engine.renderer?.xxx() instead */
+  setFitMode(mode: 'contain' | 'cover' | 'stretch' | 'custom'): void { this._renderer?.setFitMode(mode); }
+  /** @deprecated Use engine.renderer?.xxx() instead */
+  getFitMode() { return this._renderer?.getFitMode() ?? 'contain' as const; }
+  /** @deprecated Use engine.renderer?.xxx() instead */
+  getCameraState() { return this._renderer?.getCameraState() ?? null; }
+  /** @deprecated Use engine.renderer?.xxx() instead */
+  getDrawingBounds() { return this._renderer?.getDrawingBounds() ?? null; }
+  /** @deprecated Use engine.renderer?.xxx() instead */
+  setCameraState(state: { centerX: number; centerY: number; halfW: number; halfH: number }): void { this._renderer?.setCameraState(state); }
+  /** @deprecated Use engine.renderer?.xxx() instead */
+  setLayerVisible(layerName: string, visible: boolean): void { this._renderer?.setLayerVisible(layerName, visible); }
+  /** @deprecated Use engine.renderer?.xxx() instead */
+  setMultipleLayersVisible(changes: Array<{ layerName: string; visible: boolean }>): void { this._renderer?.setMultipleLayersVisible(changes); }
+  /** @deprecated Use engine.renderer?.xxx() instead */
+  isLayerVisible(layerName: string): boolean { return this._renderer?.isLayerVisible(layerName) ?? true; }
+  /** @deprecated Use engine.renderer?.xxx() instead */
+  getLayers(): string[] { return this._renderer?.getLayers() ?? []; }
+  /** @deprecated Use engine.renderer?.xxx() instead */
+  selectEntity(entityId: string, additive = false): void { this._renderer?.selectEntity(entityId, additive); }
+  /** @deprecated Use engine.renderer?.xxx() instead */
+  deselectEntity(entityId?: string): void { entityId ? this._renderer?.deselectEntity(entityId) : this._renderer?.deselectAll(); }
+  /** @deprecated Use engine.renderer?.xxx() instead */
+  deselectAll(): void { this._renderer?.deselectAll(); }
+  /** @deprecated Use engine.renderer?.xxx() instead */
+  getSelectedEntityIds(): string[] { return this._renderer?.getSelectedEntityIds() ?? []; }
+  /** @deprecated Use engine.renderer?.xxx() instead */
+  selectEntitiesInRect(minX: number, minY: number, maxX: number, maxY: number, additive = false): string[] { return this._renderer?.selectEntitiesInRect(minX, minY, maxX, maxY, additive) ?? []; }
+  /** @deprecated Use engine.renderer?.xxx() instead */
+  setInteractionMode(mode: 'select' | 'pan' | 'draw_line' | 'draw_circle' | 'draw_text'): void { this._renderer?.setInteractionMode(mode); }
+  /** @deprecated Use engine.renderer?.xxx() instead */
+  getInteractionMode() { return this._renderer?.getInteractionMode() ?? 'select' as const; }
+  /** @deprecated Use engine.renderer?.xxx() instead */
+  getSelectedEntityId(): string | null { return this._renderer?.getSelectedEntityId() ?? null; }
+  /** @deprecated Use engine.renderer?.xxx() instead */
+  setDebugMode(enabled: boolean): void { this._renderer?.setDebugMode(enabled); }
+  /** @deprecated Use engine.renderer?.xxx() instead */
+  setSnapEnabled(type: string, enabled: boolean): void { this._renderer?.setSnapEnabled(type, enabled); }
+  /** @deprecated Use engine.renderer?.xxx() instead */
+  getSnapManager(): import('./snap/SnapManager').SnapManager | null { return this._renderer?.getSnapManager() ?? null; }
 
   async destroy(): Promise<void> {
     if (this._destroyed) return;

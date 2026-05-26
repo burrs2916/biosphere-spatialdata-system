@@ -737,10 +737,14 @@ interface PersistedScene {
   bounds?: string;
   layers: string;
   bindings: string;
+  variables?: string;
   layout: string;
   editorComponents?: string;
   editorLayers?: string;
   canvasConfig?: string;
+  globalComponents?: string;
+  views?: string;
+  activeViewId?: string;
   categoryId?: string;
   tags: string;
   thumbnail?: string;
@@ -760,10 +764,14 @@ function toPersistedScene(scene: SceneDSL): PersistedScene {
     bounds: scene.bounds ? JSON.stringify(scene.bounds) : undefined,
     layers: JSON.stringify(scene.layers),
     bindings: JSON.stringify(scene.bindings),
+    variables: scene.variables ? JSON.stringify(scene.variables) : undefined,
     layout: JSON.stringify(scene.layout),
     editorComponents: scene.editorComponents ? JSON.stringify(scene.editorComponents) : undefined,
     editorLayers: scene.editorLayers ? JSON.stringify(scene.editorLayers) : undefined,
     canvasConfig: scene.canvasConfig ? JSON.stringify(scene.canvasConfig) : undefined,
+    globalComponents: scene.globalComponents ? JSON.stringify(scene.globalComponents) : undefined,
+    views: scene.views ? JSON.stringify(scene.views) : undefined,
+    activeViewId: scene.activeViewId || undefined,
     categoryId: scene.categoryId,
     tags: JSON.stringify(scene.tags),
     thumbnail: scene.thumbnail,
@@ -784,10 +792,14 @@ function toSceneDSL(persisted: PersistedScene): SceneDSL {
     bounds: persisted.bounds ? JSON.parse(persisted.bounds) : undefined,
     layers: JSON.parse(persisted.layers || "[]"),
     bindings: JSON.parse(persisted.bindings || "[]"),
+    variables: persisted.variables ? JSON.parse(persisted.variables) : undefined,
     layout: JSON.parse(persisted.layout || "[]"),
     editorComponents: persisted.editorComponents ? JSON.parse(persisted.editorComponents) : undefined,
     editorLayers: persisted.editorLayers ? JSON.parse(persisted.editorLayers) : undefined,
     canvasConfig: persisted.canvasConfig ? JSON.parse(persisted.canvasConfig) : undefined,
+    globalComponents: persisted.globalComponents ? JSON.parse(persisted.globalComponents) : undefined,
+    views: persisted.views ? JSON.parse(persisted.views) : undefined,
+    activeViewId: persisted.activeViewId || undefined,
     categoryId: persisted.categoryId,
     tags: JSON.parse(persisted.tags || "[]"),
     thumbnail: persisted.thumbnail,

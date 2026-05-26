@@ -8,6 +8,8 @@ import type { SceneGraph } from './cad_runtime/scene_graph';
 import { RenderProfile } from './cad_runtime/scene_graph';
 import type { SceneNode, BoundingBox, LayerNode } from './cad_runtime/scene_node';
 import { BatchedLayerBuilder } from './cad_runtime/batched_layer_builder';
+import type { EntityRendererRegistry } from './cad_runtime/entity_renderers/EntityRenderer';
+import type { ToolRegistry } from '../tools/Tool';
 import { GridSpatialIndex, type LineSegment } from './cad_runtime/grid_spatial_index';
 import { SdfTextRenderer } from './cad_runtime/sdf_text_renderer';
 import { DrawingManager } from './drawing/DrawingManager';
@@ -80,6 +82,22 @@ export class CadRenderer {
         rotation: params.rotation,
       });
     }
+  }
+
+  setEntityRendererRegistry(registry: EntityRendererRegistry | null): void {
+    this._entityRendererRegistry = registry;
+  }
+
+  getEntityRendererRegistry(): EntityRendererRegistry | null {
+    return this._entityRendererRegistry;
+  }
+
+  setToolRegistry(registry: ToolRegistry | null): void {
+    this._toolRegistry = registry;
+  }
+
+  getToolRegistry(): ToolRegistry | null {
+    return this._toolRegistry;
   }
 
   private _entityLayers: Map<string, string> = new Map();
@@ -198,6 +216,10 @@ export class CadRenderer {
   private _snapManager: SnapManager | null = null;
   /** 绘图完成回调 */
   private _onDrawComplete?: (entityJson: string) => void;
+  /** EntityRendererRegistry — 渐进式集成，可选注入 */
+  private _entityRendererRegistry: EntityRendererRegistry | null = null;
+  /** ToolRegistry — 渐进式集成，可选注入 */
+  private _toolRegistry: ToolRegistry | null = null;
 
   // 捕捉回调暂时注释，等待捕捉功能完整集成
   // private _onSnapPointFound?: (snapPoint: any) => void;
@@ -2982,6 +3004,21 @@ export class CadRenderer {
   }
 
   private _createSceneNodeMesh(node: SceneNode): THREE.Object3D | null {
+    const renderer = this._entityRendererRegistry?.getRendererForType(node.type);
+    if (renderer) {
+      try {
+        const context = this._createEntityRenderContext();
+        const result = renderer.create(node, context);
+        if (result) {
+          result.object.userData.entityId = node.id;
+          result.object.userData.entityType = node.type;
+          return result.object;
+        }
+      } catch (err) {
+        console.warn(`[CadRenderer] EntityRenderer for "${node.type}" failed, falling back to built-in:`, err);
+      }
+    }
+
     const color = this._resolveColor(node.color, node.layer);
     this._entityColors.set(String(node.id), color.clone());
     // 真正按"线宽"渲染：lineWeight 是 mm，绝大多数 CAD 实体在 0.05~2.11 mm 之间，
@@ -3131,6 +3168,17 @@ export class CadRenderer {
    *   4) 其它情况返回原色
    * 这是修复"专业 CAD 工具看得到、我们这看不到"的关键之一。
    */
+  private _createEntityRenderContext(): import("./cad_runtime/entity_renderers/EntityRenderer").EntityRenderContext {
+    return {
+      scene: this._scene,
+      camera: this._camera,
+      renderer: this._renderer,
+      viewport: { width: this._canvasWidth, height: this._canvasHeight },
+      zoom: this._camera.zoom,
+      frameTime: performance.now(),
+    };
+  }
+
   private _resolveColor(rawColor: number, layerName?: string): THREE.Color {
     if (rawColor === 0xFFFFFF || rawColor === 0xFFFFFFFF || rawColor < 0) {
       if (layerName) {

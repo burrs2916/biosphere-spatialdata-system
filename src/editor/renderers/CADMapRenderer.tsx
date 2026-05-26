@@ -6,6 +6,8 @@ import { CadViewerEngine } from "../cad/CadViewerEngine";
 import type { ComponentRendererProps } from "../../types/editor";
 import type { MapLibrary } from "../../types/mapLibrary";
 import { logger } from "../../utils/logger";
+import { useViewportDelegate } from "../hooks/useViewportDelegate";
+import type { ViewportDelegate } from "../layers/ComponentLayerAdapter";
 
 type FitMode = "contain" | "cover" | "stretch" | "custom";
 
@@ -132,7 +134,7 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-export function CADMapRenderer({ config, width, height, mode, onConfigChange, contentInteractionActive, onInteractionLockChange }: ComponentRendererProps) {
+export function CADMapRenderer({ config, componentId, width, height, mode, onConfigChange, contentInteractionActive, onInteractionLockChange }: ComponentRendererProps) {
   const mapLibraryId = (config.mapLibraryId as string) || "";
   const backgroundColor = (config.backgroundColor as string) || "#1a1a2e";
   const lineColor = (config.lineColor as string) || "#4fc3f7";
@@ -196,6 +198,7 @@ export function CADMapRenderer({ config, width, height, mode, onConfigChange, co
     if (selectedMap?.cadbinPath) {
       return (
         <CadViewer
+          componentId={componentId}
           mapLibraryId={selectedMap.id}
           fileName={selectedMap.name}
           backgroundColor={backgroundColor}
@@ -232,6 +235,7 @@ export function CADMapRenderer({ config, width, height, mode, onConfigChange, co
 }
 
 interface CadViewerProps {
+  componentId: string;
   mapLibraryId: string;
   fileName?: string;
   backgroundColor: string;
@@ -252,6 +256,7 @@ interface CadViewerProps {
 }
 
 function CadViewer({
+  componentId,
   mapLibraryId,
   fileName,
   backgroundColor,
@@ -272,6 +277,7 @@ function CadViewer({
 }: CadViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<CadViewerEngine | null>(null);
+  const setViewportDelegate = useViewportDelegate(componentId);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [engineReadyVersion, setEngineReadyVersion] = useState(0);
@@ -363,7 +369,59 @@ function CadViewer({
       }
     });
 
+    const delegate: ViewportDelegate = {
+      getViewport: () => {
+        const state = engine.getCameraState() ?? latestCameraStateRef.current;
+        const cW = containerWidth ?? 0;
+        const cH = containerHeight ?? 0;
+        const zoom = state ? Math.max(cW, cH) / (state.halfW * 2 || 1) : 1;
+        return {
+          centerX: state?.centerX ?? 0,
+          centerY: state?.centerY ?? 0,
+          zoom,
+          bearing: 0,
+          pitch: 0,
+          width: cW,
+          height: cH,
+          crs: 'local',
+        };
+      },
+      setViewport: (snapshot) => {
+        const cW = containerWidth ?? 0;
+        const cH = containerHeight ?? 0;
+        const halfW = cW / (snapshot.zoom || 1) / 2;
+        const halfH = cH / (snapshot.zoom || 1) / 2;
+        engine.setCameraState({
+          centerX: snapshot.centerX,
+          centerY: snapshot.centerY,
+          halfW,
+          halfH,
+        });
+      },
+      onViewportChange: (handler) => {
+        const unsub = engine.on("cameraChanged", () => {
+          const state = engine.getCameraState() ?? latestCameraStateRef.current;
+          const cW = containerWidth ?? 0;
+          const cH = containerHeight ?? 0;
+          const zoom = state ? Math.max(cW, cH) / (state.halfW * 2 || 1) : 1;
+          handler({
+            centerX: state?.centerX ?? 0,
+            centerY: state?.centerY ?? 0,
+            zoom,
+            bearing: 0,
+            pitch: 0,
+            width: cW,
+            height: cH,
+            crs: 'local',
+          }, componentId);
+        });
+        return unsub;
+      },
+    };
+    setViewportDelegate(delegate);
+
     return () => {
+      setViewportDelegate(null);
       unsubscribeChanged();
       unsubscribeInteractionEnd();
     };

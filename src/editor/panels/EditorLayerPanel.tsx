@@ -33,6 +33,7 @@ import { useEditorStore } from "../../store/editorStore";
 import type { LayerNode, SceneComponent } from "../../types/editor";
 import { getLayerDescendants } from "../../types/editor";
 import { componentRegistry } from "../registry";
+import { SpatialLayerPanel } from "./SpatialLayerPanel";
 
 function NewFolderIcon({ fontSize = 14 }: { fontSize?: number }) {
   return (
@@ -897,6 +898,24 @@ export function EditorLayerPanelContent() {
             />
           ))
         )}
+      </Box>
+
+      <Box
+        sx={{
+          borderTop: 1,
+          borderColor: "divider",
+          flexShrink: 0,
+          maxHeight: 160,
+          overflow: "auto",
+        }}
+      >
+        <Box sx={{ px: 1, py: 0.25, display: "flex", alignItems: "center", gap: 0.5 }}>
+          <LayersIcon sx={{ fontSize: 12, color: "text.secondary" }} />
+          <Typography variant="caption" sx={{ fontSize: 10, fontWeight: 600, color: "text.secondary" }}>
+            空间图层
+          </Typography>
+        </Box>
+        <SpatialLayerPanel />
       </Box>
 
       {selectedLayer && (

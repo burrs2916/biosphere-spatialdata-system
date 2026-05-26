@@ -20,12 +20,15 @@ import { EditorCanvas } from "./canvas/EditorCanvas";
 import { EditorLayerPanelContent } from "./panels/EditorLayerPanel";
 import { EditorPropertyPanelContent } from "./panels/EditorPropertyPanel";
 import { EditorCanvasPanel } from "./panels/EditorCanvasPanel";
+import { SceneTabBar } from "./components/SceneTabBar";
 import logger from "../utils/logger";
 import { openPreviewWindow } from "../utils/previewWindow";
 import { ComponentCenterPanel } from "./panels/ComponentCenterPanel";
 import { useEditorStore } from "../store/editorStore";
+import { createDefaultLayer } from "../types/editor";
 import { useSceneStore } from "../store/sceneStore";
 import { useEditorShortcuts } from "./hooks/useEditorShortcuts";
+import { SceneEditorProvider } from "./context/SceneEditorContext";
 
 export function SceneEditor() {
   useEditorShortcuts();
@@ -61,11 +64,15 @@ export function SceneEditor() {
   const handleSave = useCallback(() => {
     if (!activeSceneId) return;
     const { components, layers } = exportScene();
+    const { views, globalComponents, activeViewId } = useEditorStore.getState().exportSceneWithViews();
     const canvasConfig = useEditorStore.getState().canvasConfig;
     updateScene(activeSceneId, {
       editorComponents: components,
       editorLayers: layers,
       canvasConfig,
+      views,
+      globalComponents,
+      activeViewId,
     });
     useEditorStore.setState({ isDirty: false });
   }, [activeSceneId, exportScene, updateScene]);
@@ -99,11 +106,15 @@ export function SceneEditor() {
       const prevScene = useSceneStore.getState().scenes.find((s) => s.id === prevSceneIdRef.current);
       if (prevScene && useEditorStore.getState().isDirty) {
         const { components, layers } = useEditorStore.getState().exportScene();
+        const { views, globalComponents, activeViewId } = useEditorStore.getState().exportSceneWithViews();
         const canvasConfig = useEditorStore.getState().canvasConfig;
         useSceneStore.getState().updateScene(prevSceneIdRef.current, {
           editorComponents: components,
           editorLayers: layers,
           canvasConfig,
+          views,
+          globalComponents,
+          activeViewId,
         });
         useEditorStore.setState({ isDirty: false });
       }
@@ -118,24 +129,29 @@ export function SceneEditor() {
       state.setCanvasConfig(currentScene.canvasConfig);
     }
 
+    const hasViews = currentScene.views && currentScene.views.length > 0;
     const hasComponents = currentScene.editorComponents && currentScene.editorComponents.length > 0;
     const hasLayers = currentScene.editorLayers && currentScene.editorLayers.length > 0;
 
-    if (hasComponents || hasLayers) {
-      logger.info("SceneEditor", "Loading saved scene", { sceneId: activeSceneId, components: currentScene.editorComponents?.length || 0, layers: currentScene.editorLayers?.length || 0 });
-      state.loadScene(currentScene.editorComponents || [], currentScene.editorLayers || []);
-      
-      if (!hasLayers) {
-        logger.info("SceneEditor", "No layers found, creating default layer");
-        const defaultLayer = state.addLayer("默认图层");
-        state.updateLayer(defaultLayer.id, { isDefault: true });
-        state.setActiveLayer(defaultLayer.id);
-      }
+    if (hasViews) {
+      logger.info("SceneEditor", "Loading scene with views", { sceneId: activeSceneId, viewCount: currentScene.views!.length, activeViewId: currentScene.activeViewId });
+      const activeVId = currentScene.activeViewId || currentScene.views![0].id;
+      state.loadSceneWithViews(currentScene.views!, currentScene.globalComponents || [], activeVId);
+    } else if (hasComponents || hasLayers) {
+      logger.info("SceneEditor", "Migrating legacy scene to views", { sceneId: activeSceneId, components: currentScene.editorComponents?.length || 0, layers: currentScene.editorLayers?.length || 0 });
+      const defaultLayer = hasLayers ? currentScene.editorLayers! : (() => {
+        const l = state.addLayer("默认图层");
+        state.updateLayer(l.id, { isDefault: true });
+        return state.layers;
+      })();
+      const views = [{ id: "default", name: "默认视图", components: currentScene.editorComponents || [], layers: defaultLayer }];
+      state.loadSceneWithViews(views, [], "default");
+      state.setActiveLayer(defaultLayer.find((l: any) => l.isDefault)?.id || defaultLayer[0]?.id);
     } else {
       logger.info("SceneEditor", "Creating default scene", { sceneId: activeSceneId });
-      const defaultLayer = state.addLayer("默认图层");
-      state.updateLayer(defaultLayer.id, { isDefault: true });
-      state.setActiveLayer(defaultLayer.id);
+      const defaultLayer = createDefaultLayer("默认图层", "layer", null, true);
+      const views = [{ id: "default", name: "默认视图", components: [], layers: [defaultLayer] }];
+      state.loadSceneWithViews(views, [], "default");
     }
   }, [activeSceneId]);
 
@@ -148,6 +164,7 @@ export function SceneEditor() {
   }, []);
 
   return (
+    <SceneEditorProvider>
     <Box
       sx={{
         display: "flex",
@@ -264,7 +281,10 @@ export function SceneEditor() {
           onToggle={() => setLeftPanelOpen(!leftPanelOpen)}
         />
 
-        <EditorCanvas />
+        <Box sx={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0, overflow: "hidden" }}>
+          <SceneTabBar />
+          <EditorCanvas />
+        </Box>
 
         {rightPanelOpen && (
           <Box
@@ -466,5 +486,6 @@ export function SceneEditor() {
         </Box>
       </Box>
     </Box>
+    </SceneEditorProvider>
   );
 }

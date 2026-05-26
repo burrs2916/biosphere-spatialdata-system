@@ -56,6 +56,8 @@ export interface ActionDefinition {
   id: string;
   name: string;
   description?: string;
+  disabled?: boolean;
+  disabledReason?: string;
 }
 
 export type DataBindingType = "value" | "style" | "visibility" | "action";
@@ -105,6 +107,15 @@ export interface ComponentRendererProps {
   onConfigChange?: (key: string, value: unknown) => void;
   contentInteractionActive?: boolean;
   onInteractionLockChange?: (locked: boolean) => void;
+  spatialContext?: SpatialRendererContext;
+}
+
+export interface SpatialRendererContext {
+  coordinateEngine: import("../editor/spatial/CoordinateEngine").CoordinateEngine;
+  viewportSyncService: import("../editor/spatial/ViewportSyncService").ViewportSyncService;
+  clock: { subscribe: (listener: (time: { elapsed: number; delta: number }) => void) => (() => void); setSpeed: (speed: number) => void; getTime: () => { elapsed: number; delta: number; tick: number; timestamp: number; isPaused: boolean; speed: number } };
+  dataBridge: import("../datasource/orchestration/DataOrchestrator").ComponentDataBridge;
+  crs: import("./spatial").CRSType;
 }
 
 export type RendererLoader = () => Promise<{ default: ComponentType<ComponentRendererProps> }>;
@@ -180,12 +191,13 @@ export interface ComponentDefinition {
   dataSchema?: DataSchema;
   builtIn?: boolean;
   enabled?: boolean;
+  layerType?: 'spatial' | 'overlay' | 'widget';
 }
 
 export interface ConfigField {
   key: string;
   label: string;
-  type: "text" | "number" | "select" | "color" | "toggle" | "slider" | "textarea" | "json" | "file" | "group" | "mapLibrary";
+  type: "text" | "number" | "select" | "color" | "toggle" | "slider" | "textarea" | "json" | "file" | "group" | "mapLibrary" | "datasource" | "datafield";
   defaultValue?: unknown;
   options?: { label: string; value: unknown }[];
   min?: number;

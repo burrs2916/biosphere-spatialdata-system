@@ -11,6 +11,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useSceneStore } from "../store/sceneStore";
 import { useEditorStore } from "../store/editorStore";
 import { EditorCanvas } from "../editor/canvas/EditorCanvas";
+import { SceneTabBar } from "../editor/components/SceneTabBar";
 import { logger } from "../utils/logger";
 
 type WindowMode = "preview" | "live";
@@ -24,6 +25,7 @@ export default function ScenePreviewPage() {
   const scenes = useSceneStore((s) => s.scenes);
   const loadScenes = useSceneStore((s) => s.loadScenes);
   const loadScene = useEditorStore((s) => s.loadScene);
+  const loadSceneWithViews = useEditorStore((s) => s.loadSceneWithViews);
   const setCanvasConfig = useEditorStore((s) => s.setCanvasConfig);
   const setPreviewMode = useEditorStore((s) => s.setPreviewMode);
 
@@ -63,8 +65,12 @@ export default function ScenePreviewPage() {
       return;
     }
 
-    if (scene.editorComponents && scene.editorLayers) {
-      loadScene(scene.editorComponents, scene.editorLayers);
+    if (scene.views && scene.views.length > 0) {
+      const activeVId = scene.activeViewId || scene.views[0].id;
+      loadSceneWithViews(scene.views, scene.globalComponents || [], activeVId);
+    } else if (scene.editorComponents && scene.editorLayers) {
+      const views = [{ id: "default", name: "默认视图", components: scene.editorComponents, layers: scene.editorLayers }];
+      loadSceneWithViews(views, [], "default");
     } else {
       loadScene([], []);
     }
@@ -203,9 +209,9 @@ export default function ScenePreviewPage() {
             height: "100%",
             overflow: "hidden",
             position: "relative",
-            zIndex: 1,
           }}
         >
+          <SceneTabBar />
           <EditorCanvas />
         </Box>
       )}

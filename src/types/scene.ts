@@ -15,6 +15,14 @@ export interface SceneCategory {
   updatedAt: number;
 }
 
+export interface SceneView {
+  id: string;
+  name: string;
+  icon?: string;
+  components: SceneComponent[];
+  layers: LayerNode[];
+}
+
 export interface SceneDSL {
   id: string;
   name: string;
@@ -26,7 +34,13 @@ export interface SceneDSL {
 
   layers: SceneLayer[];
   bindings: SceneBinding[];
+  variables?: SceneVariable[];
+  viewportSyncRules?: import("../editor/spatial/ViewportSyncService").ViewportSyncRule[];
   layout: LayoutItem[];
+
+  globalComponents?: SceneComponent[];
+  views?: SceneView[];
+  activeViewId?: string;
 
   editorComponents?: SceneComponent[];
   editorLayers?: LayerNode[];
@@ -111,8 +125,22 @@ export interface SceneBinding {
   componentId: string;
   dataSource: string;
   metricName: string;
+  adapterType?: string;
+  dataSourceConfig?: Record<string, unknown>;
   transform?: SceneTransformConfig;
   refreshInterval?: number;
+  action?: "set" | "update" | "append" | "highlight" | "hide" | "show" | "remove" | "navigate" | "custom";
+}
+
+export interface SceneVariable {
+  id: string;
+  name: string;
+  type: 'string' | 'number' | 'boolean' | 'select' | 'date' | 'datetime';
+  defaultValue: unknown;
+  currentValue?: unknown;
+  options?: Array<{ label: string; value: unknown }>;
+  description?: string;
+  scope?: 'scene' | 'global';
 }
 
 export interface SceneTransformConfig {

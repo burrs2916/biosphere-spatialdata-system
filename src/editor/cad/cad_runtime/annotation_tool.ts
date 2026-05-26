@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { UndoRedoManager, UndoAction } from './undo_redo';
 
 export type AnnotationType = 'text' | 'arrow' | 'rect' | 'circle' | 'freehand';
 
@@ -26,6 +27,7 @@ export class AnnotationTool {
   private _canvasWidth = 0;
   private _canvasHeight = 0;
   private _idCounter = 0;
+  private _undoRedoManager: UndoRedoManager | null = null;
 
   setScene(scene: THREE.Scene): void {
     this._scene = scene;
@@ -43,6 +45,10 @@ export class AnnotationTool {
   setCallbacks(onAdded?: (annotation: Annotation) => void, onRemoved?: (id: string) => void): void {
     this._onAnnotationAdded = onAdded;
     this._onAnnotationRemoved = onRemoved;
+  }
+
+  setUndoRedoManager(manager: UndoRedoManager): void {
+    this._undoRedoManager = manager;
   }
 
   setType(type: AnnotationType): void {
@@ -81,6 +87,26 @@ export class AnnotationTool {
   }
 
   removeAnnotation(id: string): void {
+    const annotation = this._annotations.get(id);
+    this._removeAnnotationInternal(id);
+
+    if (this._undoRedoManager && annotation) {
+      const capturedAnnotation = annotation;
+      const undoAction: UndoAction = {
+        type: 'annotation-remove',
+        description: `删除标注: ${capturedAnnotation.id}`,
+        undo: () => {
+          this._annotations.set(id, capturedAnnotation);
+          this._createVisual(capturedAnnotation);
+          this._onAnnotationAdded?.(capturedAnnotation);
+        },
+        redo: () => { this._removeAnnotationInternal(id); },
+      };
+      this._undoRedoManager.push(undoAction);
+    }
+  }
+
+  private _removeAnnotationInternal(id: string): void {
     const visual = this._visuals.get(id);
     if (visual && this._scene) {
       this._scene.remove(visual);
@@ -114,6 +140,21 @@ export class AnnotationTool {
     this._annotations.set(id, annotation);
     this._createTextVisual(annotation);
     this._onAnnotationAdded?.(annotation);
+
+    if (this._undoRedoManager) {
+      const undoAction: UndoAction = {
+        type: 'annotation-add',
+        description: `添加文本标注: ${text}`,
+        undo: () => { this._removeAnnotationInternal(id); },
+        redo: () => {
+          this._annotations.set(id, annotation);
+          this._createTextVisual(annotation);
+          this._onAnnotationAdded?.(annotation);
+        },
+      };
+      this._undoRedoManager.push(undoAction);
+    }
+
     return annotation;
   }
 
@@ -142,6 +183,21 @@ export class AnnotationTool {
     this._removeTempVisual();
     this._createVisual(annotation);
     this._onAnnotationAdded?.(annotation);
+
+    if (this._undoRedoManager) {
+      const undoAction: UndoAction = {
+        type: 'annotation-add',
+        description: `添加${this._currentType}标注`,
+        undo: () => { this._removeAnnotationInternal(id); },
+        redo: () => {
+          this._annotations.set(id, annotation);
+          this._createVisual(annotation);
+          this._onAnnotationAdded?.(annotation);
+        },
+      };
+      this._undoRedoManager.push(undoAction);
+    }
+
     this._isDrawing = false;
     this._currentPoints = [];
   }

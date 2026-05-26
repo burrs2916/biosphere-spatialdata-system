@@ -6,12 +6,16 @@ import type { ComponentRendererProps } from "../../types/editor";
 import type { MapLibrary } from "../../types/mapLibrary";
 import { MapLibreEngine } from "../map-engines/MapLibreEngine";
 import type { MapEngine } from "../map-engines/types";
+import { useViewportDelegate } from "../hooks/useViewportDelegate";
+import type { ViewportDelegate } from "../layers/ComponentLayerAdapter";
+import type { CRSType } from "../../types/spatial";
 import "maplibre-gl/dist/maplibre-gl.css";
 
-export function BlueprintMapRenderer({ config, componentId }: ComponentRendererProps) {
+export function BlueprintMapRenderer({ config, componentId, width, height, spatialContext }: ComponentRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<MapEngine | null>(null);
   const initRef = useRef(false);
+  const setViewportDelegate = useViewportDelegate(componentId);
 
   const mapLibraryId = (config.mapLibraryId as string) || "";
   const [libraryConfig, setLibraryConfig] = useState<{
@@ -27,6 +31,8 @@ export function BlueprintMapRenderer({ config, componentId }: ComponentRendererP
   const opacity = (config.opacity as number) ?? 1;
   const showBaseMap = (config.showBaseMap as boolean) ?? true;
   const baseMapUrl = (config.baseMapUrl as string) || "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+  const crs = spatialContext?.crs || (config.crs as string) || "EPSG:3857";
+  const zoom = (config.zoom as number) ?? 10;
 
   useEffect(() => {
     if (!mapLibraryId) {
@@ -112,11 +118,11 @@ export function BlueprintMapRenderer({ config, componentId }: ComponentRendererP
     engine
       .mount({
         container: containerRef.current,
-        crs: "EPSG:3857",
+        crs: crs as "EPSG:3857" | "EPSG:4326" | "EPSG:4490" | "local",
         style: JSON.stringify(style),
         camera: {
           center: defaultCenter,
-          zoom: 10,
+          zoom,
         },
         interactive: true,
         attributionControl: false,
@@ -125,12 +131,69 @@ export function BlueprintMapRenderer({ config, componentId }: ComponentRendererP
         if (bounds) {
           engine.fitBounds(bounds, 50);
         }
+
+        const delegate: ViewportDelegate = {
+          getViewport: () => {
+            const cam = engine.getCamera();
+            return {
+              centerX: cam.center.x,
+              centerY: cam.center.y,
+              zoom: cam.zoom,
+              bearing: cam.bearing,
+              pitch: cam.pitch,
+              width: width ?? 0,
+              height: height ?? 0,
+              crs: crs as CRSType,
+            };
+          },
+          setViewport: (snapshot) => {
+            engine.flyTo({
+              center: { x: snapshot.centerX, y: snapshot.centerY },
+              zoom: snapshot.zoom,
+              bearing: snapshot.bearing,
+              pitch: snapshot.pitch,
+              duration: 0,
+            });
+          },
+          onViewportChange: (handler) => {
+            const unsubs: (() => void)[] = [];
+            unsubs.push(engine.on("move", () => {
+              const cam = engine.getCamera();
+              handler({
+                centerX: cam.center.x,
+                centerY: cam.center.y,
+                zoom: cam.zoom,
+                bearing: cam.bearing,
+                pitch: cam.pitch,
+                width: width ?? 0,
+                height: height ?? 0,
+                crs: crs as CRSType,
+              }, componentId);
+            }));
+            unsubs.push(engine.on("zoom", () => {
+              const cam = engine.getCamera();
+              handler({
+                centerX: cam.center.x,
+                centerY: cam.center.y,
+                zoom: cam.zoom,
+                bearing: cam.bearing,
+                pitch: cam.pitch,
+                width: width ?? 0,
+                height: height ?? 0,
+                crs: crs as CRSType,
+              }, componentId);
+            }));
+            return () => unsubs.forEach(u => u());
+          },
+        };
+        setViewportDelegate(delegate);
       })
       .catch((err) => {
         console.error(`[BlueprintMap:${componentId}] Mount failed:`, err);
       });
 
     return () => {
+      setViewportDelegate(null);
       engine.unmount();
       engineRef.current = null;
       initRef.current = false;

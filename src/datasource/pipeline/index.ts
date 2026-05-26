@@ -12,6 +12,8 @@ export interface PipelineConfig {
   steps: TransformStep[];
 }
 
+import { safeFilter, safeRowTransform, safeDataTransform } from "../utils/safeEval";
+
 export class DataPipeline {
   private steps: TransformStep[] = [];
 
@@ -65,35 +67,22 @@ export class DataPipeline {
   private executeMap(input: unknown, expression?: string): unknown {
     if (!expression || !Array.isArray(input)) return input;
     return input.map((item) => {
-      try {
-        const fn = new Function("item", `return ${expression}`);
-        return fn(item);
-      } catch {
-        return item;
-      }
+      const fn = safeRowTransform(expression);
+      return fn ? fn(item) : item;
     });
   }
 
   private executeFilter(input: unknown, expression?: string): unknown {
     if (!expression || !Array.isArray(input)) return input;
-    return input.filter((item) => {
-      try {
-        const fn = new Function("item", `return ${expression}`);
-        return fn(item);
-      } catch {
-        return true;
-      }
-    });
+    const fn = safeFilter(expression);
+    if (!fn) return input;
+    return input.filter(fn);
   }
 
   private executeAggregate(input: unknown, expression?: string): unknown {
-    if (!Array.isArray(input)) return input;
-    try {
-      const fn = new Function("data", `return ${expression}`);
-      return fn(input);
-    } catch {
-      return input;
-    }
+    if (!Array.isArray(input) || !expression) return input;
+    const fn = safeDataTransform(expression);
+    return fn ? fn(input) : input;
   }
 
   getSteps(): TransformStep[] {

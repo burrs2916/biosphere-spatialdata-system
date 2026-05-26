@@ -9,6 +9,7 @@ import AddIcon from "@mui/icons-material/Add";
 import { useRef, useCallback, useEffect, useState } from "react";
 import { useEditorStore } from "../../store/editorStore";
 import { useViewport, useCanvasResize } from "../hooks/useViewport";
+import { useSceneEventBridge } from "../hooks/useSceneEventBridge";
 import { EditorCanvasComponent } from "./EditorCanvasComponent";
 import EditorRuler from "./EditorRuler";
 import { flattenLayerTree } from "../../types/editor";
@@ -47,6 +48,8 @@ export function EditorCanvas({ previewMode: previewModeProp }: EditorCanvasProps
   const selectComponent = useEditorStore((s) => s.selectComponent);
   const setHoveredComponent = useEditorStore((s) => s.setHoveredComponent);
   const setViewport = useEditorStore((s) => s.setViewport);
+
+  useSceneEventBridge(containerRef);
 
   const [isDragOver, setIsDragOver] = useState(false);
 
@@ -322,8 +325,19 @@ export function EditorCanvas({ previewMode: previewModeProp }: EditorCanvasProps
     const pos = screenToCanvas(e.clientX, e.clientY);
     if (!pos) return;
 
-    const dw = definition.defaultSize.width;
-    const dh = definition.defaultSize.height;
+    let dw = definition.defaultSize.width;
+    let dh = definition.defaultSize.height;
+    let extraConfig: Record<string, unknown> | undefined;
+
+    if (compType === "text") {
+      const cc = storeState.canvasConfig;
+      const shortSide = Math.min(cc.width, cc.height);
+      const adaptiveFontSize = Math.max(10, Math.round(shortSide / 60));
+      dw = Math.round(cc.width * 0.15);
+      dh = Math.round(cc.height * 0.08);
+      extraConfig = { fontSize: adaptiveFontSize };
+    }
+
     const canvasX = Math.max(0, pos.x - dw / 2);
     const canvasY = Math.max(0, pos.y - dh / 2);
 
@@ -340,6 +354,14 @@ export function EditorCanvas({ previewMode: previewModeProp }: EditorCanvasProps
 
     if (newComponent) {
       storeState.setActiveLayer(targetLayerId);
+
+      if (compType === "text") {
+        storeState.updateComponentConfig(newComponent.id, extraConfig!);
+        storeState.updateComponentTransform(newComponent.id, {
+          width: dw,
+          height: dh,
+        });
+      }
     }
   }, [screenToCanvas, findLayerAtPosition, ensureDefaultLayer]);
 

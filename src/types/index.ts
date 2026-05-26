@@ -7,6 +7,7 @@ export type {
   WidgetOverlayLayerType,
   SceneLayerStyle,
   SceneBinding,
+  SceneVariable,
   SceneTransformConfig,
   SceneStatus,
   SceneCategory,

@@ -60,11 +60,18 @@ export default function AppNavbar(props: AppNavbarProps) {
   const { config: layoutConfig, toggleSidebar } = useLayoutStore();
   const sidebarCollapsed = layoutConfig.sidebarCollapsed;
 
-  const handleFullscreen = () => {
-    if (document.fullscreenElement) {
-      document.exitFullscreen();
-    } else {
-      document.documentElement.requestFullscreen();
+  const handleFullscreen = async () => {
+    try {
+      const { getCurrentWindow } = await import("@tauri-apps/api/window");
+      const currentWindow = getCurrentWindow();
+      const fullscreen = await currentWindow.isFullscreen();
+      await currentWindow.setFullscreen(!fullscreen);
+    } catch {
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      } else {
+        document.documentElement.requestFullscreen();
+      }
     }
   };
 

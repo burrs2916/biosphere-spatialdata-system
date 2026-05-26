@@ -22,7 +22,20 @@ import { createDefaultWebSocketConfig } from "../types/websocket";
 import { adapterRegistry } from "../datasource/adapters/registry";
 import { dataSourceEventBus } from "../datasource/events";
 import type { AdapterFetchResult } from "../datasource/adapters/types";
+import { DataSourceScheduler } from "../datasource/scheduler";
 import { datasourceApi, databaseApi, mqttApi } from "../services/tauri";
+
+let scheduler: DataSourceScheduler | null = null;
+
+function getScheduler(): DataSourceScheduler {
+  if (!scheduler) {
+    scheduler = new DataSourceScheduler(
+      (id, result) => { useDataSourceStore.getState()._handleFetchResult(id, result); },
+      (id, status, error) => { useDataSourceStore.getState()._handleStatusChange(id, status, error); },
+    );
+  }
+  return scheduler;
+}
 
 export interface MetricData {
   sourceId: string;
@@ -78,6 +91,10 @@ interface DataSourceState {
   _persist: (dsId: string) => void;
   _handleFetchResult: (id: string, result: AdapterFetchResult) => void;
   _handleStatusChange: (id: string, status: DataSourceStatus, error?: string) => void;
+
+  fetchViaScheduler: (dsId: string) => Promise<AdapterFetchResult | null>;
+  connectViaScheduler: (dsId: string) => void;
+  disconnectViaScheduler: (dsId: string) => void;
   _updateConnectionStatus: (id: string, info: ConnectionStatusInfo) => void;
 
   setLoading: (loading: boolean) => void;
@@ -638,6 +655,24 @@ export const useDataSourceStore = create<DataSourceState>()((set, get) => ({
       message: error,
       testedAt: new Date().toISOString(),
     });
+  },
+
+  fetchViaScheduler: (dsId) => {
+    const ds = get().dataSources.find((s) => s.id === dsId);
+    if (!ds) return Promise.resolve(null);
+    return getScheduler().fetchOnce(ds);
+  },
+
+  connectViaScheduler: (dsId) => {
+    const ds = get().dataSources.find((s) => s.id === dsId);
+    if (!ds) return;
+    getScheduler().connectStream(ds);
+  },
+
+  disconnectViaScheduler: (dsId) => {
+    const ds = get().dataSources.find((s) => s.id === dsId);
+    if (!ds) return;
+    getScheduler().disconnectStream(dsId, ds.type);
   },
 
   setLoading: (isLoading) => set({ isLoading }),

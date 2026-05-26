@@ -115,6 +115,7 @@ pub fn init_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
             bounds TEXT,
             layers TEXT NOT NULL DEFAULT '[]',
             bindings TEXT NOT NULL DEFAULT '[]',
+            variables TEXT,
             layout TEXT NOT NULL DEFAULT '[]',
             category_id TEXT,
             tags TEXT NOT NULL DEFAULT '[]',
@@ -394,6 +395,22 @@ pub fn migrate(conn: &Connection) -> Result<(), rusqlite::Error> {
         } else {
             conn.execute("ALTER TABLE scenes ADD COLUMN canvas_config TEXT", [])?;
         }
+    }
+
+    if !scene_columns.contains(&"variables".to_string()) {
+        conn.execute("ALTER TABLE scenes ADD COLUMN variables TEXT", [])?;
+    }
+
+    if !scene_columns.contains(&"global_components".to_string()) {
+        conn.execute("ALTER TABLE scenes ADD COLUMN global_components TEXT", [])?;
+    }
+
+    if !scene_columns.contains(&"views".to_string()) {
+        conn.execute("ALTER TABLE scenes ADD COLUMN views TEXT", [])?;
+    }
+
+    if !scene_columns.contains(&"active_view_id".to_string()) {
+        conn.execute("ALTER TABLE scenes ADD COLUMN active_view_id TEXT", [])?;
     }
 
     Ok(())

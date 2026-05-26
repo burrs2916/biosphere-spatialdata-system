@@ -78,11 +78,16 @@ pub struct Scene {
 
     pub layers: String,
     pub bindings: String,
+    pub variables: Option<String>,
     pub layout: String,
 
     pub editor_components: Option<String>,
     pub editor_layers: Option<String>,
     pub canvas_config: Option<String>,
+
+    pub global_components: Option<String>,
+    pub views: Option<String>,
+    pub active_view_id: Option<String>,
 
     pub category_id: Option<String>,
     pub tags: String,
@@ -111,10 +116,14 @@ impl Default for Scene {
             bounds: None,
             layers: "[]".to_string(),
             bindings: "[]".to_string(),
+            variables: None,
             layout: "[]".to_string(),
             editor_components: None,
             editor_layers: None,
             canvas_config: None,
+            global_components: None,
+            views: None,
+            active_view_id: None,
             category_id: None,
             tags: "[]".to_string(),
             thumbnail: None,

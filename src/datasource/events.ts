@@ -6,7 +6,7 @@ export interface DataSourceEventMap {
   "source:created": { sourceId: string };
   "source:deleted": { sourceId: string };
   "source:updated": { sourceId: string };
-  "binding:added": { sourceId: string; componentId: string };
+  "binding:added": { sourceId: string; componentId: string; property?: string; value?: unknown; data?: Record<string, unknown> };
   "binding:removed": { sourceId: string; componentId: string };
 }
 

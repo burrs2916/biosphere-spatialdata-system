@@ -101,10 +101,30 @@ const CRS_TRANSFORMS: Partial<Record<CRSTransformKey, (coord: SpatialCoordinate)
   "EPSG:3857->EPSG:4326": epsg3857To4326,
   "EPSG:4326->EPSG:4490": epsg4326To4490,
   "EPSG:4490->EPSG:4326": epsg4490To4326,
+  "EPSG:3857->EPSG:4490": (c) => epsg4326To4490(epsg3857To4326(c)),
+  "EPSG:4490->EPSG:3857": (c) => epsg4326To3857(epsg4490To4326(c)),
   "EPSG:4326->EPSG:4326": (c) => c,
   "EPSG:3857->EPSG:3857": (c) => c,
   "EPSG:4490->EPSG:4490": (c) => c,
   "local->local": (c) => c,
+  "local->EPSG:4326": (_c) => {
+    throw new Error("[CRS] local->EPSG:4326 requires calibration. Use CoordinateEngine.transform() with registered calibration params via registerCustomCRS() or setCalibration().");
+  },
+  "local->EPSG:3857": (_c) => {
+    throw new Error("[CRS] local->EPSG:3857 requires calibration. Use CoordinateEngine.transform() with registered calibration params via registerCustomCRS() or setCalibration().");
+  },
+  "EPSG:4326->local": (_c) => {
+    throw new Error("[CRS] EPSG:4326->local requires calibration. Use CoordinateEngine.transform() with registered calibration params via registerCustomCRS() or setCalibration().");
+  },
+  "EPSG:3857->local": (_c) => {
+    throw new Error("[CRS] EPSG:3857->local requires calibration. Use CoordinateEngine.transform() with registered calibration params via registerCustomCRS() or setCalibration().");
+  },
+  "local->EPSG:4490": (_c) => {
+    throw new Error("[CRS] local->EPSG:4490 requires calibration. Use CoordinateEngine.transform() with registered calibration params via registerCustomCRS() or setCalibration().");
+  },
+  "EPSG:4490->local": (_c) => {
+    throw new Error("[CRS] EPSG:4490->local requires calibration. Use CoordinateEngine.transform() with registered calibration params via registerCustomCRS() or setCalibration().");
+  },
 };
 
 export function transformCoordinate(
@@ -121,8 +141,7 @@ export function transformCoordinate(
   if (via4326From && via4326To) {
     return via4326To(via4326From(coord));
   }
-  console.warn(`No transform path from ${from} to ${to}`);
-  return coord;
+  throw new Error(`No transform path from ${from} to ${to}. For local CRS, register calibration via CoordinateEngine.registerCustomCRS() or setCalibration().`);
 }
 
 export function transformBounds(
@@ -338,5 +357,70 @@ export function createDefaultCamera(): CameraConfig {
     zoom: 1,
     bearing: 0,
     pitch: 0,
+  };
+}
+
+export type SpatialEntityGeometryType =
+  | 'point'
+  | 'line'
+  | 'polygon'
+  | 'circle'
+  | 'arc'
+  | 'ellipse'
+  | 'polyline'
+  | 'spline'
+  | 'text'
+  | 'image'
+  | 'model3d'
+  | 'heatmap'
+  | 'custom';
+
+export interface SpatialEntityGeometry {
+  type: SpatialEntityGeometryType;
+  coordinates: unknown;
+  crs: CRSType;
+}
+
+export interface SpatialEntityStyle {
+  color?: string | number;
+  fillColor?: string | number;
+  opacity?: number;
+  strokeWidth?: number;
+  fontSize?: number;
+  icon?: string;
+  custom?: Record<string, unknown>;
+}
+
+export interface SpatialEntityProperties {
+  [key: string]: unknown;
+}
+
+export interface SpatialEntity {
+  id: string;
+  layerId: string;
+  geometry: SpatialEntityGeometry;
+  style: SpatialEntityStyle;
+  properties: SpatialEntityProperties;
+  visible: boolean;
+  selectable: boolean;
+  locked: boolean;
+  zIndex: number;
+  createdAt: number;
+  updatedAt: number;
+  sourceType?: SpatialSourceType;
+  sourceId?: string;
+}
+
+export function createSpatialEntity(partial: Partial<SpatialEntity> & Pick<SpatialEntity, 'id' | 'layerId' | 'geometry'>): SpatialEntity {
+  return {
+    visible: true,
+    selectable: true,
+    locked: false,
+    zIndex: 0,
+    style: {},
+    properties: {},
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    ...partial,
   };
 }

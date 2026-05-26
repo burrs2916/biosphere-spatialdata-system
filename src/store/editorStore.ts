@@ -111,6 +111,9 @@ export interface EditorState {
   isDirty: boolean;
   eventBindings: EventBinding[];
   previewMode: boolean;
+  views: import("../types/scene").SceneView[];
+  activeViewId: string;
+  globalComponents: SceneComponent[];
 }
 
 export interface EditorActions {
@@ -165,14 +168,23 @@ export interface EditorActions {
   redo: () => void;
   canUndo: () => boolean;
   canRedo: () => boolean;
+  pushHistory: (type: HistoryEntry["type"]) => void;
 
   copySelected: () => void;
   pasteClipboard: () => void;
 
   loadScene: (components: SceneComponent[], layers: LayerNode[]) => void;
+  loadSceneWithViews: (views: import("../types/scene").SceneView[], globalComponents: SceneComponent[], activeViewId: string) => void;
   exportScene: () => { components: SceneComponent[]; layers: LayerNode[] };
+  exportSceneWithViews: () => { views: import("../types/scene").SceneView[]; globalComponents: SceneComponent[]; activeViewId: string };
   clearScene: () => void;
   setPreviewMode: (preview: boolean) => void;
+
+  addView: (name: string) => string;
+  removeView: (viewId: string) => void;
+  switchView: (viewId: string) => void;
+  renameView: (viewId: string, name: string) => void;
+  getActiveView: () => import("../types/scene").SceneView | undefined;
 }
 
 const DEFAULT_VIEWPORT: ViewportState = {
@@ -201,6 +213,9 @@ export const useEditorStore = create<EditorStore>()(
     isDirty: false,
     eventBindings: [] as EventBinding[],
     previewMode: false,
+    views: [{ id: "default", name: "默认视图", components: [], layers: [] }],
+    activeViewId: "default",
+    globalComponents: [],
 
     addComponent: (type, layerId, position) => {
       const definition = componentRegistry.get(type);
@@ -235,6 +250,8 @@ export const useEditorStore = create<EditorStore>()(
 
       const component = createDefaultSceneComponent(definition, targetLayerId, position);
 
+      get().pushHistory("add");
+
       set((draft: EditorState) => {
         const maxZ = draft.components
           .filter((c: SceneComponent) => c.layerId === targetLayerId)
@@ -249,6 +266,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     removeComponent: (id) => {
+      get().pushHistory("delete");
       set((draft: EditorState) => {
         draft.components = draft.components.filter((c: SceneComponent) => c.id !== id);
         draft.selection.selectedIds = draft.selection.selectedIds.filter((sid: string) => sid !== id);
@@ -257,6 +275,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     updateComponent: (id, updates) => {
+      get().pushHistory("update");
       set((draft: EditorState) => {
         const idx = draft.components.findIndex((c: SceneComponent) => c.id === id);
         if (idx !== -1) {
@@ -267,6 +286,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     updateComponentTransform: (id, transform) => {
+      get().pushHistory("update");
       set((draft: EditorState) => {
         const comp = draft.components.find((c: SceneComponent) => c.id === id);
         if (comp) {
@@ -277,6 +297,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     updateComponentConfig: (id, config) => {
+      get().pushHistory("update");
       set((draft: EditorState) => {
         const comp = draft.components.find((c: SceneComponent) => c.id === id);
         if (comp) {
@@ -287,6 +308,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     moveComponentToLayer: (id, layerId) => {
+      get().pushHistory("update");
       set((draft: EditorState) => {
         const comp = draft.components.find((c: SceneComponent) => c.id === id);
         if (comp) {
@@ -297,6 +319,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     reorderComponent: (id, zIndex) => {
+      get().pushHistory("update");
       set((draft: EditorState) => {
         const comp = draft.components.find((c: SceneComponent) => c.id === id);
         if (comp) {
@@ -322,6 +345,8 @@ export const useEditorStore = create<EditorStore>()(
         },
       };
 
+      get().pushHistory("add");
+
       set((draft: EditorState) => {
         draft.components.push(newComp);
         draft.selection.selectedIds = [newComp.id];
@@ -343,6 +368,7 @@ export const useEditorStore = create<EditorStore>()(
 
     addLayer: (name, parentId = null) => {
       const layer = createDefaultLayer(name, "layer", parentId);
+      get().pushHistory("add");
       set((draft: EditorState) => {
         const siblings = parentId
           ? draft.layers.filter((l: LayerNode) => l.parentId === parentId)
@@ -362,6 +388,7 @@ export const useEditorStore = create<EditorStore>()(
 
     addLayerGroup: (name, parentId = null) => {
       const layer = createDefaultLayer(name, "group", parentId);
+      get().pushHistory("add");
       set((draft: EditorState) => {
         const siblings = parentId
           ? draft.layers.filter((l: LayerNode) => l.parentId === parentId)
@@ -380,6 +407,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     removeLayer: (id) => {
+      get().pushHistory("delete");
       set((draft: EditorState) => {
         const layer = draft.layers.find((l: LayerNode) => l.id === id);
         if (layer?.isDefault) return;
@@ -406,6 +434,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     updateLayer: (id, updates) => {
+      get().pushHistory("update");
       set((draft: EditorState) => {
         const idx = draft.layers.findIndex((l: LayerNode) => l.id === id);
         if (idx !== -1) {
@@ -416,6 +445,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     moveLayerToParent: (id, parentId, order) => {
+      get().pushHistory("update");
       set((draft: EditorState) => {
         const layer = draft.layers.find((l: LayerNode) => l.id === id);
         if (!layer) return;
@@ -452,6 +482,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     reorderLayer: (id, order) => {
+      get().pushHistory("update");
       set((draft: EditorState) => {
         const layer = draft.layers.find((l: LayerNode) => l.id === id);
         if (layer) {
@@ -462,6 +493,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     toggleLayerVisibility: (id) => {
+      get().pushHistory("update");
       set((draft: EditorState) => {
         const layer = draft.layers.find((l: LayerNode) => l.id === id);
         if (layer) {
@@ -481,6 +513,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     toggleLayerLock: (id) => {
+      get().pushHistory("update");
       set((draft: EditorState) => {
         const layer = draft.layers.find((l: LayerNode) => l.id === id);
         if (layer) {
@@ -523,6 +556,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     addEventBinding: (binding) => {
+      get().pushHistory("add");
       set((draft: EditorState) => {
         draft.eventBindings.push(binding);
         draft.isDirty = true;
@@ -530,6 +564,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     removeEventBinding: (id) => {
+      get().pushHistory("delete");
       set((draft: EditorState) => {
         draft.eventBindings = draft.eventBindings.filter((b: EventBinding) => b.id !== id);
         draft.isDirty = true;
@@ -537,6 +572,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     updateEventBinding: (id, updates) => {
+      get().pushHistory("update");
       set((draft: EditorState) => {
         const idx = draft.eventBindings.findIndex((b: EventBinding) => b.id === id);
         if (idx !== -1) {
@@ -682,6 +718,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     setCanvasConfig: (updates) => {
+      get().pushHistory("update");
       set((draft: EditorState) => {
         const merged = { ...DEFAULT_CANVAS_CONFIG, ...draft.canvasConfig, ...updates };
         if (updates.background) {
@@ -708,6 +745,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     setCanvasSize: (width, height) => {
+      get().pushHistory("update");
       set((draft: EditorState) => {
         draft.canvasConfig.width = width;
         draft.canvasConfig.height = height;
@@ -727,16 +765,22 @@ export const useEditorStore = create<EditorStore>()(
 
     undo: () => {
       const state = get();
-      if (state.historyIndex <= 0) return;
-      const newIndex = state.historyIndex - 1;
-      const entry = state.history[newIndex];
+      if (state.historyIndex < 0) return;
+      const entry = state.history[state.historyIndex];
       if (!entry) return;
+
+      const currentComponents = JSON.parse(JSON.stringify(state.components));
+      const currentLayers = JSON.parse(JSON.stringify(state.layers)) as LayerNode[];
+
       set((draft: EditorState) => {
+        draft.history[draft.historyIndex].after = currentComponents;
+        draft.history[draft.historyIndex].layersAfter = currentLayers;
+
         draft.components = JSON.parse(JSON.stringify(entry.before));
         if (entry.layersBefore) {
           draft.layers = JSON.parse(JSON.stringify(entry.layersBefore));
         }
-        draft.historyIndex = newIndex;
+        draft.historyIndex = draft.historyIndex - 1;
         draft.isDirty = true;
         const validIds = new Set(draft.components.map((c: SceneComponent) => c.id));
         draft.selection.selectedIds = draft.selection.selectedIds.filter((id: string) => validIds.has(id));
@@ -745,8 +789,8 @@ export const useEditorStore = create<EditorStore>()(
 
     redo: () => {
       const state = get();
-      if (state.historyIndex >= state.history.length - 1) return;
       const newIndex = state.historyIndex + 1;
+      if (newIndex >= state.history.length) return;
       const entry = state.history[newIndex];
       if (!entry) return;
       set((draft: EditorState) => {
@@ -761,8 +805,36 @@ export const useEditorStore = create<EditorStore>()(
       });
     },
 
-    canUndo: () => get().historyIndex > 0,
-    canRedo: () => get().historyIndex < get().history.length - 1,
+    canUndo: () => get().historyIndex >= 0,
+    canRedo: () => {
+      const state = get();
+      return state.historyIndex < state.history.length - 1;
+    },
+
+    pushHistory: (type) => {
+      const state = get();
+      const snapshot = JSON.parse(JSON.stringify(state.components));
+      const layersSnapshot = JSON.parse(JSON.stringify(state.layers)) as LayerNode[];
+      const entry: HistoryEntry = {
+        id: `hist_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+        timestamp: Date.now(),
+        type,
+        before: snapshot,
+        after: snapshot,
+        layersBefore: layersSnapshot,
+        layersAfter: layersSnapshot,
+      };
+      const newIndex = state.historyIndex + 1;
+      const truncated = state.history.slice(0, newIndex);
+      truncated.push(entry);
+      if (truncated.length > state.maxHistory) {
+        truncated.shift();
+      }
+      set((draft: EditorState) => {
+        draft.history = truncated;
+        draft.historyIndex = draft.history.length - 1;
+      });
+    },
 
     copySelected: () => {
       const state = get();
@@ -786,6 +858,8 @@ export const useEditorStore = create<EditorStore>()(
           y: comp.transform.y + 20,
         },
       }));
+
+      get().pushHistory("add");
 
       set((draft: EditorState) => {
         draft.components.push(...pasted);
@@ -837,6 +911,9 @@ export const useEditorStore = create<EditorStore>()(
         draft.eventBindings = [];
         draft.canvasConfig = { ...DEFAULT_CANVAS_CONFIG };
         draft.previewMode = false;
+        draft.views = [{ id: "default", name: "默认视图", components: [], layers: [] }];
+        draft.activeViewId = "default";
+        draft.globalComponents = [];
       });
     },
 
@@ -848,6 +925,117 @@ export const useEditorStore = create<EditorStore>()(
           draft.selection = { selectedIds: [], hoveredId: null, isMultiSelect: false };
         }
       });
+    },
+
+    loadSceneWithViews: (views, globalComponents, activeViewId) => {
+      set((draft: EditorState) => {
+        draft.views = views;
+        draft.globalComponents = globalComponents;
+        draft.activeViewId = activeViewId;
+        const activeView = views.find((v) => v.id === activeViewId) || views[0];
+        if (activeView) {
+          draft.components = activeView.components;
+          draft.layers = activeView.layers;
+        }
+        draft.selection = { selectedIds: [], hoveredId: null, isMultiSelect: false };
+        draft.history = [];
+        draft.historyIndex = -1;
+        draft.isDirty = false;
+        draft.eventBindings = [];
+        const defaultLayer = draft.layers.find((l) => l.isDefault);
+        draft.activeLayerId = defaultLayer?.id || (draft.layers.length > 0 ? draft.layers[0].id : null);
+      });
+    },
+
+    exportSceneWithViews: () => {
+      const state = get();
+      const views = state.views.map((v) => {
+        if (v.id === state.activeViewId) {
+          return { ...v, components: JSON.parse(JSON.stringify(state.components)), layers: JSON.parse(JSON.stringify(state.layers)) };
+        }
+        return { ...v, components: v.components ? JSON.parse(JSON.stringify(v.components)) : [], layers: v.layers ? JSON.parse(JSON.stringify(v.layers)) : [] };
+      });
+      return {
+        views,
+        globalComponents: JSON.parse(JSON.stringify(state.globalComponents)),
+        activeViewId: state.activeViewId,
+      };
+    },
+
+    addView: (name) => {
+      set((draft: EditorState) => {
+        const currentView = draft.views.find((v) => v.id === draft.activeViewId);
+        if (currentView) {
+          currentView.components = draft.components;
+          currentView.layers = draft.layers;
+        }
+        const viewId = `view-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+        const defaultLayer = createDefaultLayer("默认图层", "layer", null, true);
+        draft.views.push({ id: viewId, name, components: [], layers: [defaultLayer] });
+        draft.activeViewId = viewId;
+        draft.components = [];
+        draft.layers = [defaultLayer];
+        draft.selection = { selectedIds: [], hoveredId: null, isMultiSelect: false };
+        draft.history = [];
+        draft.historyIndex = -1;
+        draft.activeLayerId = defaultLayer.id;
+        draft.isDirty = true;
+      });
+      return get().activeViewId;
+    },
+
+    removeView: (viewId) => {
+      set((draft: EditorState) => {
+        if (draft.views.length <= 1) return;
+        const idx = draft.views.findIndex((v) => v.id === viewId);
+        if (idx === -1) return;
+        draft.views.splice(idx, 1);
+        if (draft.activeViewId === viewId) {
+          const nextView = draft.views[Math.min(idx, draft.views.length - 1)];
+          draft.activeViewId = nextView.id;
+          draft.components = nextView.components || [];
+          draft.layers = nextView.layers || [];
+          draft.selection = { selectedIds: [], hoveredId: null, isMultiSelect: false };
+          const defaultLayer = draft.layers.find((l) => l.isDefault);
+          draft.activeLayerId = defaultLayer?.id || (draft.layers.length > 0 ? draft.layers[0].id : null);
+        }
+        draft.isDirty = true;
+      });
+    },
+
+    switchView: (viewId) => {
+      set((draft: EditorState) => {
+        const currentView = draft.views.find((v) => v.id === draft.activeViewId);
+        if (currentView) {
+          currentView.components = draft.components;
+          currentView.layers = draft.layers;
+        }
+        const targetView = draft.views.find((v) => v.id === viewId);
+        if (!targetView) return;
+        draft.activeViewId = viewId;
+        draft.components = targetView.components || [];
+        draft.layers = targetView.layers || [];
+        draft.selection = { selectedIds: [], hoveredId: null, isMultiSelect: false };
+        draft.history = [];
+        draft.historyIndex = -1;
+        const defaultLayer = draft.layers.find((l) => l.isDefault);
+        draft.activeLayerId = defaultLayer?.id || (draft.layers.length > 0 ? draft.layers[0].id : null);
+      });
+    },
+
+    renameView: (viewId, name) => {
+      set((draft: EditorState) => {
+        const view = draft.views.find((v) => v.id === viewId);
+        if (view) {
+          view.name = name;
+          draft.isDirty = true;
+        }
+      });
+    },
+
+    getActiveView: () => {
+      const state = get();
+      return state.views.find((v) => v.id === state.activeViewId);
     },
   }))
 );
