@@ -5,10 +5,10 @@ use std::sync::Arc;
 use tauri::State;
 
 use crate::plugins::ai_agent::engine::{self, RunRegistry};
-use crate::plugins::ai_agent::store::AiStore;
 use crate::plugins::ai_agent::provider::OpenAiCompatProvider;
+use crate::plugins::ai_agent::store::AiStore;
 use crate::plugins::ai_agent::types::{
-    AiAgent, AiConversation, AiEndpoint, AiMessage, AiModel, AiProvider, AgentScopeSerde,
+    AgentScopeSerde, AiAgent, AiConversation, AiEndpoint, AiMessage, AiModel, AiProvider,
 };
 
 pub struct AiAgentState {
@@ -19,7 +19,10 @@ pub struct AiAgentState {
 // ── 三层模型配置 ──
 
 #[tauri::command]
-pub fn ai_save_provider(state: State<'_, AiAgentState>, provider: AiProvider) -> Result<AiProvider, String> {
+pub fn ai_save_provider(
+    state: State<'_, AiAgentState>,
+    provider: AiProvider,
+) -> Result<AiProvider, String> {
     state.store.save_provider(provider)
 }
 
@@ -34,7 +37,10 @@ pub fn ai_delete_provider(state: State<'_, AiAgentState>, id: String) -> Result<
 }
 
 #[tauri::command]
-pub fn ai_save_endpoint(state: State<'_, AiAgentState>, endpoint: AiEndpoint) -> Result<AiEndpoint, String> {
+pub fn ai_save_endpoint(
+    state: State<'_, AiAgentState>,
+    endpoint: AiEndpoint,
+) -> Result<AiEndpoint, String> {
     state.store.save_endpoint(endpoint)
 }
 
@@ -66,12 +72,17 @@ pub fn ai_delete_model(state: State<'_, AiAgentState>, id: String) -> Result<(),
 // ── 会话与消息 ──
 
 #[tauri::command]
-pub fn ai_create_conversation(state: State<'_, AiAgentState>, title: String) -> Result<AiConversation, String> {
+pub fn ai_create_conversation(
+    state: State<'_, AiAgentState>,
+    title: String,
+) -> Result<AiConversation, String> {
     state.store.create_conversation(&title)
 }
 
 #[tauri::command]
-pub fn ai_list_conversations(state: State<'_, AiAgentState>) -> Result<Vec<AiConversation>, String> {
+pub fn ai_list_conversations(
+    state: State<'_, AiAgentState>,
+) -> Result<Vec<AiConversation>, String> {
     state.store.list_conversations()
 }
 
@@ -87,7 +98,10 @@ pub fn ai_clear_messages(state: State<'_, AiAgentState>, id: String) -> Result<(
 }
 
 #[tauri::command]
-pub fn ai_list_messages(state: State<'_, AiAgentState>, conversation_id: String) -> Result<Vec<AiMessage>, String> {
+pub fn ai_list_messages(
+    state: State<'_, AiAgentState>,
+    conversation_id: String,
+) -> Result<Vec<AiMessage>, String> {
     state.store.list_messages(&conversation_id)
 }
 
@@ -128,42 +142,50 @@ pub async fn ai_run_agent(
     let store = state.store.clone();
     let registry = state.registry.clone();
 
-    let (base_url, api_key, model, system_prompt, temperature, max_iterations, allowed_tools, insecure) =
-        match agent_id.as_deref().filter(|s| !s.is_empty()) {
-            Some(agent_id) => {
-                let agent = store.get_agent(agent_id)?;
-                let mid = if agent.model_id.is_empty() {
-                    model_id.ok_or_else(|| "智能体未绑定模型，且未选择默认模型".to_string())?
-                } else {
-                    agent.model_id.clone()
-                };
-                let (model, endpoint, provider) = store.get_model_chain(&mid)?;
-                (
-                    endpoint.base_url,
-                    provider.api_key,
-                    model.model_name,
-                    agent.system_prompt.clone(),
-                    Some(agent.temperature),
-                    agent.max_iterations.max(1) as usize,
-                    agent.tool_ids.clone(),
-                    endpoint.insecure,
-                )
-            }
-            None => {
-                let mid = model_id.ok_or_else(|| "缺少模型".to_string())?;
-                let (model, endpoint, provider) = store.get_model_chain(&mid)?;
-                (
-                    endpoint.base_url,
-                    provider.api_key,
-                    model.model_name,
-                    String::new(),
-                    None,
-                    engine::DEFAULT_MAX_ITERATIONS,
-                    Vec::new(),
-                    endpoint.insecure,
-                )
-            }
-        };
+    let (
+        base_url,
+        api_key,
+        model,
+        system_prompt,
+        temperature,
+        max_iterations,
+        allowed_tools,
+        insecure,
+    ) = match agent_id.as_deref().filter(|s| !s.is_empty()) {
+        Some(agent_id) => {
+            let agent = store.get_agent(agent_id)?;
+            let mid = if agent.model_id.is_empty() {
+                model_id.ok_or_else(|| "智能体未绑定模型，且未选择默认模型".to_string())?
+            } else {
+                agent.model_id.clone()
+            };
+            let (model, endpoint, provider) = store.get_model_chain(&mid)?;
+            (
+                endpoint.base_url,
+                provider.api_key,
+                model.model_name,
+                agent.system_prompt.clone(),
+                Some(agent.temperature),
+                agent.max_iterations.max(1) as usize,
+                agent.tool_ids.clone(),
+                endpoint.insecure,
+            )
+        }
+        None => {
+            let mid = model_id.ok_or_else(|| "缺少模型".to_string())?;
+            let (model, endpoint, provider) = store.get_model_chain(&mid)?;
+            (
+                endpoint.base_url,
+                provider.api_key,
+                model.model_name,
+                String::new(),
+                None,
+                engine::DEFAULT_MAX_ITERATIONS,
+                Vec::new(),
+                endpoint.insecure,
+            )
+        }
+    };
 
     // 以独立任务运行：① 让「停止」能真正中断（task.abort 可切断工具执行中的 await）；
     // ② attach_task 注册句柄后，RunRegistry::cleanup 的 task.abort() 才真正生效。
@@ -204,7 +226,10 @@ pub async fn ai_run_agent(
 }
 
 #[tauri::command]
-pub fn ai_stop_agent(state: State<'_, AiAgentState>, conversation_id: String) -> Result<(), String> {
+pub fn ai_stop_agent(
+    state: State<'_, AiAgentState>,
+    conversation_id: String,
+) -> Result<(), String> {
     // 置位取消标志（工具循环/迭代开头/流式 chunk 间的协作式检查）+ 中断任务句柄
     // （cleanup 的 task.abort() 可真正切断正在执行工具 await 的运行）。
     state.registry.cancel(&conversation_id);
@@ -252,7 +277,10 @@ pub async fn ai_test_model_chat(
         temperature: None,
         insecure: endpoint.insecure,
     };
-    let reply = p.chat_once("请回复：连接成功").await.map_err(|e| e.to_string())?;
+    let reply = p
+        .chat_once("请回复：连接成功")
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(format!("模型回复: {}", reply))
 }
 

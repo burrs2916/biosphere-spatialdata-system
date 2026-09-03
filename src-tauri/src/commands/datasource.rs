@@ -483,7 +483,7 @@ async fn test_mysql_connection(
 
 async fn execute_mysql_query(conn_str: &str, query: &str) -> Result<serde_json::Value, String> {
     use sqlx::mysql::MySqlPoolOptions;
-    use sqlx::{Row, Column, TypeInfo};
+    use sqlx::{Column, Row, TypeInfo};
 
     let pool = MySqlPoolOptions::new()
         .max_connections(1)
@@ -519,19 +519,19 @@ async fn execute_mysql_query(conn_str: &str, query: &str) -> Result<serde_json::
                         _ => serde_json::json!(null),
                     }
                 }
-                "FLOAT" | "DOUBLE" | "DECIMAL" => {
-                    match row.try_get::<Option<f64>, _>(col_name) {
-                        Ok(Some(v)) => serde_json::json!(v),
-                        _ => serde_json::json!(null),
-                    }
-                }
+                "FLOAT" | "DOUBLE" | "DECIMAL" => match row.try_get::<Option<f64>, _>(col_name) {
+                    Ok(Some(v)) => serde_json::json!(v),
+                    _ => serde_json::json!(null),
+                },
                 _ => {
                     match row.try_get::<Option<String>, _>(col_name) {
                         Ok(Some(v)) => serde_json::json!(v),
                         _ => {
                             // 尝试作为字节
                             match row.try_get::<Option<Vec<u8>>, _>(col_name) {
-                                Ok(Some(v)) => serde_json::json!(String::from_utf8_lossy(&v).to_string()),
+                                Ok(Some(v)) => {
+                                    serde_json::json!(String::from_utf8_lossy(&v).to_string())
+                                }
                                 _ => serde_json::json!(null),
                             }
                         }

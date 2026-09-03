@@ -280,7 +280,8 @@ fn get_thumbnails_dir() -> Result<PathBuf, String> {
     while dir.parent().is_some() {
         if dir.join("package.json").exists() {
             let thumb_dir = dir.join("public").join("thumbnails");
-            fs::create_dir_all(&thumb_dir).map_err(|e| format!("Failed to create thumbnails dir: {}", e))?;
+            fs::create_dir_all(&thumb_dir)
+                .map_err(|e| format!("Failed to create thumbnails dir: {}", e))?;
             return Ok(thumb_dir);
         }
         dir = dir.parent().unwrap();

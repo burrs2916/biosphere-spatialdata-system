@@ -158,7 +158,10 @@ async fn edge_get(client: &reqwest::Client, path: &str) -> Result<Value, String>
         .await
         .map_err(|e| format!("请求边缘接口失败: {e}"))?;
     let status = resp.status();
-    let text = resp.text().await.map_err(|e| format!("读取响应失败: {e}"))?;
+    let text = resp
+        .text()
+        .await
+        .map_err(|e| format!("读取响应失败: {e}"))?;
     if !status.is_success() {
         return Err(format!("边缘接口 HTTP {status}: {}", truncate(&text, 300)));
     }
@@ -173,7 +176,10 @@ async fn edge_post(client: &reqwest::Client, path: &str, body: Value) -> Result<
         .await
         .map_err(|e| format!("请求边缘接口失败: {e}"))?;
     let status = resp.status();
-    let text = resp.text().await.map_err(|e| format!("读取响应失败: {e}"))?;
+    let text = resp
+        .text()
+        .await
+        .map_err(|e| format!("读取响应失败: {e}"))?;
     if !status.is_success() {
         return Err(format!("边缘接口 HTTP {status}: {}", truncate(&text, 300)));
     }
@@ -182,7 +188,9 @@ async fn edge_post(client: &reqwest::Client, path: &str, body: Value) -> Result<
 
 /// 兼容后端多种响应壳：{data|items|rows|records|logs|events|points: [...], total: N} 或纯数组
 fn extract_list(v: &Value) -> (Vec<Value>, i64) {
-    for key in ["data", "points", "logs", "events", "records", "items", "rows"] {
+    for key in [
+        "data", "points", "logs", "events", "records", "items", "rows",
+    ] {
         if let Some(arr) = v[key].as_array() {
             let total = v["total"].as_i64().unwrap_or(arr.len() as i64);
             return (arr.clone(), total);
@@ -197,9 +205,10 @@ fn extract_list(v: &Value) -> (Vec<Value>, i64) {
 /// 最近 N 小时的时间窗口（边缘接口约定的本地时间字符串）
 fn time_window(hours: f64) -> (String, String) {
     let to = chrono::Local::now().format("%Y-%m-%dT%H:%M:%S").to_string();
-    let from = (chrono::Local::now() - chrono::Duration::milliseconds((hours * 3600.0 * 1000.0) as i64))
-        .format("%Y-%m-%dT%H:%M:%S")
-        .to_string();
+    let from = (chrono::Local::now()
+        - chrono::Duration::milliseconds((hours * 3600.0 * 1000.0) as i64))
+    .format("%Y-%m-%dT%H:%M:%S")
+    .to_string();
     (from, to)
 }
 
@@ -326,10 +335,18 @@ fn render_scenes(scope: &AgentScopeSerde) -> String {
         } else {
             ""
         };
-        let mode = if sc.scene_mode.is_empty() { "—" } else { &sc.scene_mode };
+        let mode = if sc.scene_mode.is_empty() {
+            "—"
+        } else {
+            &sc.scene_mode
+        };
         lines.push(format!(
             "- {}{}（id={}，模式={}，绑定 {} 台设备）",
-            active, sc.name, sc.id, mode, sc.device_ids.len()
+            active,
+            sc.name,
+            sc.id,
+            mode,
+            sc.device_ids.len()
         ));
     }
     lines.push(
@@ -399,13 +416,23 @@ async fn query_devices(
 }
 
 fn device_line(d: &Value) -> String {
-    let name = d["device_name"].as_str().or(d["product_name"].as_str()).unwrap_or("-");
+    let name = d["device_name"]
+        .as_str()
+        .or(d["product_name"].as_str())
+        .unwrap_or("-");
     format!(
         "{} | ID {} | 产品码 {} | {}",
         name,
         d["device_id"].as_str().unwrap_or("?"),
-        d["product_code"].as_i64().map(|c| c.to_string()).unwrap_or("?".into()),
-        if d["online"].as_bool() == Some(true) { "在线" } else { "离线" },
+        d["product_code"]
+            .as_i64()
+            .map(|c| c.to_string())
+            .unwrap_or("?".into()),
+        if d["online"].as_bool() == Some(true) {
+            "在线"
+        } else {
+            "离线"
+        },
     )
 }
 
@@ -449,7 +476,9 @@ async fn query_sensors(
         server_total
     };
     if data.is_empty() {
-        return Ok(format!("在 {from} ~ {to} 时间范围内没有查到传感器数据（可能是设备未上报或时间范围内无数据）。"));
+        return Ok(format!(
+            "在 {from} ~ {to} 时间范围内没有查到传感器数据（可能是设备未上报或时间范围内无数据）。"
+        ));
     }
     // 展示条数受用户 limit 约束
     let limit = limit_of(args) as usize;
@@ -467,7 +496,10 @@ async fn query_sensors(
         }
     }
 
-    let mut lines = vec![format!("共匹配 {total} 条，显示前 {} 条（时间范围 {from} ~ {to}）：", data.len())];
+    let mut lines = vec![format!(
+        "共匹配 {total} 条，显示前 {} 条（时间范围 {from} ~ {to}）：",
+        data.len()
+    )];
     if !types.is_empty() {
         lines.push(format!("数据中包含的传感器类型：{}", types.join("、")));
     }
@@ -484,7 +516,11 @@ async fn query_sensors(
             p["device_id"].as_str().unwrap_or("?"),
             p["type"].as_str().unwrap_or("?"),
             value,
-            if unit.is_empty() { String::new() } else { format!(" {unit}") },
+            if unit.is_empty() {
+                String::new()
+            } else {
+                format!(" {unit}")
+            },
         ));
     }
     Ok(lines.join("\n"))
@@ -544,9 +580,14 @@ async fn query_operations(
         })
         .count();
 
-    let mut lines = vec![format!("共匹配 {total} 条操作日志，显示前 {} 条（{from} ~ {to}）：", data.len())];
+    let mut lines = vec![format!(
+        "共匹配 {total} 条操作日志，显示前 {} 条（{from} ~ {to}）：",
+        data.len()
+    )];
     if failed > 0 {
-        lines.push(format!("其中执行结果非成功的约 {failed} 条，回答时请注意标注失败项。"));
+        lines.push(format!(
+            "其中执行结果非成功的约 {failed} 条，回答时请注意标注失败项。"
+        ));
     }
     for item in &data {
         lines.push(format!(
@@ -556,7 +597,10 @@ async fn query_operations(
             item["action"].as_str().unwrap_or("?"),
             item["command_code"].as_str().unwrap_or("-"),
             item["result"].as_str().unwrap_or("?"),
-            item["duration_ms"].as_i64().map(|d| d.to_string()).unwrap_or("-".into()),
+            item["duration_ms"]
+                .as_i64()
+                .map(|d| d.to_string())
+                .unwrap_or("-".into()),
         ));
     }
     Ok(lines.join("\n"))
@@ -606,7 +650,10 @@ async fn query_device_events(
         data.truncate(limit);
     }
 
-    let mut lines = vec![format!("共匹配 {total} 条设备事件，显示前 {} 条（{from} ~ {to}）：", data.len())];
+    let mut lines = vec![format!(
+        "共匹配 {total} 条设备事件，显示前 {} 条（{from} ~ {to}）：",
+        data.len()
+    )];
     lines.push(
         "注意：报警传感器数据当前为 2 字节位域，仅『烟雾』位有确定含义，不得据此推断具体触发源。"
             .to_string(),
@@ -656,7 +703,10 @@ async fn query_system_events(client: &reqwest::Client, args: &Value) -> Result<S
         data
     };
 
-    let mut lines = vec![format!("共匹配 {total} 条系统事件，显示前 {} 条（{from} ~ {to}）：", data.len())];
+    let mut lines = vec![format!(
+        "共匹配 {total} 条系统事件，显示前 {} 条（{from} ~ {to}）：",
+        data.len()
+    )];
     for item in &data {
         lines.push(format!(
             "- [{}] 模块 {} | 类型 {} | 级别 {} | {}",
@@ -722,7 +772,10 @@ async fn query_dashboard_stats(
                     .unwrap_or(false)
             });
         }
-        format!("（仅统计本场景 {} 台设备的明细；事件/故障总量仍为全矿口径）", ids.len())
+        format!(
+            "（仅统计本场景 {} 台设备的明细；事件/故障总量仍为全矿口径）",
+            ids.len()
+        )
     } else {
         String::new()
     };
@@ -741,7 +794,13 @@ async fn query_dashboard_stats(
         .map(|arr| {
             arr.iter()
                 .take(fault_limit as usize)
-                .map(|x| format!("{}（{} 次）", x["key"].as_str().unwrap_or("?"), x["count"].as_i64().unwrap_or(0)))
+                .map(|x| {
+                    format!(
+                        "{}（{} 次）",
+                        x["key"].as_str().unwrap_or("?"),
+                        x["count"].as_i64().unwrap_or(0)
+                    )
+                })
                 .collect()
         })
         .unwrap_or_default();
@@ -754,7 +813,12 @@ async fn query_dashboard_stats(
         .as_array()
         .map(|arr| {
             arr.iter()
-                .map(|x| (x["device_id"].as_str().unwrap_or("?").to_string(), x["rate"].as_f64().unwrap_or(0.0)))
+                .map(|x| {
+                    (
+                        x["device_id"].as_str().unwrap_or("?").to_string(),
+                        x["rate"].as_f64().unwrap_or(0.0),
+                    )
+                })
                 .collect()
         })
         .unwrap_or_default();

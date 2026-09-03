@@ -86,9 +86,7 @@ impl OpenAiCompatProvider {
     ) -> Result<ChatOutcome, ProviderError> {
         let url = format!("{}/chat/completions", self.base_url.trim_end_matches('/'));
         let client = self.http_client();
-        let mut req = client
-            .post(&url)
-            .json(&self.build_body(messages, tools));
+        let mut req = client.post(&url).json(&self.build_body(messages, tools));
         if !self.api_key.is_empty() {
             req = req.bearer_auth(&self.api_key);
         }
@@ -100,7 +98,10 @@ impl OpenAiCompatProvider {
         if !resp.status().is_success() {
             let status = resp.status();
             let text = resp.text().await.unwrap_or_default();
-            return Err(ProviderError(format!("模型接口 HTTP {status}: {}", truncate(&text, 500))));
+            return Err(ProviderError(format!(
+                "模型接口 HTTP {status}: {}",
+                truncate(&text, 500)
+            )));
         }
 
         let mut outcome = ChatOutcome::default();
@@ -108,7 +109,11 @@ impl OpenAiCompatProvider {
         let mut pending_calls: Vec<(usize, String, String, String)> = Vec::new(); // (index, id, name, args)
         let mut buffer = String::new();
 
-        while let Some(chunk) = resp.chunk().await.map_err(|e| ProviderError(format!("读取流失败: {e}")))? {
+        while let Some(chunk) = resp
+            .chunk()
+            .await
+            .map_err(|e| ProviderError(format!("读取流失败: {e}")))?
+        {
             if (cb.is_cancelled)() {
                 return Err(ProviderError("已取消".into()));
             }
@@ -141,7 +146,12 @@ impl OpenAiCompatProvider {
                         let entry = match pending_calls.iter_mut().find(|(i, ..)| *i == idx) {
                             Some(e) => e,
                             None => {
-                                pending_calls.push((idx, String::new(), String::new(), String::new()));
+                                pending_calls.push((
+                                    idx,
+                                    String::new(),
+                                    String::new(),
+                                    String::new(),
+                                ));
                                 pending_calls.last_mut().unwrap()
                             }
                         };
@@ -178,9 +188,15 @@ impl OpenAiCompatProvider {
             .await
             .map_err(|e| ProviderError(format!("请求模型接口失败: {e}")))?;
         let status = resp.status();
-        let text = resp.text().await.map_err(|e| ProviderError(format!("读取响应失败: {e}")))?;
+        let text = resp
+            .text()
+            .await
+            .map_err(|e| ProviderError(format!("读取响应失败: {e}")))?;
         if !status.is_success() {
-            return Err(ProviderError(format!("HTTP {status}: {}", truncate(&text, 300))));
+            return Err(ProviderError(format!(
+                "HTTP {status}: {}",
+                truncate(&text, 300)
+            )));
         }
         let payload = parse_provider_payload(&text)?;
         Ok(payload["choices"][0]["message"]["content"]
@@ -202,9 +218,15 @@ impl OpenAiCompatProvider {
             .await
             .map_err(|e| ProviderError(format!("请求失败: {e}")))?;
         let status = resp.status();
-        let text = resp.text().await.map_err(|e| ProviderError(format!("读取响应失败: {e}")))?;
+        let text = resp
+            .text()
+            .await
+            .map_err(|e| ProviderError(format!("读取响应失败: {e}")))?;
         if !status.is_success() {
-            return Err(ProviderError(format!("HTTP {status}: {}", truncate(&text, 300))));
+            return Err(ProviderError(format!(
+                "HTTP {status}: {}",
+                truncate(&text, 300)
+            )));
         }
         let payload = parse_provider_payload(&text)?;
         let ids: Vec<String> = payload["data"]
@@ -219,7 +241,10 @@ impl OpenAiCompatProvider {
     }
 }
 
-fn finalize(mut outcome: ChatOutcome, pending: &mut Vec<(usize, String, String, String)>) -> ChatOutcome {
+fn finalize(
+    mut outcome: ChatOutcome,
+    pending: &mut Vec<(usize, String, String, String)>,
+) -> ChatOutcome {
     pending.sort_by_key(|(i, ..)| *i);
     for (_, id, name, args) in pending.drain(..) {
         outcome.tool_calls.push((id, name, args));

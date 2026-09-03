@@ -840,9 +840,7 @@ fn upgrade_spray_scene_components(conn: &Connection) -> Result<(), rusqlite::Err
     //    comp_bridge_tunnel_* / comp_mining_tunnel_*）。若在此用未前缀的 comp_tunnel_*
     //    去匹配，会因"找不到对应 id"而向桥/采场景注入重复的 comp_tunnel_* 组件，造成 ID 撞车。
     //    桥/采场景的就地修复统一由 clone_tunnel_scene 处理（其克隆结果本身已是正确类型）。
-    let mut stmt = conn.prepare(
-        "SELECT id FROM scenes WHERE id = 'scene_spray_tunnel'"
-    )?;
+    let mut stmt = conn.prepare("SELECT id FROM scenes WHERE id = 'scene_spray_tunnel'")?;
     let scene_ids: Vec<String> = stmt
         .query_map([], |row| row.get(0))?
         .filter_map(|r| r.ok())
@@ -891,7 +889,9 @@ fn upgrade_spray_scene_components(conn: &Connection) -> Result<(), rusqlite::Err
                     // 1. 替换 type（但不动 transform/位置/尺寸）
                     if old_type != new_type {
                         if let Some(t) = new_obj.get("type") {
-                            item.as_object_mut().unwrap().insert("type".to_string(), t.clone());
+                            item.as_object_mut()
+                                .unwrap()
+                                .insert("type".to_string(), t.clone());
                             changed = true;
                         }
                     }
@@ -913,7 +913,9 @@ fn upgrade_spray_scene_components(conn: &Connection) -> Result<(), rusqlite::Err
                     if force_transform_ids.contains(target_id) {
                         if let Some(new_transform) = new_obj.get("transform") {
                             if item.get("transform") != Some(new_transform) {
-                                item.as_object_mut().unwrap().insert("transform".to_string(), new_transform.clone());
+                                item.as_object_mut()
+                                    .unwrap()
+                                    .insert("transform".to_string(), new_transform.clone());
                                 changed = true;
                             }
                         }
@@ -1003,12 +1005,19 @@ fn upgrade_spray_scene_components(conn: &Connection) -> Result<(), rusqlite::Err
         // 1) 移除 comp_tunnel_6~11 采集器死引用
         // 2) 补齐 comp_tunnel_40 传感器摆放区
         let mut layout_stmt = conn.prepare("SELECT layout FROM scenes WHERE id = ?1")?;
-        if let Ok(layout_str) = layout_stmt.query_row(rusqlite::params![scene_id], |row| row.get::<_, String>(0)) {
-            if let Ok(serde_json::Value::Array(mut layout_arr)) = serde_json::from_str::<serde_json::Value>(&layout_str) {
+        if let Ok(layout_str) =
+            layout_stmt.query_row(rusqlite::params![scene_id], |row| row.get::<_, String>(0))
+        {
+            if let Ok(serde_json::Value::Array(mut layout_arr)) =
+                serde_json::from_str::<serde_json::Value>(&layout_str)
+            {
                 let mut layout_changed = false;
                 let before_layout_len = layout_arr.len();
                 layout_arr.retain(|item| {
-                    let id = item.get("componentId").and_then(|v| v.as_str()).unwrap_or("");
+                    let id = item
+                        .get("componentId")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
                     !legacy_static_device_ids.contains(&id)
                 });
                 if layout_arr.len() != before_layout_len {
@@ -1070,11 +1079,17 @@ fn upgrade_spray_scene_components(conn: &Connection) -> Result<(), rusqlite::Err
         // views[].components[].id 中可能仍含 comp_tunnel_6~11 采集器，
         // 这里同样清理掉并补齐 comp_tunnel_40 传感器摆放区。
         let mut views_stmt = conn.prepare("SELECT views FROM scenes WHERE id = ?1")?;
-        if let Ok(views_str) = views_stmt.query_row(rusqlite::params![scene_id], |row| row.get::<_, String>(0)) {
-            if let Ok(serde_json::Value::Array(mut views_arr)) = serde_json::from_str::<serde_json::Value>(&views_str) {
+        if let Ok(views_str) =
+            views_stmt.query_row(rusqlite::params![scene_id], |row| row.get::<_, String>(0))
+        {
+            if let Ok(serde_json::Value::Array(mut views_arr)) =
+                serde_json::from_str::<serde_json::Value>(&views_str)
+            {
                 let mut views_changed = false;
                 for view in views_arr.iter_mut() {
-                    if let Some(components) = view.get_mut("components").and_then(|v| v.as_array_mut()) {
+                    if let Some(components) =
+                        view.get_mut("components").and_then(|v| v.as_array_mut())
+                    {
                         let before_v = components.len();
                         components.retain(|c| {
                             let id = c.get("id").and_then(|v| v.as_str()).unwrap_or("");
@@ -1136,23 +1151,35 @@ fn upgrade_spray_scene_components(conn: &Connection) -> Result<(), rusqlite::Err
                         // 列表取 y:1896/h:249 完整落在框线内）
                         for c in components.iter_mut() {
                             if c.get("id").and_then(|v| v.as_str()) == Some("comp_tunnel_12") {
-                                if let Some(tf) = c.get_mut("transform").and_then(|v| v.as_object_mut()) {
+                                if let Some(tf) =
+                                    c.get_mut("transform").and_then(|v| v.as_object_mut())
+                                {
                                     let mut tf_changed = false;
-                                    for (k, want) in [("x", serde_json::json!(0)), ("y", serde_json::json!(1896)), ("width", serde_json::json!(3840)), ("height", serde_json::json!(249))] {
+                                    for (k, want) in [
+                                        ("x", serde_json::json!(0)),
+                                        ("y", serde_json::json!(1896)),
+                                        ("width", serde_json::json!(3840)),
+                                        ("height", serde_json::json!(249)),
+                                    ] {
                                         if tf.get(k) != Some(&want) {
                                             tf.insert(k.to_string(), want);
                                             tf_changed = true;
                                         }
                                     }
-                                    if tf_changed { views_changed = true; }
+                                    if tf_changed {
+                                        views_changed = true;
+                                    }
                                 }
                             }
                         }
                         // 强制对齐 comp_tunnel_12_frame（底部数据边框）风格，与其他主区框(36/37/38)一致：
                         // 细线青蓝、无四角光点、圆角8、带"巷道设备列表"左上角标题。避免粗亮蓝异类框。
                         for c in components.iter_mut() {
-                            if c.get("id").and_then(|v| v.as_str()) == Some("comp_tunnel_12_frame") {
-                                if let Some(cfg) = c.get_mut("config").and_then(|v| v.as_object_mut()) {
+                            if c.get("id").and_then(|v| v.as_str()) == Some("comp_tunnel_12_frame")
+                            {
+                                if let Some(cfg) =
+                                    c.get_mut("config").and_then(|v| v.as_object_mut())
+                                {
                                     let mut fc_changed = false;
                                     let want: [(&str, serde_json::Value); 11] = [
                                         ("label", serde_json::json!("巷道设备列表")),
@@ -1178,7 +1205,9 @@ fn upgrade_spray_scene_components(conn: &Connection) -> Result<(), rusqlite::Err
                                         cfg.remove("strokeDasharray");
                                         fc_changed = true;
                                     }
-                                    if fc_changed { views_changed = true; }
+                                    if fc_changed {
+                                        views_changed = true;
+                                    }
                                 }
                             }
                         }
@@ -1210,19 +1239,32 @@ fn upgrade_spray_scene_components(conn: &Connection) -> Result<(), rusqlite::Err
 
                         // 清理 region-frame 右上角噪点（末端小斜线 + 角点圆 + 编号）：
                         //   comp_tunnel_36/37/38/40 强制 cornerSize=0, showCornerDots=false, showIndex=false
-                        let noise_frame_ids = ["comp_tunnel_36", "comp_tunnel_37", "comp_tunnel_38", "comp_tunnel_40"];
+                        let noise_frame_ids = [
+                            "comp_tunnel_36",
+                            "comp_tunnel_37",
+                            "comp_tunnel_38",
+                            "comp_tunnel_40",
+                        ];
                         for c in components.iter_mut() {
                             let id = c.get("id").and_then(|v| v.as_str()).unwrap_or("");
-                            if !noise_frame_ids.contains(&id) { continue; }
+                            if !noise_frame_ids.contains(&id) {
+                                continue;
+                            }
                             if let Some(cfg) = c.get_mut("config").and_then(|v| v.as_object_mut()) {
                                 let mut touched = false;
-                                for (k, want) in [("cornerSize", serde_json::json!(0)), ("showCornerDots", serde_json::json!(false)), ("showIndex", serde_json::json!(false))] {
+                                for (k, want) in [
+                                    ("cornerSize", serde_json::json!(0)),
+                                    ("showCornerDots", serde_json::json!(false)),
+                                    ("showIndex", serde_json::json!(false)),
+                                ] {
                                     if cfg.get(k) != Some(&want) {
                                         cfg.insert(k.to_string(), want);
                                         touched = true;
                                     }
                                 }
-                                if touched { views_changed = true; }
+                                if touched {
+                                    views_changed = true;
+                                }
                             }
                         }
 
@@ -1246,27 +1288,44 @@ fn upgrade_spray_scene_components(conn: &Connection) -> Result<(), rusqlite::Err
                         // ─── 仅替换 type + 补齐 config 缺失字段，绝不覆盖位置/尺寸/已有config ───
                         // 关键：绝不能整体替换组件，否则用户调整过的位置/大小/配置全部丢失
                         let stats_upgrade_ids = [
-                            "comp_tunnel_5", "comp_tunnel_13", "comp_tunnel_14", "comp_tunnel_15",
-                            "comp_tunnel_16", "comp_tunnel_17", "comp_tunnel_18",
-                            "comp_tunnel_25", "comp_tunnel_26", "comp_tunnel_27", "comp_tunnel_28",
-                            "comp_tunnel_29", "comp_tunnel_30", "comp_tunnel_31", "comp_tunnel_32",
+                            "comp_tunnel_5",
+                            "comp_tunnel_13",
+                            "comp_tunnel_14",
+                            "comp_tunnel_15",
+                            "comp_tunnel_16",
+                            "comp_tunnel_17",
+                            "comp_tunnel_18",
+                            "comp_tunnel_25",
+                            "comp_tunnel_26",
+                            "comp_tunnel_27",
+                            "comp_tunnel_28",
+                            "comp_tunnel_29",
+                            "comp_tunnel_30",
+                            "comp_tunnel_31",
+                            "comp_tunnel_32",
                         ];
                         for (target_id, new_json) in upgrades {
                             // 只处理统计卡片和粉尘趋势图，跳过其他组件
-                            if !stats_upgrade_ids.contains(target_id) { continue; }
+                            if !stats_upgrade_ids.contains(target_id) {
+                                continue;
+                            }
                             let new_obj: serde_json::Value = match serde_json::from_str(new_json) {
                                 Ok(v) => v,
                                 Err(_) => continue,
                             };
                             for item in components.iter_mut() {
                                 if item.get("id").and_then(|v| v.as_str()) == Some(*target_id) {
-                                    let old_type = item.get("type").and_then(|v| v.as_str()).unwrap_or("");
-                                    let new_type = new_obj.get("type").and_then(|v| v.as_str()).unwrap_or("");
+                                    let old_type =
+                                        item.get("type").and_then(|v| v.as_str()).unwrap_or("");
+                                    let new_type =
+                                        new_obj.get("type").and_then(|v| v.as_str()).unwrap_or("");
 
                                     // 1. 替换 type（但不动 transform/位置/尺寸）
                                     if old_type != new_type {
                                         if let Some(t) = new_obj.get("type") {
-                                            item.as_object_mut().unwrap().insert("type".to_string(), t.clone());
+                                            item.as_object_mut()
+                                                .unwrap()
+                                                .insert("type".to_string(), t.clone());
                                             views_changed = true;
                                         }
                                     }
@@ -1289,21 +1348,38 @@ fn upgrade_spray_scene_components(conn: &Connection) -> Result<(), rusqlite::Err
                         }
 
                         // ─── 清理 views 中引用已删除组件的 bindings ───
-                        if let Some(bindings) = view.get_mut("bindings").and_then(|v| v.as_array_mut()) {
+                        if let Some(bindings) =
+                            view.get_mut("bindings").and_then(|v| v.as_array_mut())
+                        {
                             let old_len = bindings.len();
                             // 移除引用 comp_tunnel_5/13~18/25~32/34/35 的旧 HTTP 绑定
                             // 新版组件从 deviceStore 直接聚合，不再需要外部数据绑定
                             bindings.retain(|b| {
-                                let comp_id = b.get("componentId").and_then(|v| v.as_str()).unwrap_or("");
+                                let comp_id =
+                                    b.get("componentId").and_then(|v| v.as_str()).unwrap_or("");
                                 // 保留 comp_tunnel_12 的绑定（设备列表仍用 HTTP 数据源）
-                                if comp_id == "comp_tunnel_12" { return true; }
+                                if comp_id == "comp_tunnel_12" {
+                                    return true;
+                                }
                                 // 移除所有引用旧统计卡片/粉尘图/告警轮播/底部状态的绑定
                                 let remove_ids = [
-                                    "comp_tunnel_5", "comp_tunnel_13", "comp_tunnel_14", "comp_tunnel_15",
-                                    "comp_tunnel_16", "comp_tunnel_17", "comp_tunnel_18",
-                                    "comp_tunnel_25", "comp_tunnel_26", "comp_tunnel_27", "comp_tunnel_28",
-                                    "comp_tunnel_29", "comp_tunnel_30", "comp_tunnel_31", "comp_tunnel_32",
-                                    "comp_tunnel_34", "comp_tunnel_35",
+                                    "comp_tunnel_5",
+                                    "comp_tunnel_13",
+                                    "comp_tunnel_14",
+                                    "comp_tunnel_15",
+                                    "comp_tunnel_16",
+                                    "comp_tunnel_17",
+                                    "comp_tunnel_18",
+                                    "comp_tunnel_25",
+                                    "comp_tunnel_26",
+                                    "comp_tunnel_27",
+                                    "comp_tunnel_28",
+                                    "comp_tunnel_29",
+                                    "comp_tunnel_30",
+                                    "comp_tunnel_31",
+                                    "comp_tunnel_32",
+                                    "comp_tunnel_34",
+                                    "comp_tunnel_35",
                                 ];
                                 !remove_ids.contains(&comp_id)
                             });
@@ -1463,13 +1539,11 @@ fn transform_clone(
             }
             serde_json::Value::Object(new_obj)
         }
-        serde_json::Value::Array(arr) => {
-            serde_json::Value::Array(
-                arr.iter()
-                    .map(|v| transform_clone(v, prefix, region_name))
-                    .collect(),
-            )
-        }
+        serde_json::Value::Array(arr) => serde_json::Value::Array(
+            arr.iter()
+                .map(|v| transform_clone(v, prefix, region_name))
+                .collect(),
+        ),
         serde_json::Value::String(s) => {
             // 文案替换：巷道 → 廊桥/综采
             let mut out = if s.contains("巷道") {
@@ -1536,7 +1610,13 @@ fn customize_bridge_scene(conn: &Connection) -> Result<(), rusqlite::Error> {
         .query_row(
             "SELECT editor_components, views, layout FROM scenes WHERE id = ?1",
             rusqlite::params![scene_id],
-            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)),
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            },
         )
         .unwrap_or_else(|_| ("[]".to_string(), "[]".to_string(), "[]".to_string()));
 
@@ -1571,7 +1651,9 @@ fn customize_bridge_scene(conn: &Connection) -> Result<(), rusqlite::Error> {
     if let serde_json::Value::Array(views_arr) = &mut views {
         for v in views_arr.iter_mut() {
             if let Some(comps) = v.get_mut("components").and_then(|c| c.as_array_mut()) {
-                comps.retain(|c| !remove.contains(&c.get("id").and_then(|x| x.as_str()).unwrap_or("")));
+                comps.retain(|c| {
+                    !remove.contains(&c.get("id").and_then(|x| x.as_str()).unwrap_or(""))
+                });
                 for c in comps.iter_mut() {
                     apply_bridge_reflow(c);
                     set_bridge_control_mode(c);
@@ -1589,12 +1671,13 @@ fn customize_bridge_scene(conn: &Connection) -> Result<(), rusqlite::Error> {
                     .any(|c| c.get("id").and_then(|x| x.as_str()) == Some("comp_bridge_tunnel_42"));
                 if !has42 {
                     if let serde_json::Value::Array(ec_arr) = &ec {
-                        if let Some(c42) = ec_arr
-                            .iter()
-                            .find(|c| c.get("id").and_then(|x| x.as_str()) == Some("comp_bridge_tunnel_42"))
-                        {
+                        if let Some(c42) = ec_arr.iter().find(|c| {
+                            c.get("id").and_then(|x| x.as_str()) == Some("comp_bridge_tunnel_42")
+                        }) {
                             let mut c42 = c42.clone();
-                            if let Some(tf) = c42.get_mut("transform").and_then(|t| t.as_object_mut()) {
+                            if let Some(tf) =
+                                c42.get_mut("transform").and_then(|t| t.as_object_mut())
+                            {
                                 tf.insert("x".to_string(), serde_json::json!(2890));
                                 tf.insert("y".to_string(), serde_json::json!(1320));
                                 tf.insert("width".to_string(), serde_json::json!(910));
@@ -1705,7 +1788,13 @@ fn customize_mining_scene(conn: &Connection) -> Result<(), rusqlite::Error> {
         .query_row(
             "SELECT editor_components, views, layout FROM scenes WHERE id = ?1",
             rusqlite::params![scene_id],
-            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)),
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            },
         )
         .unwrap_or_else(|_| ("[]".to_string(), "[]".to_string(), "[]".to_string()));
 
@@ -1740,7 +1829,9 @@ fn customize_mining_scene(conn: &Connection) -> Result<(), rusqlite::Error> {
     if let serde_json::Value::Array(views_arr) = &mut views {
         for v in views_arr.iter_mut() {
             if let Some(comps) = v.get_mut("components").and_then(|c| c.as_array_mut()) {
-                comps.retain(|c| !remove.contains(&c.get("id").and_then(|x| x.as_str()).unwrap_or("")));
+                comps.retain(|c| {
+                    !remove.contains(&c.get("id").and_then(|x| x.as_str()).unwrap_or(""))
+                });
                 for c in comps.iter_mut() {
                     apply_mining_reflow(c);
                     set_mining_control_mode(c);
@@ -1758,13 +1849,14 @@ fn customize_mining_scene(conn: &Connection) -> Result<(), rusqlite::Error> {
                     .any(|c| c.get("id").and_then(|x| x.as_str()) == Some("comp_mining_tunnel_42"));
                 if !has42 {
                     if let serde_json::Value::Array(ec_arr) = &ec {
-                        if let Some(c42) = ec_arr
-                            .iter()
-                            .find(|c| c.get("id").and_then(|x| x.as_str()) == Some("comp_mining_tunnel_42"))
-                        {
+                        if let Some(c42) = ec_arr.iter().find(|c| {
+                            c.get("id").and_then(|x| x.as_str()) == Some("comp_mining_tunnel_42")
+                        }) {
                             let mut c42 = c42.clone();
                             apply_mining_reflow(&mut c42);
-                            if let Some(tf) = c42.get_mut("transform").and_then(|t| t.as_object_mut()) {
+                            if let Some(tf) =
+                                c42.get_mut("transform").and_then(|t| t.as_object_mut())
+                            {
                                 if tf.get("x").is_none() {
                                     tf.insert("x".to_string(), serde_json::json!(2890));
                                 }
@@ -1828,7 +1920,13 @@ fn inject_shearer_curve(conn: &Connection) -> Result<(), rusqlite::Error> {
     let (ec_str, views_str, layout_str): (String, String, String) = match conn.query_row(
         "SELECT editor_components, views, layout FROM scenes WHERE id = ?1",
         rusqlite::params![scene_id],
-        |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)),
+        |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        },
     ) {
         Ok(t) => t,
         Err(_) => return Ok(()),
@@ -1897,9 +1995,10 @@ fn inject_shearer_curve(conn: &Connection) -> Result<(), rusqlite::Error> {
     }
     // layout（稀疏 {componentId,x,y,w,h,zIndex}，渲染不使用但保持结构一致）
     if let serde_json::Value::Array(arr) = &mut layout {
-        if !arr.iter().any(|c| {
-            c.get("componentId").and_then(|v| v.as_str()) == Some("comp_mining_tunnel_43")
-        }) {
+        if !arr
+            .iter()
+            .any(|c| c.get("componentId").and_then(|v| v.as_str()) == Some("comp_mining_tunnel_43"))
+        {
             arr.push(serde_json::json!({
                 "componentId": "comp_mining_tunnel_43",
                 "x": 680, "y": 1695, "w": 2160, "h": 170, "zIndex": 50
@@ -2068,7 +2167,9 @@ fn inject_bridge_flow_cards(
             {
                 let tf = card.get("transform").and_then(|t| t.as_object());
                 let get = |k: &str| {
-                    tf.and_then(|t| t.get(k)).cloned().unwrap_or(serde_json::json!(0))
+                    tf.and_then(|t| t.get(k))
+                        .cloned()
+                        .unwrap_or(serde_json::json!(0))
                 };
                 arr.push(serde_json::json!({
                     "componentId": cid,
@@ -2102,9 +2203,27 @@ fn inject_bridge_flow_cards(
 fn remove_alarm_carousel(conn: &Connection) -> Result<(), rusqlite::Error> {
     // (scene_id, region36, region37, region38, scrolling_table_id)
     let scenes: Vec<(&str, &str, &str, &str, &str)> = vec![
-        ("scene_spray_tunnel", "comp_tunnel_36", "comp_tunnel_37", "comp_tunnel_38", "comp_tunnel_12"),
-        ("scene_spray_bridge", "comp_bridge_tunnel_36", "comp_bridge_tunnel_37", "comp_bridge_tunnel_38", "comp_bridge_tunnel_12"),
-        ("scene_spray_mining", "comp_mining_tunnel_36", "comp_mining_tunnel_37", "comp_mining_tunnel_38", "comp_mining_tunnel_12"),
+        (
+            "scene_spray_tunnel",
+            "comp_tunnel_36",
+            "comp_tunnel_37",
+            "comp_tunnel_38",
+            "comp_tunnel_12",
+        ),
+        (
+            "scene_spray_bridge",
+            "comp_bridge_tunnel_36",
+            "comp_bridge_tunnel_37",
+            "comp_bridge_tunnel_38",
+            "comp_bridge_tunnel_12",
+        ),
+        (
+            "scene_spray_mining",
+            "comp_mining_tunnel_36",
+            "comp_mining_tunnel_37",
+            "comp_mining_tunnel_38",
+            "comp_mining_tunnel_12",
+        ),
     ];
 
     for (scene_id, r36, r37, r38, st_id) in scenes {
@@ -2112,7 +2231,11 @@ fn remove_alarm_carousel(conn: &Connection) -> Result<(), rusqlite::Error> {
             "SELECT editor_components, views, layout FROM scenes WHERE id = ?1",
             rusqlite::params![scene_id],
             |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
             },
         ) {
             Ok(t) => t,
@@ -2137,7 +2260,11 @@ fn remove_alarm_carousel(conn: &Connection) -> Result<(), rusqlite::Error> {
         if let serde_json::Value::Array(arr) = &mut ec {
             let before = arr.len();
             arr.retain(|c| {
-                let id = c.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let id = c
+                    .get("id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
                 !drop_ids.iter().any(|x| x == &id)
             });
             if arr.len() != before {
@@ -2150,7 +2277,11 @@ fn remove_alarm_carousel(conn: &Connection) -> Result<(), rusqlite::Error> {
                     if let Some(arr) = comps.as_array_mut() {
                         let before = arr.len();
                         arr.retain(|c| {
-                            let id = c.get("id").and_then(|x| x.as_str()).unwrap_or("").to_string();
+                            let id = c
+                                .get("id")
+                                .and_then(|x| x.as_str())
+                                .unwrap_or("")
+                                .to_string();
                             !drop_ids.iter().any(|x| x == &id)
                         });
                         if arr.len() != before {
@@ -2163,7 +2294,11 @@ fn remove_alarm_carousel(conn: &Connection) -> Result<(), rusqlite::Error> {
         if let serde_json::Value::Array(arr) = &mut layout {
             let before = arr.len();
             arr.retain(|c| {
-                let id = c.get("componentId").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let id = c
+                    .get("componentId")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
                 !drop_ids.iter().any(|x| x == &id)
             });
             if arr.len() != before {
@@ -2222,7 +2357,11 @@ fn remove_alarm_carousel(conn: &Connection) -> Result<(), rusqlite::Error> {
 /// - stroke / labelColor / indexColor 均设为该模块专属霓虹色，实现「每个模块颜色不一样」。
 /// 幂等：仅当实际有差异时才写入（不更新 updated_at）。仅作用于三喷雾场景的 region-frame 组件。
 fn style_spray_frames(conn: &Connection) -> Result<(), rusqlite::Error> {
-    let scenes: Vec<&str> = vec!["scene_spray_tunnel", "scene_spray_bridge", "scene_spray_mining"];
+    let scenes: Vec<&str> = vec![
+        "scene_spray_tunnel",
+        "scene_spray_bridge",
+        "scene_spray_mining",
+    ];
     for scene_id in scenes {
         let (ec_str, views_str): (String, String) = match conn.query_row(
             "SELECT editor_components, views FROM scenes WHERE id = ?1",
@@ -2244,7 +2383,11 @@ fn style_spray_frames(conn: &Connection) -> Result<(), rusqlite::Error> {
                 if item.get("type").and_then(|v| v.as_str()) != Some("region-frame") {
                     continue;
                 }
-                let id = item.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let id = item
+                    .get("id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
                 let color = frame_color(&id);
                 let is_bottom = id.ends_with("_12_frame");
                 if let Some(cfg) = item.get_mut("config") {
@@ -2278,7 +2421,11 @@ fn style_spray_frames(conn: &Connection) -> Result<(), rusqlite::Error> {
                         if item.get("type").and_then(|v| v.as_str()) != Some("region-frame") {
                             continue;
                         }
-                        let id = item.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                        let id = item
+                            .get("id")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
                         let color = frame_color(&id);
                         let is_bottom = id.ends_with("_12_frame");
                         if let Some(cfg) = item.get_mut("config") {
@@ -2350,12 +2497,22 @@ fn apply_component_frame_decorations(conn: &Connection) -> Result<(), rusqlite::
         "indexText": "01"
     });
 
-    let scenes: Vec<&str> = vec!["scene_spray_tunnel", "scene_spray_bridge", "scene_spray_mining"];
+    let scenes: Vec<&str> = vec![
+        "scene_spray_tunnel",
+        "scene_spray_bridge",
+        "scene_spray_mining",
+    ];
     for scene_id in scenes {
         let (ec_str, views_str, layout_str): (String, String, String) = match conn.query_row(
             "SELECT editor_components, views, layout FROM scenes WHERE id = ?1",
             rusqlite::params![scene_id],
-            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)),
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            },
         ) {
             Ok(t) => t,
             Err(_) => continue,
@@ -2547,7 +2704,11 @@ fn frame_color(id: &str) -> &'static str {
 /// 仅按 borderEnabled=true 让渲染器画出静态描边矩形，无霓虹辉光/闪烁（用户要求"简单边框即可"）。
 /// 主标题 + 左/中/右子标题统一同款边框，使顶部标题区视觉成整体。
 fn style_spray_title_frames(conn: &Connection) -> Result<(), rusqlite::Error> {
-    let scenes: Vec<&str> = vec!["scene_spray_tunnel", "scene_spray_bridge", "scene_spray_mining"];
+    let scenes: Vec<&str> = vec![
+        "scene_spray_tunnel",
+        "scene_spray_bridge",
+        "scene_spray_mining",
+    ];
     for scene_id in scenes {
         let (ec_str, views_str): (String, String) = match conn.query_row(
             "SELECT editor_components, views FROM scenes WHERE id = ?1",
@@ -2585,7 +2746,8 @@ fn style_spray_title_frames(conn: &Connection) -> Result<(), rusqlite::Error> {
                 }
                 if let Some(comps) = v.get_mut("components").and_then(|c| c.as_array_mut()) {
                     for item in comps.iter_mut() {
-                        if item.get("type").and_then(|v| v.as_str()) != Some("top-glow-title-frame") {
+                        if item.get("type").and_then(|v| v.as_str()) != Some("top-glow-title-frame")
+                        {
                             continue;
                         }
                         if let Some(cfg) = item.get_mut("config") {
@@ -2625,7 +2787,11 @@ fn last_seg(id: &str) -> &str {
 /// 幂等：平移量 = 目标列缘 − 列外框当前 x（每次重算，外框就位后变 0，无副作用）；
 /// 每处写入均带"不同才改"守卫。必须在所有 clone/customize 之后调用（migrate 末尾）。
 fn align_spray_layout(conn: &Connection) -> Result<(), rusqlite::Error> {
-    let scenes: Vec<&str> = vec!["scene_spray_tunnel", "scene_spray_bridge", "scene_spray_mining"];
+    let scenes: Vec<&str> = vec![
+        "scene_spray_tunnel",
+        "scene_spray_bridge",
+        "scene_spray_mining",
+    ];
     // 目标列左缘与宽度（画布 3840×2160 的 1px 网格：
     //   左 0–640 ｜ 中 641–2899(宽2258) ｜ 右 2900–3840(宽940)，列缝=1px，左右框贴画布边缘(0 边距)。
     // 列内 1px 网格：框内留白/同排卡片间距/排间距均 1px；行高按自然高度比例缩放精确填满框高，
@@ -2674,7 +2840,15 @@ fn align_spray_layout(conn: &Connection) -> Result<(), rusqlite::Error> {
 
         // editor_components
         if let serde_json::Value::Array(arr) = &mut ec {
-            if align_components(arr, left_target, mid_target, right_target, left_w, mid_w, right_w) {
+            if align_components(
+                arr,
+                left_target,
+                mid_target,
+                right_target,
+                left_w,
+                mid_w,
+                right_w,
+            ) {
                 changed = true;
             }
         }
@@ -2690,13 +2864,18 @@ fn align_spray_layout(conn: &Connection) -> Result<(), rusqlite::Error> {
                 };
                 // 修复越界组件：被旧迁移横向铺开推出画布的（x+w>3840 等），x/y/w 回填 EC 原值、h 保留自身
                 for it in comps.iter_mut() {
-                    let id = it.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                    let id = it
+                        .get("id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
                     if let Some(tf) = it.get_mut("transform").and_then(|t| t.as_object_mut()) {
                         let x = tf.get("x").and_then(|v| v.as_f64()).unwrap_or(0.0);
                         let y = tf.get("y").and_then(|v| v.as_f64()).unwrap_or(0.0);
                         let w = tf.get("width").and_then(|v| v.as_f64()).unwrap_or(0.0);
                         let h = tf.get("height").and_then(|v| v.as_f64()).unwrap_or(0.0);
-                        if x + w > CANVAS_W + 2.0 || x < -2.0 || y + h > CANVAS_H + 2.0 || y < -2.0 {
+                        if x + w > CANVAS_W + 2.0 || x < -2.0 || y + h > CANVAS_H + 2.0 || y < -2.0
+                        {
                             if let Some(&(px, py, pw)) = ec_pre.get(&id) {
                                 let mut fixed = false;
                                 for (k, nv) in [("x", px), ("y", py), ("width", pw)] {
@@ -2713,7 +2892,15 @@ fn align_spray_layout(conn: &Connection) -> Result<(), rusqlite::Error> {
                         }
                     }
                 }
-                if align_components(comps, left_target, mid_target, right_target, left_w, mid_w, right_w) {
+                if align_components(
+                    comps,
+                    left_target,
+                    mid_target,
+                    right_target,
+                    left_w,
+                    mid_w,
+                    right_w,
+                ) {
                     changed = true;
                 }
             }
@@ -2760,16 +2947,31 @@ fn align_components(
     // 列带边界（取相邻列中点的间隙）：左<640.5<中<2899.5<右。
     let left_right_gap: f64 = (left_target + left_w + mid_target) / 2.0;
     let mid_right_gap: f64 = (mid_target + mid_w + right_target) / 2.0;
-    let col_targets = [("36", left_target, left_w), ("37", mid_target, mid_w), ("38", right_target, right_w)];
-    let sub_targets = [("2", left_target, left_w), ("3", mid_target, mid_w), ("4", right_target, right_w)];
+    let col_targets = [
+        ("36", left_target, left_w),
+        ("37", mid_target, mid_w),
+        ("38", right_target, right_w),
+    ];
+    let sub_targets = [
+        ("2", left_target, left_w),
+        ("3", mid_target, mid_w),
+        ("4", right_target, right_w),
+    ];
     let type_of = |it: &serde_json::Value| -> String {
-        it.get("type").and_then(|v| v.as_str()).unwrap_or("").to_string()
+        it.get("type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string()
     };
 
     // 1) 绝对设值：主标题 / 子标题 / 列外框 / 底部满宽外框
     //    按 type+seg 联合匹配（纯 seg 会误伤 comp_bridge_flow_1/_2 这类尾段撞车的组件）
     for it in arr.iter_mut() {
-        let id = it.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let id = it
+            .get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
         let seg = last_seg(&id).to_string();
         let ty = type_of(it);
         if id.ends_with("_12_frame") {
@@ -2787,7 +2989,11 @@ fn align_components(
             continue;
         }
         if ty == "top-glow-title-frame" {
-            if let Some((nx, nw)) = sub_targets.iter().find(|&&(s, _, _)| s == seg).map(|&(_, x, w)| (x, w)) {
+            if let Some((nx, nw)) = sub_targets
+                .iter()
+                .find(|&&(s, _, _)| s == seg)
+                .map(|&(_, x, w)| (x, w))
+            {
                 if set_comp_rect_it(it, nx, SUB_Y, nw, SUB_H) {
                     changed = true;
                 }
@@ -2795,7 +3001,11 @@ fn align_components(
             }
         }
         if ty == "region-frame" {
-            if let Some((nx, nw)) = col_targets.iter().find(|&&(s, _, _)| s == seg).map(|&(_, x, w)| (x, w)) {
+            if let Some((nx, nw)) = col_targets
+                .iter()
+                .find(|&&(s, _, _)| s == seg)
+                .map(|&(_, x, w)| (x, w))
+            {
                 if set_comp_xw(it, nx, nw) {
                     changed = true;
                 }
@@ -2808,26 +3018,41 @@ fn align_components(
     //    关键：RegionFrameRenderer 实际框线比 transform 矩形内缩 padding = max(8, cornerLength/3)。
     //    底部边框 cornerLength=40 → 内缩 13.33px。若只按 transform 留 1px，列表顶/底会露在可见框线外
     //    （之前"没包住"的真因）。故这里额外减去 FRAME_INSET，使列表落在**可见框线**内。
-    if let Some(f12) = arr
-        .iter()
-        .find(|it| it.get("id").and_then(|v| v.as_str()).unwrap_or("").ends_with("_12_frame"))
-    {
-        let ftf = f12.get("transform").cloned().unwrap_or(serde_json::Value::Null);
+    if let Some(f12) = arr.iter().find(|it| {
+        it.get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .ends_with("_12_frame")
+    }) {
+        let ftf = f12
+            .get("transform")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null);
         let fx12 = ftf.get("x").and_then(|v| v.as_f64()).unwrap_or(0.0);
-        let fw12 = ftf.get("width").and_then(|v| v.as_f64()).unwrap_or(CANVAS_W);
+        let fw12 = ftf
+            .get("width")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(CANVAS_W);
         let fy12 = ftf.get("y").and_then(|v| v.as_f64()).unwrap_or(1880.0);
         let fh12 = ftf.get("height").and_then(|v| v.as_f64()).unwrap_or(280.0);
         const FRAME_INSET: f64 = 40.0 / 3.0; // = 13.33，与 RegionFrameRenderer padding 一致（SVG 实测框线内缩量）
-        // 先定列表宽高（收进边框可见框线内侧 1px），边框 = 列表 + 2*(FRAME_INSET+PAD)。
-        // 边框满宽贴画布(x=0/w=3840, 底2160) → 框线 13.33~3826.67 / 1893.33~2146.67；
-        // 列表 = 框线内侧1px：x=14/y=1894/w=3813/h=252（四边均落在框线内，左右底也包住，顶部自然留间距）。
+                                             // 先定列表宽高（收进边框可见框线内侧 1px），边框 = 列表 + 2*(FRAME_INSET+PAD)。
+                                             // 边框满宽贴画布(x=0/w=3840, 底2160) → 框线 13.33~3826.67 / 1893.33~2146.67；
+                                             // 列表 = 框线内侧1px：x=14/y=1894/w=3813/h=252（四边均落在框线内，左右底也包住，顶部自然留间距）。
         let inner_x = (fx12 + FRAME_INSET + PAD).round();
         let inner_w = (fw12 - 2.0 * FRAME_INSET - 2.0 * PAD).round();
         let inner_y = (fy12 + FRAME_INSET + PAD).round();
         let inner_h = (fh12 - 2.0 * FRAME_INSET - 2.0 * PAD).round();
         for it in arr.iter_mut() {
-            let id = it.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
-            if type_of(it) == "industrial-scrolling-table" && last_seg(&id) == "12" && !id.ends_with("_12_frame") {
+            let id = it
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            if type_of(it) == "industrial-scrolling-table"
+                && last_seg(&id) == "12"
+                && !id.ends_with("_12_frame")
+            {
                 if set_comp_rect_it(it, inner_x, inner_y, inner_w, inner_h) {
                     changed = true;
                 }
@@ -2840,11 +3065,17 @@ fn align_components(
     let mut packed: Vec<(i64, (f64, f64, f64, f64), (f64, f64, f64, f64))> = Vec::new();
     for (ci, &(seg, tx, tw)) in col_targets.iter().enumerate() {
         // 读该列外框的 y/height
-        let frame = match arr.iter().find(|it| last_seg(it.get("id").and_then(|v| v.as_str()).unwrap_or("")) == seg) {
+        let frame = match arr
+            .iter()
+            .find(|it| last_seg(it.get("id").and_then(|v| v.as_str()).unwrap_or("")) == seg)
+        {
             Some(f) => f.clone(),
             None => continue,
         };
-        let ftf = frame.get("transform").cloned().unwrap_or(serde_json::Value::Null);
+        let ftf = frame
+            .get("transform")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null);
         let fy = ftf.get("y").and_then(|v| v.as_f64()).unwrap_or(0.0);
         let fh = ftf.get("height").and_then(|v| v.as_f64()).unwrap_or(0.0);
         // 收集归入本列的内容组件：按左缘 x 落入本列带（间隙中点划分，可找回被推出框的组件）；
@@ -2875,7 +3106,13 @@ fn align_components(
             if w <= 0.0 || h <= 0.0 {
                 continue;
             }
-            let band = if x < left_right_gap { 0 } else if x < mid_right_gap { 1 } else { 2 };
+            let band = if x < left_right_gap {
+                0
+            } else if x < mid_right_gap {
+                1
+            } else {
+                2
+            };
             if band == ci as i64 {
                 content.push((i, x, y, w, h));
             }
@@ -2995,7 +3232,11 @@ fn align_components(
         if type_of(it) != "region-frame" {
             continue;
         }
-        let id = it.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let id = it
+            .get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
         let seg = last_seg(&id).to_string();
         if id.ends_with("_12_frame") || ["36", "37", "38"].contains(&seg.as_str()) {
             continue;
@@ -3011,7 +3252,13 @@ fn align_components(
         if sw <= 0.0 || sh <= 0.0 {
             continue;
         }
-        let band = if sx < left_right_gap { 0 } else if sx < mid_right_gap { 1 } else { 2 };
+        let band = if sx < left_right_gap {
+            0
+        } else if sx < mid_right_gap {
+            1
+        } else {
+            2
+        };
         let mut ux0 = f64::MAX;
         let mut uy0 = f64::MAX;
         let mut ux1 = f64::MIN;
@@ -3078,7 +3325,11 @@ fn largest_remainder_f64(floats: &[f64], total: i64) -> Vec<i64> {
         let fb = floats[b] - floors[b] as f64;
         fb.partial_cmp(&fa)
             .unwrap_or(std::cmp::Ordering::Equal)
-            .then(floats[b].partial_cmp(&floats[a]).unwrap_or(std::cmp::Ordering::Equal))
+            .then(
+                floats[b]
+                    .partial_cmp(&floats[a])
+                    .unwrap_or(std::cmp::Ordering::Equal),
+            )
     });
     let mut res = floors;
     for k in 0..rem {
@@ -3133,7 +3384,11 @@ fn set_comp_yh(items: &mut serde_json::Value, id: &str, y: i64, h: i64) -> bool 
     let mut changed = false;
     if let serde_json::Value::Array(arr) = items {
         for item in arr.iter_mut() {
-            let idv = item.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let idv = item
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
             if idv != id {
                 continue;
             }
@@ -3171,7 +3426,11 @@ fn set_layout_yh(layout: &mut serde_json::Value, id: &str, y: i64, h: i64) -> bo
     let mut changed = false;
     if let serde_json::Value::Array(arr) = layout {
         for item in arr.iter_mut() {
-            let idv = item.get("componentId").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let idv = item
+                .get("componentId")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
             if idv != id {
                 continue;
             }
@@ -3195,7 +3454,11 @@ fn set_comp_rect(items: &mut serde_json::Value, id: &str, x: i64, y: i64, w: i64
     let mut changed = false;
     if let serde_json::Value::Array(arr) = items {
         for item in arr.iter_mut() {
-            let idv = item.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let idv = item
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
             if idv != id {
                 continue;
             }
@@ -3229,11 +3492,22 @@ fn set_views_rect(views: &mut serde_json::Value, id: &str, x: i64, y: i64, w: i6
 }
 
 /// 在 layout 数组（{componentId,x,y,w,h,zIndex}）的某项上写入完整矩形。返回是否有改动。
-fn set_layout_rect(layout: &mut serde_json::Value, id: &str, x: i64, y: i64, w: i64, h: i64) -> bool {
+fn set_layout_rect(
+    layout: &mut serde_json::Value,
+    id: &str,
+    x: i64,
+    y: i64,
+    w: i64,
+    h: i64,
+) -> bool {
     let mut changed = false;
     if let serde_json::Value::Array(arr) = layout {
         for item in arr.iter_mut() {
-            let idv = item.get("componentId").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let idv = item
+                .get("componentId")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
             if idv != id {
                 continue;
             }
@@ -3255,7 +3529,10 @@ fn set_layout_rect(layout: &mut serde_json::Value, id: &str, x: i64, y: i64, w: 
 fn push_if_absent_ec(ec: &mut serde_json::Value, comp: &serde_json::Value) -> bool {
     if let serde_json::Value::Array(arr) = ec {
         let id = comp.get("id").and_then(|v| v.as_str()).unwrap_or("");
-        if !arr.iter().any(|c| c.get("id").and_then(|v| v.as_str()) == Some(id)) {
+        if !arr
+            .iter()
+            .any(|c| c.get("id").and_then(|v| v.as_str()) == Some(id))
+        {
             arr.push(comp.clone());
             return true;
         }
@@ -3270,7 +3547,10 @@ fn push_if_absent_view(views: &mut serde_json::Value, comp: &serde_json::Value) 
             if v.get("id").and_then(|x| x.as_str()) == Some("view_default") {
                 if let Some(comps) = v.get_mut("components").and_then(|c| c.as_array_mut()) {
                     let id = comp.get("id").and_then(|x| x.as_str()).unwrap_or("");
-                    if !comps.iter().any(|c| c.get("id").and_then(|x| x.as_str()) == Some(id)) {
+                    if !comps
+                        .iter()
+                        .any(|c| c.get("id").and_then(|x| x.as_str()) == Some(id))
+                    {
                         comps.push(comp.clone());
                         return true;
                     }
@@ -3284,16 +3564,20 @@ fn push_if_absent_view(views: &mut serde_json::Value, comp: &serde_json::Value) 
 /// 把 layout 项推入 layout 数组（按 componentId 幂等）。返回是否新增。
 fn push_if_absent_layout(layout: &mut serde_json::Value, item: &serde_json::Value) -> bool {
     if let serde_json::Value::Array(arr) = layout {
-        let id = item.get("componentId").and_then(|v| v.as_str()).unwrap_or("");
-        if !arr.iter().any(|c| c.get("componentId").and_then(|v| v.as_str()) == Some(id)) {
+        let id = item
+            .get("componentId")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        if !arr
+            .iter()
+            .any(|c| c.get("componentId").and_then(|v| v.as_str()) == Some(id))
+        {
             arr.push(item.clone());
             return true;
         }
     }
     false
 }
-
-
 
 /// 综采专享：在综采场景注入"支架状态表"(industrial-support-status，对标 sprayv2/showzc 工作面状态 + 支架状态表)，
 /// 并收缩左侧 sensor-monitor(41) 高度为该表腾出空间。
@@ -3397,9 +3681,10 @@ fn inject_mining_support_status(conn: &Connection) -> Result<(), rusqlite::Error
                 }
             }
         }
-        if !items.iter().any(|c| {
-            c.get("componentId").and_then(|v| v.as_str()) == Some(support_id)
-        }) {
+        if !items
+            .iter()
+            .any(|c| c.get("componentId").and_then(|v| v.as_str()) == Some(support_id))
+        {
             items.push(serde_json::json!({
                 "componentId": support_id,
                 "x": 30, "y": 1240, "w": 600, "h": 640, "zIndex": 18
@@ -3422,7 +3707,6 @@ fn inject_mining_support_status(conn: &Connection) -> Result<(), rusqlite::Error
 /// 把组件数组里 id ∈ align_ids 的 transform 重排：
 ///  - 前 3 个（三栏 region-frame）：y=190, height=1690 → 底部对齐到 1880；
 ///  - 第 4 个（底部滚动数据列表）：y=1880, height=190 → 顶部对齐三栏底部。
-
 
 /// 在 layout 数组的某项（{componentId,x,y,w,h,zIndex}）上写入整型字段。
 fn set_i64_field(item: &mut serde_json::Value, key: &str, val: i64) {
@@ -3511,8 +3795,12 @@ fn cleanup_and_relayout_log_views(conn: &Connection) -> Result<(), rusqlite::Err
                         }
                         let mut nc = c.clone();
                         if let Some((nx, ny, nw, nh)) = log_layout_for(ty) {
-                            if let Some(tf) = nc.get_mut("transform").and_then(|t| t.as_object_mut()) {
-                                for (k, val) in [("x", nx), ("y", ny), ("width", nw), ("height", nh)] {
+                            if let Some(tf) =
+                                nc.get_mut("transform").and_then(|t| t.as_object_mut())
+                            {
+                                for (k, val) in
+                                    [("x", nx), ("y", ny), ("width", nw), ("height", nh)]
+                                {
                                     let vj = serde_json::json!(val);
                                     if tf.get(k) != Some(&vj) {
                                         tf.insert(k.to_string(), vj);
@@ -3573,12 +3861,12 @@ fn relayout_log_monitor_for_charts(conn: &Connection) -> Result<(), rusqlite::Er
     /// V3 目标坐标（对齐运行态 config.db 实测布局，0 重叠 / 0 溢出）
     fn log_layout_v2(ty: &str) -> Option<(f64, f64, f64, f64)> {
         match ty {
-            "industrial-log-overview-cards"        => Some((2560.0,  100.0, 1280.0,  120.0)),
-            "industrial-log-filter-panel"          => Some((   8.0,  149.0,  900.0, 2003.0)),
-            "industrial-operation-log-table"       => Some(( 909.0,  279.0, 2923.0,  810.0)),
-            "industrial-operation-cmd-donut"       => Some(( 909.0, 1090.0, 1460.0,  540.0)),
-            "industrial-operation-result-donut"    => Some((2370.0, 1090.0, 1462.0,  540.0)),
-            "industrial-alarm-trend-stacked"       => Some(( 909.0, 1631.0, 2923.0,  529.0)),
+            "industrial-log-overview-cards" => Some((2560.0, 100.0, 1280.0, 120.0)),
+            "industrial-log-filter-panel" => Some((8.0, 149.0, 900.0, 2003.0)),
+            "industrial-operation-log-table" => Some((909.0, 279.0, 2923.0, 810.0)),
+            "industrial-operation-cmd-donut" => Some((909.0, 1090.0, 1460.0, 540.0)),
+            "industrial-operation-result-donut" => Some((2370.0, 1090.0, 1462.0, 540.0)),
+            "industrial-alarm-trend-stacked" => Some((909.0, 1631.0, 2923.0, 529.0)),
             _ => None,
         }
     }
@@ -3682,16 +3970,21 @@ fn relayout_log_monitor_for_charts(conn: &Connection) -> Result<(), rusqlite::Er
                             ty.hash(&mut current_hasher);
                             if let Some(tf) = c.get("transform").and_then(|t| t.as_object()) {
                                 for k in ["x", "y", "width", "height"] {
-                                    let val = tf
-                                        .get(k)
-                                        .and_then(|x| x.as_f64())
-                                        .unwrap_or(0.0);
+                                    let val = tf.get(k).and_then(|x| x.as_f64()).unwrap_or(0.0);
                                     val.to_bits().hash(&mut current_hasher);
                                 }
                             }
                             // 必填字段是否存在的位标记
-                            let has_id = c.get("id").and_then(|v| v.as_str()).map(|s| !s.is_empty()).unwrap_or(false);
-                            let has_name = c.get("name").and_then(|v| v.as_str()).map(|s| !s.is_empty()).unwrap_or(false);
+                            let has_id = c
+                                .get("id")
+                                .and_then(|v| v.as_str())
+                                .map(|s| !s.is_empty())
+                                .unwrap_or(false);
+                            let has_name = c
+                                .get("name")
+                                .and_then(|v| v.as_str())
+                                .map(|s| !s.is_empty())
+                                .unwrap_or(false);
                             let has_config = c.get("config").is_some();
                             let has_zindex = c.get("zIndex").and_then(|v| v.as_i64()).is_some();
                             has_id.hash(&mut current_hasher);
@@ -3825,10 +4118,7 @@ fn relayout_log_monitor_for_charts(conn: &Connection) -> Result<(), rusqlite::Er
                     }
                     *comps = new_comps;
                 } else if let Some(o) = v.as_object_mut() {
-                    o.insert(
-                        "components".to_string(),
-                        serde_json::Value::Array(vec![]),
-                    );
+                    o.insert("components".to_string(), serde_json::Value::Array(vec![]));
                     changed = true;
                 }
             }
@@ -3978,10 +4268,11 @@ fn add_log_monitor_view(conn: &Connection) -> Result<(), rusqlite::Error> {
         _ => return Ok(()),
     };
 
-    let mut views_arr: Vec<serde_json::Value> = match serde_json::from_str::<serde_json::Value>(&views_str) {
-        Ok(serde_json::Value::Array(a)) => a,
-        _ => return Ok(()), // views 不是合法 JSON 数组，不处理
-    };
+    let mut views_arr: Vec<serde_json::Value> =
+        match serde_json::from_str::<serde_json::Value>(&views_str) {
+            Ok(serde_json::Value::Array(a)) => a,
+            _ => return Ok(()), // views 不是合法 JSON 数组，不处理
+        };
 
     // 幂等检查：已存在 view_log_monitor 则直接返回
     if views_arr
@@ -4125,11 +4416,10 @@ fn seed_auth_config(conn: &Connection) -> Result<(), rusqlite::Error> {
     // 如果 auth_config 已被用户配置过（base_url 非空 = 已设置过认证服务器），则跳过
     // 旧逻辑检查 enabled!=0，但如果用户禁用了认证(enabled=0)但保留了自定义配置，
     // 重启时会被覆盖。改用 base_url="" 判断"从未配置过"更安全。
-    let base_url: String = conn.query_row(
-        "SELECT base_url FROM auth_config WHERE id = 1",
-        [],
-        |row| row.get(0),
-    )?;
+    let base_url: String =
+        conn.query_row("SELECT base_url FROM auth_config WHERE id = 1", [], |row| {
+            row.get(0)
+        })?;
     if !base_url.is_empty() {
         return Ok(()); // 用户已配置过认证服务器，不覆盖
     }
@@ -4172,7 +4462,9 @@ fn seed_auth_config(conn: &Connection) -> Result<(), rusqlite::Error> {
 
 /// 初始化认证预设（Keycloak）
 fn seed_auth_config_presets(conn: &Connection) -> Result<(), rusqlite::Error> {
-    let count: i64 = conn.query_row("SELECT COUNT(*) FROM auth_config_presets", [], |row| row.get(0))?;
+    let count: i64 = conn.query_row("SELECT COUNT(*) FROM auth_config_presets", [], |row| {
+        row.get(0)
+    })?;
     if count > 0 {
         return Ok(());
     }

@@ -5,9 +5,9 @@ use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
+use serde_json::json;
 use tauri::{AppHandle, Emitter};
 use tokio::task::JoinHandle;
-use serde_json::json;
 
 use super::provider::{OpenAiCompatProvider, StreamCallbacks};
 use super::store::AiStore;
@@ -45,12 +45,18 @@ pub struct RunRegistry {
 
 impl RunRegistry {
     pub fn new() -> Self {
-        Self { cancels: Mutex::new(HashMap::new()), tasks: Mutex::new(HashMap::new()) }
+        Self {
+            cancels: Mutex::new(HashMap::new()),
+            tasks: Mutex::new(HashMap::new()),
+        }
     }
 
     pub fn register(&self, conv_id: &str) -> Arc<AtomicBool> {
         let flag = Arc::new(AtomicBool::new(false));
-        self.cancels.lock().unwrap().insert(conv_id.to_string(), flag.clone());
+        self.cancels
+            .lock()
+            .unwrap()
+            .insert(conv_id.to_string(), flag.clone());
         flag
     }
 
@@ -118,7 +124,9 @@ pub async fn run_agent(
         tool_name: None,
         tool_args: None,
         tool_calls: None,
-        created_at: chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string(),
+        created_at: chrono::Local::now()
+            .format("%Y-%m-%d %H:%M:%S%.3f")
+            .to_string(),
         seq: 0,
     })?;
     let conv_list = store.list_conversations()?;
@@ -185,7 +193,11 @@ pub async fn run_agent(
                 }
                 chat.push(ChatMessage {
                     role: "assistant".into(),
-                    content: if m.content.is_empty() { None } else { Some(m.content.clone()) },
+                    content: if m.content.is_empty() {
+                        None
+                    } else {
+                        Some(m.content.clone())
+                    },
                     tool_calls,
                     tool_call_id: None,
                     name: None,
@@ -204,7 +216,13 @@ pub async fn run_agent(
     }
 
     // 3. 引擎循环（工具集按智能体白名单过滤）
-    let provider = OpenAiCompatProvider { base_url, api_key, model, temperature, insecure };
+    let provider = OpenAiCompatProvider {
+        base_url,
+        api_key,
+        model,
+        temperature,
+        insecure,
+    };
     let tool_defs: Vec<super::types::ToolDef> = {
         let all = tools::tool_defs();
         if allowed_tools.is_empty() {
@@ -223,7 +241,10 @@ pub async fn run_agent(
     let mut final_content = String::new();
     for _iteration in 0..max_iterations {
         if is_cancelled() {
-            let _ = app.emit("agent-error", json!({ "conversationId": conversation_id, "error": "已取消" }));
+            let _ = app.emit(
+                "agent-error",
+                json!({ "conversationId": conversation_id, "error": "已取消" }),
+            );
             return Err("已取消".into());
         }
         let outcome: ChatOutcome = {
@@ -257,7 +278,9 @@ pub async fn run_agent(
                 tool_name: None,
                 tool_args: None,
                 tool_calls: None,
-                created_at: chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string(),
+                created_at: chrono::Local::now()
+                    .format("%Y-%m-%d %H:%M:%S%.3f")
+                    .to_string(),
                 seq: 0,
             })?;
             let _ = app.emit(
@@ -274,7 +297,10 @@ pub async fn run_agent(
             .map(|(id, name, args)| ReqToolCall {
                 id: id.clone(),
                 kind: "function".into(),
-                function: ReqToolFn { name: name.clone(), arguments: args.clone() },
+                function: ReqToolFn {
+                    name: name.clone(),
+                    arguments: args.clone(),
+                },
             })
             .collect();
         // P0-1 核心修复：assistant(tool_calls) 必须落库。否则下一轮回放会出现
@@ -298,12 +324,18 @@ pub async fn run_agent(
             tool_name: None,
             tool_args: None,
             tool_calls: tool_calls_json,
-            created_at: chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string(),
+            created_at: chrono::Local::now()
+                .format("%Y-%m-%d %H:%M:%S%.3f")
+                .to_string(),
             seq: 0,
         })?;
         chat.push(ChatMessage {
             role: "assistant".into(),
-            content: if outcome.content.is_empty() { None } else { Some(outcome.content.clone()) },
+            content: if outcome.content.is_empty() {
+                None
+            } else {
+                Some(outcome.content.clone())
+            },
             tool_calls: Some(reply_calls),
             tool_call_id: None,
             name: None,
@@ -312,7 +344,10 @@ pub async fn run_agent(
         for (call_id, name, args) in &outcome.tool_calls {
             // 停止按钮在工具执行期间也生效：进入下一个工具前先检查取消标志
             if is_cancelled() {
-                let _ = app.emit("agent-error", json!({ "conversationId": conversation_id, "error": "已取消" }));
+                let _ = app.emit(
+                    "agent-error",
+                    json!({ "conversationId": conversation_id, "error": "已取消" }),
+                );
                 return Err("已取消".into());
             }
             let _ = app.emit(
@@ -347,7 +382,9 @@ pub async fn run_agent(
                 tool_name: Some(call_id.clone()),
                 tool_args: Some(args.clone()),
                 tool_calls: None,
-                created_at: chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string(),
+                created_at: chrono::Local::now()
+                    .format("%Y-%m-%d %H:%M:%S%.3f")
+                    .to_string(),
                 seq: 0,
             })?;
             chat.push(ChatMessage {
@@ -361,7 +398,10 @@ pub async fn run_agent(
     }
 
     let err = format!("达到最大迭代次数（{max_iterations}），已停止");
-    let _ = app.emit("agent-error", serde_json::json!({ "conversationId": conversation_id, "error": err }));
+    let _ = app.emit(
+        "agent-error",
+        serde_json::json!({ "conversationId": conversation_id, "error": err }),
+    );
     Err(err)
 }
 
@@ -382,16 +422,25 @@ fn build_scope_prompt(scope: &Option<AgentScopeSerde>) -> String {
         } else {
             ""
         };
-        let mode = if sc.scene_mode.is_empty() { "—" } else { &sc.scene_mode };
+        let mode = if sc.scene_mode.is_empty() {
+            "—"
+        } else {
+            &sc.scene_mode
+        };
         lines.push(format!(
             "- {}（id={}，模式={}，绑定 {} 台设备）{}",
-            sc.name, sc.id, mode, sc.device_ids.len(), active
+            sc.name,
+            sc.id,
+            mode,
+            sc.device_ids.len(),
+            active
         ));
     }
     lines.push(
         "默认查询全矿。若用户问题明显指向某场景（如『这个巷道/廊桥/综采最近报警』），请在数据工具中传 scene=\"<场景名称或 id>\" 限定到该场景的设备；传 scene=\"all\" 或留空表示全矿；传 device_id 限定单台设备。"
             .to_string(),
     );
-    lines.push("注意：系统事件（query_system_events）为模块级，不受场景/设备范围限制。".to_string());
+    lines
+        .push("注意：系统事件（query_system_events）为模块级，不受场景/设备范围限制。".to_string());
     lines.join("\n")
 }

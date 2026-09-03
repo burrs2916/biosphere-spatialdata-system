@@ -12,7 +12,9 @@ pub struct AiStore {
 }
 
 fn now() -> String {
-    chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string()
+    chrono::Local::now()
+        .format("%Y-%m-%d %H:%M:%S%.3f")
+        .to_string()
 }
 
 fn gen_id(prefix: &str) -> String {
@@ -60,23 +62,18 @@ impl AiStore {
         )
         .map_err(|e| e.to_string())?;
         // legacy db compat: add enabled column (silently skip if exists)
-        let _ = conn.execute_batch(
-            "ALTER TABLE ai_providers ADD COLUMN enabled INTEGER DEFAULT 1;",
-        );
-        let _ = conn.execute_batch(
-            "ALTER TABLE ai_endpoints ADD COLUMN enabled INTEGER DEFAULT 1;",
-        );
-        let _ = conn.execute_batch(
-            "ALTER TABLE ai_endpoints ADD COLUMN name TEXT DEFAULT '';",
-        );
-        let _ = conn.execute_batch(
-            "ALTER TABLE ai_endpoints ADD COLUMN insecure INTEGER DEFAULT 0;",
-        );
+        let _ =
+            conn.execute_batch("ALTER TABLE ai_providers ADD COLUMN enabled INTEGER DEFAULT 1;");
+        let _ =
+            conn.execute_batch("ALTER TABLE ai_endpoints ADD COLUMN enabled INTEGER DEFAULT 1;");
+        let _ = conn.execute_batch("ALTER TABLE ai_endpoints ADD COLUMN name TEXT DEFAULT '';");
+        let _ =
+            conn.execute_batch("ALTER TABLE ai_endpoints ADD COLUMN insecure INTEGER DEFAULT 0;");
         // legacy db compat: assistant 消息的工具调用（旧库没有该列，跳过即可）
-        let _ = conn.execute_batch(
-            "ALTER TABLE ai_messages ADD COLUMN tool_calls TEXT;",
-        );
-        Ok(Self { conn: Mutex::new(conn) })
+        let _ = conn.execute_batch("ALTER TABLE ai_messages ADD COLUMN tool_calls TEXT;");
+        Ok(Self {
+            conn: Mutex::new(conn),
+        })
     }
 
     // ── Provider ──
@@ -103,19 +100,25 @@ impl AiStore {
         let rows = st
             .query_map([], |r| {
                 Ok(AiProvider {
-                    id: r.get(0)?, name: r.get(1)?, api_key: r.get(2)?,
-                    enabled: r.get::<_, i64>(3)? != 0, created_at: r.get(4)?,
+                    id: r.get(0)?,
+                    name: r.get(1)?,
+                    api_key: r.get(2)?,
+                    enabled: r.get::<_, i64>(3)? != 0,
+                    created_at: r.get(4)?,
                 })
             })
             .map_err(|e| e.to_string())?;
-        rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())
     }
 
     pub fn delete_provider(&self, id: &str) -> Result<(), String> {
         let conn = self.conn.lock().map_err(|e| e.to_string())?;
-        conn.execute("DELETE FROM ai_endpoints WHERE provider_id=?1", [id]).map_err(|e| e.to_string())?;
+        conn.execute("DELETE FROM ai_endpoints WHERE provider_id=?1", [id])
+            .map_err(|e| e.to_string())?;
         conn.execute("DELETE FROM ai_models WHERE endpoint_id IN (SELECT id FROM ai_endpoints WHERE provider_id=?1)", [id]).map_err(|e| e.to_string())?;
-        conn.execute("DELETE FROM ai_providers WHERE id=?1", [id]).map_err(|e| e.to_string())?;
+        conn.execute("DELETE FROM ai_providers WHERE id=?1", [id])
+            .map_err(|e| e.to_string())?;
         Ok(())
     }
 
@@ -143,19 +146,26 @@ impl AiStore {
         let rows = st
             .query_map([], |r| {
                 Ok(AiEndpoint {
-                    id: r.get(0)?, provider_id: r.get(1)?, name: r.get(2)?, base_url: r.get(3)?,
-                    enabled: r.get::<_, i64>(4)? != 0, created_at: r.get(5)?,
+                    id: r.get(0)?,
+                    provider_id: r.get(1)?,
+                    name: r.get(2)?,
+                    base_url: r.get(3)?,
+                    enabled: r.get::<_, i64>(4)? != 0,
+                    created_at: r.get(5)?,
                     insecure: r.get::<_, i64>(6)? != 0,
                 })
             })
             .map_err(|e| e.to_string())?;
-        rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())
     }
 
     pub fn delete_endpoint(&self, id: &str) -> Result<(), String> {
         let conn = self.conn.lock().map_err(|e| e.to_string())?;
-        conn.execute("DELETE FROM ai_models WHERE endpoint_id=?1", [id]).map_err(|e| e.to_string())?;
-        conn.execute("DELETE FROM ai_endpoints WHERE id=?1", [id]).map_err(|e| e.to_string())?;
+        conn.execute("DELETE FROM ai_models WHERE endpoint_id=?1", [id])
+            .map_err(|e| e.to_string())?;
+        conn.execute("DELETE FROM ai_endpoints WHERE id=?1", [id])
+            .map_err(|e| e.to_string())?;
         Ok(())
     }
 
@@ -178,25 +188,35 @@ impl AiStore {
     pub fn list_models(&self) -> Result<Vec<AiModel>, String> {
         let conn = self.conn.lock().map_err(|e| e.to_string())?;
         let mut st = conn
-            .prepare("SELECT id, endpoint_id, model_name, created_at FROM ai_models ORDER BY created_at")
+            .prepare(
+                "SELECT id, endpoint_id, model_name, created_at FROM ai_models ORDER BY created_at",
+            )
             .map_err(|e| e.to_string())?;
         let rows = st
             .query_map([], |r| {
                 Ok(AiModel {
-                    id: r.get(0)?, endpoint_id: r.get(1)?, model_name: r.get(2)?, created_at: r.get(3)?,
+                    id: r.get(0)?,
+                    endpoint_id: r.get(1)?,
+                    model_name: r.get(2)?,
+                    created_at: r.get(3)?,
                 })
             })
             .map_err(|e| e.to_string())?;
-        rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())
     }
 
     pub fn delete_model(&self, id: &str) -> Result<(), String> {
         let conn = self.conn.lock().map_err(|e| e.to_string())?;
-        conn.execute("DELETE FROM ai_models WHERE id=?1", [id]).map_err(|e| e.to_string())?;
+        conn.execute("DELETE FROM ai_models WHERE id=?1", [id])
+            .map_err(|e| e.to_string())?;
         Ok(())
     }
 
-    pub fn get_model_chain(&self, model_id: &str) -> Result<(AiModel, AiEndpoint, AiProvider), String> {
+    pub fn get_model_chain(
+        &self,
+        model_id: &str,
+    ) -> Result<(AiModel, AiEndpoint, AiProvider), String> {
         let models = self.list_models()?;
         let model = models
             .into_iter()
@@ -216,7 +236,10 @@ impl AiStore {
     }
 
     /// 端点 → 供应商链（连接测试用）
-    pub fn get_model_chain_for_endpoint(&self, endpoint_id: &str) -> Result<(AiEndpoint, AiProvider), String> {
+    pub fn get_model_chain_for_endpoint(
+        &self,
+        endpoint_id: &str,
+    ) -> Result<(AiEndpoint, AiProvider), String> {
         let endpoints = self.list_endpoints()?;
         let endpoint = endpoints
             .into_iter()
@@ -266,21 +289,44 @@ impl AiStore {
             .query_map([], |r| {
                 let tool_ids_raw: String = r.get(7)?;
                 Ok((
-                    r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?,
-                    r.get::<_, String>(3)?, r.get::<_, String>(4)?,
-                    r.get::<_, f64>(5)?, r.get::<_, i64>(6)?, tool_ids_raw,
-                    r.get::<_, String>(8)?, r.get::<_, String>(9)?,
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, String>(2)?,
+                    r.get::<_, String>(3)?,
+                    r.get::<_, String>(4)?,
+                    r.get::<_, f64>(5)?,
+                    r.get::<_, i64>(6)?,
+                    tool_ids_raw,
+                    r.get::<_, String>(8)?,
+                    r.get::<_, String>(9)?,
                 ))
             })
             .map_err(|e| e.to_string())?;
         let mut out = Vec::new();
         for row in rows {
-            let (id, name, description, model_id, system_prompt, temperature, max_iterations, tool_ids_raw, created_at, updated_at) =
-                row.map_err(|e| e.to_string())?;
+            let (
+                id,
+                name,
+                description,
+                model_id,
+                system_prompt,
+                temperature,
+                max_iterations,
+                tool_ids_raw,
+                created_at,
+                updated_at,
+            ) = row.map_err(|e| e.to_string())?;
             out.push(AiAgent {
-                id, name, description, model_id, system_prompt, temperature, max_iterations,
+                id,
+                name,
+                description,
+                model_id,
+                system_prompt,
+                temperature,
+                max_iterations,
                 tool_ids: serde_json::from_str(&tool_ids_raw).unwrap_or_default(),
-                created_at, updated_at,
+                created_at,
+                updated_at,
             });
         }
         Ok(out)
@@ -295,7 +341,8 @@ impl AiStore {
 
     pub fn delete_agent(&self, id: &str) -> Result<(), String> {
         let conn = self.conn.lock().map_err(|e| e.to_string())?;
-        conn.execute("DELETE FROM ai_agents WHERE id=?1", [id]).map_err(|e| e.to_string())?;
+        conn.execute("DELETE FROM ai_agents WHERE id=?1", [id])
+            .map_err(|e| e.to_string())?;
         Ok(())
     }
 
@@ -324,24 +371,31 @@ impl AiStore {
         let rows = st
             .query_map([], |r| {
                 Ok(AiConversation {
-                    id: r.get(0)?, title: r.get(1)?, created_at: r.get(2)?, updated_at: r.get(3)?,
+                    id: r.get(0)?,
+                    title: r.get(1)?,
+                    created_at: r.get(2)?,
+                    updated_at: r.get(3)?,
                 })
             })
             .map_err(|e| e.to_string())?;
-        rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())
     }
 
     pub fn delete_conversation(&self, id: &str) -> Result<(), String> {
         let conn = self.conn.lock().map_err(|e| e.to_string())?;
-        conn.execute("DELETE FROM ai_messages WHERE conversation_id=?1", [id]).map_err(|e| e.to_string())?;
-        conn.execute("DELETE FROM ai_conversations WHERE id=?1", [id]).map_err(|e| e.to_string())?;
+        conn.execute("DELETE FROM ai_messages WHERE conversation_id=?1", [id])
+            .map_err(|e| e.to_string())?;
+        conn.execute("DELETE FROM ai_conversations WHERE id=?1", [id])
+            .map_err(|e| e.to_string())?;
         Ok(())
     }
 
     /// 清空会话消息但保留会话本身（「清除对话」语义）；标题复位为「新对话」。
     pub fn clear_messages(&self, id: &str) -> Result<(), String> {
         let conn = self.conn.lock().map_err(|e| e.to_string())?;
-        conn.execute("DELETE FROM ai_messages WHERE conversation_id=?1", [id]).map_err(|e| e.to_string())?;
+        conn.execute("DELETE FROM ai_messages WHERE conversation_id=?1", [id])
+            .map_err(|e| e.to_string())?;
         conn.execute(
             "UPDATE ai_conversations SET title='新对话', updated_at=?2 WHERE id=?1",
             [id, &now()],
@@ -353,11 +407,17 @@ impl AiStore {
     pub fn touch_conversation(&self, id: &str, title: Option<&str>) -> Result<(), String> {
         let conn = self.conn.lock().map_err(|e| e.to_string())?;
         if let Some(t) = title {
-            conn.execute("UPDATE ai_conversations SET title=?2, updated_at=?3 WHERE id=?1", [id, t, &now()])
-                .map_err(|e| e.to_string())?;
+            conn.execute(
+                "UPDATE ai_conversations SET title=?2, updated_at=?3 WHERE id=?1",
+                [id, t, &now()],
+            )
+            .map_err(|e| e.to_string())?;
         } else {
-            conn.execute("UPDATE ai_conversations SET updated_at=?2 WHERE id=?1", [id, &now()])
-                .map_err(|e| e.to_string())?;
+            conn.execute(
+                "UPDATE ai_conversations SET updated_at=?2 WHERE id=?1",
+                [id, &now()],
+            )
+            .map_err(|e| e.to_string())?;
         }
         Ok(())
     }
@@ -410,6 +470,7 @@ impl AiStore {
                 })
             })
             .map_err(|e| e.to_string())?;
-        rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())
     }
 }

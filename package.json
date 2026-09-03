@@ -1,6 +1,9 @@
 {
   "name": "spatialdata-system",
   "private": true,
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"]
+  },
   "version": "0.1.0",
   "type": "module",
   "scripts": {

@@ -9,10 +9,7 @@ use std::fs;
 use std::path::PathBuf;
 
 #[tauri::command]
-pub async fn save_text_to_path(
-    path: String,
-    content: String,
-) -> Result<(), String> {
+pub async fn save_text_to_path(path: String, content: String) -> Result<(), String> {
     let target = PathBuf::from(&path);
     if let Some(parent) = target.parent() {
         if !parent.as_os_str().is_empty() && !parent.exists() {

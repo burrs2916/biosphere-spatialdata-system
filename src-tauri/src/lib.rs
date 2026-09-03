@@ -15,11 +15,11 @@ use application::{
     DeletePresetConfigUseCase, GetConfigUseCase, GetPresetConfigUseCase, ResetConfigUseCase,
     SavePresetConfigUseCase, UpdateConfigUseCase,
 };
+use commands::ai_agent::AiAgentState;
 use commands::{
     init_logger_state, AuthState, ComponentPluginState, DatasourceState, IconsState,
     MapLibraryState, MqttState, SceneState, SettingsState,
 };
-use commands::ai_agent::AiAgentState;
 use infrastructure::database::{init_tables, migrate};
 use infrastructure::{
     Database, SqliteAuthRepository, SqliteDatasourceRepository, SqliteIconRepository,
