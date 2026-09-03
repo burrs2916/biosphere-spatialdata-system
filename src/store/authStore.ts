@@ -93,6 +93,12 @@ interface AuthState {
   isWhitelisted: (path: string) => boolean;
   getAllCachedKeys: () => string[];
   isExpirationTimeKey: (key: string) => boolean;
+  /**
+   * 「用户信息展示」可用字段：只取登录端点响应映射里被保存的用户档案类键，
+   * 自动排除 token / 过期时间 / 内部记录键等与用户展示无关的键。
+   * 已配置的键会保留在列表里，避免历史配置在面板中消失后无法再编辑。
+   */
+  getUserProfileCandidateKeys: () => string[];
 
   getCachedValue: (key: string) => string | null;
   setCachedValue: (key: string, value: string) => void;
@@ -678,6 +684,33 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     return keys.sort();
   },
 
+  getUserProfileCandidateKeys: () => {
+    const s = get();
+    const tokenKey = s.webhook.token.key || "accessToken";
+    const keys = new Set<string>();
+
+    (Array.isArray(s.webhook.endpoints) ? s.webhook.endpoints : []).forEach((endpoint) => {
+      (Array.isArray(endpoint.responseMapping) ? endpoint.responseMapping : []).forEach((mapping) => {
+        const key = mapping.targetKey;
+        if (!key) return;
+        // 只保留主动缓存的用户档案类字段
+        if (!mapping.saveToCache) return;
+        // token / 过期时间 / 内部记录键不属于可展示的用户信息
+        if (mapping.isExpirationTime) return;
+        if (key === tokenKey) return;
+        if (key === "auth_cache_keys") return;
+        keys.add(key);
+      });
+    });
+
+    // 已配置的键始终保留，保证历史配置仍可见可改
+    (Array.isArray(s.webhook.userDisplayConfig) ? s.webhook.userDisplayConfig : []).forEach((c) => {
+      if (c.cacheKey) keys.add(c.cacheKey);
+    });
+
+    return Array.from(keys).sort();
+  },
+
   isExpirationTimeKey: (key) => {
     // 检查所有端点的响应映射，看有没有这个 key 被标记为 isExpirationTime
     return get().webhook.endpoints.some((endpoint) =>
@@ -933,16 +966,27 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       get().setToken(token);
     }
 
-    // 兼容旧键名和新键名
-    const username = 
-      get().getCachedValue("username") || 
-      get().getCachedValue("preferred_username") || 
+    // 身份解析：以「用户信息展示配置」的语义映射为唯一事实源，取不到再回退到通用键名（兼容旧配置）
+    const displayCfg = Array.isArray(get().webhook.userDisplayConfig)
+      ? get().webhook.userDisplayConfig
+      : [];
+    const keyOfType = (type: string) => displayCfg.find((c) => c.displayType === type)?.cacheKey;
+    const readKey = (key?: string) => (key ? get().getCachedValue(key) || "" : "");
+
+    const username =
+      readKey(keyOfType("name")) ||
+      get().getCachedValue("username") ||
+      get().getCachedValue("preferred_username") ||
       "";
-    const email = get().getCachedValue("email") || "";
-    const userId = 
-      get().getCachedValue("userId") || 
-      get().getCachedValue("user_id") || 
-      get().getCachedValue("sub") || 
+    const email =
+      readKey(keyOfType("email")) ||
+      get().getCachedValue("email") ||
+      "";
+    const avatar = readKey(keyOfType("avatar")) || "";
+    const userId =
+      get().getCachedValue("userId") ||
+      get().getCachedValue("user_id") ||
+      get().getCachedValue("sub") ||
       "";
 
     get().setCurrentUser({
@@ -950,6 +994,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       username,
       displayName: username,
       email,
+      avatar: avatar || undefined,
     });
     
     const expInfo = get().findExpirationTimeMapping();

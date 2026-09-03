@@ -82,6 +82,7 @@ export default function MetricWidget({
   value,
   interval,
   trend,
+  trendLabel,
   data,
   visible = true,
   style,
@@ -112,6 +113,7 @@ export default function MetricWidget({
   };
 
   const trendConfig = getTrendConfig();
+  const trendText = trendLabel ?? trendConfig.label;
 
   return (
     <Card
@@ -141,7 +143,7 @@ export default function MetricWidget({
           <Chip
             size="small"
             icon={getTrendIcon()}
-            label={trendConfig.label}
+            label={trendText}
             color={trendConfig.color as "success" | "error" | "default"}
             variant="outlined"
             sx={{ height: 22, fontSize: "0.65rem", fontWeight: 600 }}

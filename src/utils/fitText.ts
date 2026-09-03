@@ -1,6 +1,22 @@
 const _canvas = document.createElement("canvas");
 const _ctx = _canvas.getContext("2d")!;
 
+const _fitCache = new Map<string, number>();
+const _FIT_CACHE_MAX = 200;
+
+function getFitCacheKey(params: {
+  text: string;
+  fontFamily: string;
+  availW: number;
+  availH: number;
+  lineHeight: number;
+  letterSpacing: number;
+  minFontSize?: number;
+  maxFontSize?: number;
+}): string {
+  return `${params.text}|${params.fontFamily}|${params.availW}|${params.availH}|${params.lineHeight}|${params.letterSpacing}|${params.minFontSize ?? ""}|${params.maxFontSize ?? ""}`;
+}
+
 function measureTextWidth(text: string, fontFamily: string, fontSize: number, letterSpacing: number): number {
   _ctx.font = `${fontSize}px ${fontFamily}`;
   let w = _ctx.measureText(text).width;
@@ -82,6 +98,10 @@ export function fitTextToBox(params: {
 
   if (!text || availW <= 0 || availH <= 0) return minFontSize;
 
+  const cacheKey = getFitCacheKey(params);
+  const cached = _fitCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+
   const cleanFontFamily = fontFamily === "inherit" ? "sans-serif" : fontFamily;
 
   let lo = minFontSize;
@@ -100,6 +120,12 @@ export function fitTextToBox(params: {
       hi = mid;
     }
   }
+
+  if (_fitCache.size >= _FIT_CACHE_MAX) {
+    const firstKey = _fitCache.keys().next().value;
+    if (firstKey !== undefined) _fitCache.delete(firstKey);
+  }
+  _fitCache.set(cacheKey, lo);
 
   return lo;
 }

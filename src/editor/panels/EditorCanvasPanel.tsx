@@ -32,11 +32,17 @@ import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import FullscreenIcon from "@mui/icons-material/Fullscreen";
 import VideoIcon from "@mui/icons-material/Videocam";
 import CloseIcon from "@mui/icons-material/Close";
+import RestartAltIcon from "@mui/icons-material/RestartAlt";
 
 const PRESET_SIZES = [
   { label: "1920×1080 (Full HD)", width: 1920, height: 1080 },
   { label: "2560×1440 (2K)", width: 2560, height: 1440 },
   { label: "3840×2160 (4K)", width: 3840, height: 2160 },
+  { label: "7680×4320 (8K)", width: 7680, height: 4320 },
+  { label: "7680×2160 (8K 超宽)", width: 7680, height: 2160 },
+  { label: "11520×2160 (巨幅三联屏)", width: 11520, height: 2160 },
+  { label: "15360×2160 (巨幅四联屏)", width: 15360, height: 2160 },
+  { label: "7680×1440 (巨幅双屏)", width: 7680, height: 1440 },
   { label: "1280×720 (HD)", width: 1280, height: 720 },
   { label: "1080×1920 (竖屏)", width: 1080, height: 1920 },
   { label: "800×600", width: 800, height: 600 },
@@ -51,13 +57,17 @@ const ADAPTATION_OPTIONS: { label: string; value: AdaptationType; desc: string }
   { label: "无自适应", value: "none", desc: "保持原始尺寸" },
 ];
 
-const GRID_SIZE_OPTIONS = [10, 20, 50, 100];
+const GRID_SIZE_OPTIONS = [10, 20, 50, 100, 200];
 
 const GRADIENT_DIRECTION_OPTIONS: { label: string; value: GradientDirection }[] = [
   { label: "→ 向右", value: "to-right" },
+  { label: "← 向左", value: "to-left" },
   { label: "↓ 向下", value: "to-bottom" },
+  { label: "↑ 向上", value: "to-top" },
   { label: "↘ 右下", value: "to-bottom-right" },
   { label: "↙ 左下", value: "to-bottom-left" },
+  { label: "↗ 右上", value: "to-top-right" },
+  { label: "↖ 左上", value: "to-top-left" },
   { label: "◎ 径向", value: "radial" },
 ];
 
@@ -836,6 +846,82 @@ export function EditorCanvasPanel() {
                     </SettingRow>
                   </>
                 )}
+
+                <SettingRow label="细线颜色">
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flex: 1 }}>
+                    <input
+                      type="color"
+                      value={canvasConfig.grid.minorColor || "#666666"}
+                      onChange={(e) =>
+                        setCanvasConfig({ grid: { ...canvasConfig.grid, minorColor: e.target.value } })
+                      }
+                      style={{ width: 28, height: 22, border: "1px solid #ccc", borderRadius: 4, padding: 0, cursor: "pointer", backgroundColor: "transparent" }}
+                    />
+                    {canvasConfig.grid.minorColor && (
+                      <IconButton
+                        size="small"
+                        onClick={() => setCanvasConfig({ grid: { ...canvasConfig.grid, minorColor: "" } })}
+                        sx={{ p: 0.25 }}
+                      >
+                        <RestartAltIcon sx={{ fontSize: 14 }} />
+                      </IconButton>
+                    )}
+                  </Box>
+                </SettingRow>
+
+                <SettingRow label="粗线颜色">
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flex: 1 }}>
+                    <input
+                      type="color"
+                      value={canvasConfig.grid.majorColor || "#333333"}
+                      onChange={(e) =>
+                        setCanvasConfig({ grid: { ...canvasConfig.grid, majorColor: e.target.value } })
+                      }
+                      style={{ width: 28, height: 22, border: "1px solid #ccc", borderRadius: 4, padding: 0, cursor: "pointer", backgroundColor: "transparent" }}
+                    />
+                    {canvasConfig.grid.majorColor && (
+                      <IconButton
+                        size="small"
+                        onClick={() => setCanvasConfig({ grid: { ...canvasConfig.grid, majorColor: "" } })}
+                        sx={{ p: 0.25 }}
+                      >
+                        <RestartAltIcon sx={{ fontSize: 14 }} />
+                      </IconButton>
+                    )}
+                  </Box>
+                </SettingRow>
+
+                <SettingRow label="透明度">
+                  <Slider
+                    size="small"
+                    min={0.05}
+                    max={1}
+                    step={0.05}
+                    value={canvasConfig.grid.opacity}
+                    onChange={(_, v) =>
+                      setCanvasConfig({ grid: { ...canvasConfig.grid, opacity: v as number } })
+                    }
+                    valueLabelDisplay="auto"
+                    valueLabelFormat={(v) => `${Math.round(v * 100)}%`}
+                    sx={{ flex: 1 }}
+                  />
+                </SettingRow>
+
+                <SettingRow label="亮度">
+                  <Slider
+                    size="small"
+                    min={0.2}
+                    max={3}
+                    step={0.1}
+                    value={canvasConfig.grid.brightness}
+                    onChange={(_, v) =>
+                      setCanvasConfig({ grid: { ...canvasConfig.grid, brightness: v as number } })
+                    }
+                    valueLabelDisplay="auto"
+                    valueLabelFormat={(v) => `${Math.round(v * 100)}%`}
+                    sx={{ flex: 1 }}
+                  />
+                </SettingRow>
               </>
             )}
 
@@ -856,10 +942,179 @@ export function EditorCanvasPanel() {
                 size="small"
                 checked={canvasConfig.guide.visible}
                 onChange={(e) =>
-                  setCanvasConfig({ guide: { visible: e.target.checked } })
+                  setCanvasConfig({ guide: { ...canvasConfig.guide, visible: e.target.checked } })
                 }
               />
             </SettingRow>
+
+            {canvasConfig.guide.visible && (
+              <>
+                <SettingRow label="线颜色">
+                  <input
+                    type="color"
+                    value={canvasConfig.guide.color}
+                    onChange={(e) =>
+                      setCanvasConfig({ guide: { ...canvasConfig.guide, color: e.target.value } })
+                    }
+                    style={{ width: 28, height: 22, border: "1px solid #ccc", borderRadius: 4, padding: 0, cursor: "pointer", backgroundColor: "transparent" }}
+                  />
+                </SettingRow>
+
+                <SettingRow label="透明度">
+                  <Slider
+                    size="small"
+                    min={0.05}
+                    max={1}
+                    step={0.05}
+                    value={canvasConfig.guide.opacity}
+                    onChange={(_, v) =>
+                      setCanvasConfig({ guide: { ...canvasConfig.guide, opacity: v as number } })
+                    }
+                    valueLabelDisplay="auto"
+                    valueLabelFormat={(v) => `${Math.round(v * 100)}%`}
+                    sx={{ flex: 1 }}
+                  />
+                </SettingRow>
+
+                <SettingRow label="线宽">
+                  <Slider
+                    size="small"
+                    min={0.5}
+                    max={4}
+                    step={0.5}
+                    value={canvasConfig.guide.lineWidth}
+                    onChange={(_, v) =>
+                      setCanvasConfig({ guide: { ...canvasConfig.guide, lineWidth: v as number } })
+                    }
+                    valueLabelDisplay="auto"
+                    valueLabelFormat={(v) => `${v}px`}
+                    sx={{ flex: 1 }}
+                  />
+                </SettingRow>
+
+                <SettingRow label="线型">
+                  <Select
+                    size="small"
+                    value={canvasConfig.guide.lineStyle}
+                    onChange={(e) =>
+                      setCanvasConfig({ guide: { ...canvasConfig.guide, lineStyle: e.target.value as "solid" | "dashed" | "dotted" } })
+                    }
+                    sx={{ fontSize: 12, height: 26, flex: 1 }}
+                  >
+                    <MenuItem value="solid" sx={{ fontSize: 12 }}>实线</MenuItem>
+                    <MenuItem value="dashed" sx={{ fontSize: 12 }}>虚线</MenuItem>
+                    <MenuItem value="dotted" sx={{ fontSize: 12 }}>点线</MenuItem>
+                  </Select>
+                </SettingRow>
+
+                <SettingRow label="位置预设">
+                  <Select
+                    size="small"
+                    value={canvasConfig.guide.preset}
+                    onChange={(e) =>
+                      setCanvasConfig({ guide: { ...canvasConfig.guide, preset: e.target.value as "center" | "edges" | "center-edges" | "custom" } })
+                    }
+                    sx={{ fontSize: 12, height: 26, flex: 1 }}
+                  >
+                    <MenuItem value="center" sx={{ fontSize: 12 }}>中心</MenuItem>
+                    <MenuItem value="edges" sx={{ fontSize: 12 }}>四边</MenuItem>
+                    <MenuItem value="center-edges" sx={{ fontSize: 12 }}>中心+四边</MenuItem>
+                    <MenuItem value="custom" sx={{ fontSize: 12 }}>自定义</MenuItem>
+                  </Select>
+                </SettingRow>
+
+                {canvasConfig.guide.preset === "custom" && (
+                  <>
+                    <SettingRow label="垂直线" labelWidth={64}>
+                      <TextField
+                        size="small"
+                        placeholder="如: 100,500,960"
+                        value={canvasConfig.guide.customVertical.join(",")}
+                        onChange={(e) => {
+                          const vals = e.target.value.split(",").map(Number).filter((n) => !isNaN(n) && n >= 0);
+                          setCanvasConfig({ guide: { ...canvasConfig.guide, customVertical: vals } });
+                        }}
+                        sx={{ flex: 1, "& input": { fontSize: 11, py: 0.3, height: 20 } }}
+                      />
+                    </SettingRow>
+                    <SettingRow label="水平线" labelWidth={64}>
+                      <TextField
+                        size="small"
+                        placeholder="如: 100,540"
+                        value={canvasConfig.guide.customHorizontal.join(",")}
+                        onChange={(e) => {
+                          const vals = e.target.value.split(",").map(Number).filter((n) => !isNaN(n) && n >= 0);
+                          setCanvasConfig({ guide: { ...canvasConfig.guide, customHorizontal: vals } });
+                        }}
+                        sx={{ flex: 1, "& input": { fontSize: 11, py: 0.3, height: 20 } }}
+                      />
+                    </SettingRow>
+                  </>
+                )}
+
+                <Divider sx={{ my: 0.5 }} />
+
+                <SettingRow label="吸附辅助线">
+                  <Switch
+                    size="small"
+                    checked={canvasConfig.guide.snapToGuide}
+                    onChange={(e) =>
+                      setCanvasConfig({ guide: { ...canvasConfig.guide, snapToGuide: e.target.checked } })
+                    }
+                  />
+                </SettingRow>
+
+                {canvasConfig.guide.snapToGuide && (
+                  <SettingRow label="吸附阈值">
+                    <Slider
+                      size="small"
+                      min={1}
+                      max={20}
+                      step={1}
+                      value={canvasConfig.guide.snapThreshold}
+                      onChange={(_, v) =>
+                        setCanvasConfig({ guide: { ...canvasConfig.guide, snapThreshold: v as number } })
+                      }
+                      valueLabelDisplay="auto"
+                      valueLabelFormat={(v) => `${v}px`}
+                      sx={{ flex: 1 }}
+                    />
+                  </SettingRow>
+                )}
+
+                <SettingRow label="吸附元素">
+                  <Switch
+                    size="small"
+                    checked={canvasConfig.guide.snapToElement}
+                    onChange={(e) =>
+                      setCanvasConfig({ guide: { ...canvasConfig.guide, snapToElement: e.target.checked } })
+                    }
+                  />
+                </SettingRow>
+
+                <Divider sx={{ my: 0.5 }} />
+
+                <SettingRow label="可拖拽">
+                  <Switch
+                    size="small"
+                    checked={canvasConfig.guide.draggable}
+                    onChange={(e) =>
+                      setCanvasConfig({ guide: { ...canvasConfig.guide, draggable: e.target.checked } })
+                    }
+                  />
+                </SettingRow>
+
+                <SettingRow label="位置标注">
+                  <Switch
+                    size="small"
+                    checked={canvasConfig.guide.showLabel}
+                    onChange={(e) =>
+                      setCanvasConfig({ guide: { ...canvasConfig.guide, showLabel: e.target.checked } })
+                    }
+                  />
+                </SettingRow>
+              </>
+            )}
           </Box>
         </Collapse>
           <Divider sx={{ mt: 1 }} />
@@ -887,8 +1142,18 @@ export function EditorCanvasPanel() {
               min={canvasConfig.viewport.minScale * 100}
               max={canvasConfig.viewport.maxScale * 100}
               onChange={(_, value) => {
-                const scale = (value as number) / 100;
-                useEditorStore.getState().setViewport({ scale });
+                const newScale = (value as number) / 100;
+                const state = useEditorStore.getState();
+                const oldScale = state.viewport.scale;
+                const centerX = (state.canvasConfig.width * oldScale) / 2 + state.viewport.offset.x;
+                const centerY = (state.canvasConfig.height * oldScale) / 2 + state.viewport.offset.y;
+                state.setViewport({
+                  scale: newScale,
+                  offset: {
+                    x: centerX - (state.canvasConfig.width * newScale) / 2,
+                    y: centerY - (state.canvasConfig.height * newScale) / 2,
+                  },
+                });
               }}
               sx={{ mx: 0.5 }}
             />
@@ -937,6 +1202,20 @@ export function EditorCanvasPanel() {
                 }
                 sx={{ flex: 1, minWidth: 0, "& .MuiInputBase-input": { fontSize: 11, py: 0.5, px: 1 }, "& .MuiInputBase-root": { minHeight: 28 } }}
                 slotProps={{ htmlInput: { min: 1, max: 20, step: 0.5 } }}
+              />
+            </SettingRow>
+            <SettingRow label="缩放步长">
+              <TextField
+                size="small"
+                type="number"
+                value={canvasConfig.viewport.zoomStep}
+                onChange={(e) =>
+                  setCanvasConfig({
+                    viewport: { ...canvasConfig.viewport, zoomStep: Math.min(1, Math.max(0.01, parseFloat(e.target.value) || 0.15)) },
+                  })
+                }
+                sx={{ flex: 1, minWidth: 0, "& .MuiInputBase-input": { fontSize: 11, py: 0.5, px: 1 }, "& .MuiInputBase-root": { minHeight: 28 } }}
+                slotProps={{ htmlInput: { min: 0.01, max: 1, step: 0.05 } }}
               />
             </SettingRow>
           </Box>

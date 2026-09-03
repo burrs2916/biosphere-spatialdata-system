@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
 import logger from "../utils/logger";
+import { useDevicePlacementStore } from "./devicePlacementStore";
 import type {
   SceneComponent,
   LayerNode,
@@ -18,6 +19,19 @@ import {
   getLayerDescendants,
 } from "../types/editor";
 import { componentRegistry } from "../editor/registry";
+import { calculateAdaptedViewport } from "../utils/viewportTransform";
+
+interface DirtyState {
+  isDirty: boolean;
+  markDirty: () => void;
+  markClean: () => void;
+}
+
+export const useDirtyStore = create<DirtyState>()((set) => ({
+  isDirty: false,
+  markDirty: () => set({ isDirty: true }),
+  markClean: () => set({ isDirty: false }),
+}));
 
 export type EditorTool = "select" | "pan" | "zoom-in" | "zoom-out";
 
@@ -30,14 +44,34 @@ export interface CanvasGridConfig {
   snapToGrid: boolean;
   dragStep: number;
   resizeStep: number;
+  minorColor: string;
+  majorColor: string;
+  opacity: number;
+  brightness: number;
 }
 
 export interface CanvasRulerConfig {
   visible: boolean;
 }
 
+export type GuideLineStyle = "solid" | "dashed" | "dotted";
+
+export type GuideLinePreset = "center" | "edges" | "center-edges" | "custom";
+
 export interface CanvasGuideConfig {
   visible: boolean;
+  color: string;
+  opacity: number;
+  lineWidth: number;
+  lineStyle: GuideLineStyle;
+  preset: GuideLinePreset;
+  customVertical: number[];
+  customHorizontal: number[];
+  snapToGuide: boolean;
+  snapToElement: boolean;
+  snapThreshold: number;
+  draggable: boolean;
+  showLabel: boolean;
 }
 
 export interface CanvasConfig {
@@ -53,6 +87,7 @@ export interface CanvasConfig {
   viewport: {
     minScale: number;
     maxScale: number;
+    zoomStep: number;
   };
 }
 
@@ -82,16 +117,33 @@ export const DEFAULT_CANVAS_CONFIG: CanvasConfig = {
     snapToGrid: false,
     dragStep: 1,
     resizeStep: 1,
+    minorColor: "",
+    majorColor: "",
+    opacity: 1,
+    brightness: 1,
   },
   ruler: {
     visible: true,
   },
   guide: {
     visible: true,
+    color: "#ff3b30",
+    opacity: 0.6,
+    lineWidth: 1,
+    lineStyle: "dashed",
+    preset: "center",
+    customVertical: [],
+    customHorizontal: [],
+    snapToGuide: true,
+    snapToElement: true,
+    snapThreshold: 5,
+    draggable: false,
+    showLabel: false,
   },
   viewport: {
     minScale: 0.1,
     maxScale: 5,
+    zoomStep: 0.15,
   },
 };
 
@@ -103,12 +155,14 @@ export interface EditorState {
   activeTool: EditorTool;
   activeLayerId: string | null;
   draggedComponentType: string | null;
+  /** 当前正在被拖动的设备 ID（用于设备库拖到画布的流程） */
+  draggedDeviceId: string | null;
   canvasConfig: CanvasConfig;
+  containerSize: { width: number; height: number };
   history: HistoryEntry[];
   historyIndex: number;
   maxHistory: number;
   clipboard: SceneComponent[];
-  isDirty: boolean;
   eventBindings: EventBinding[];
   previewMode: boolean;
   views: import("../types/scene").SceneView[];
@@ -122,6 +176,9 @@ export interface EditorActions {
   updateComponent: (id: string, updates: Partial<SceneComponent>) => void;
   updateComponentTransform: (id: string, transform: Partial<Transform>) => void;
   updateComponentConfig: (id: string, config: Record<string, unknown>) => void;
+  // 实时数据专用写入：只合并 config，不记历史、不标脏（非用户编辑，避免撤销栈被淹没 + 保存状态抖动 + 额外重渲染）
+  applyRealtimeData: (id: string, data: Record<string, unknown>) => void;
+  batchUpdateComponent: (id: string, updates: { config?: Record<string, unknown>; transform?: Partial<Transform> }) => void;
   moveComponentToLayer: (id: string, layerId: string) => void;
   reorderComponent: (id: string, zIndex: number) => void;
   duplicateComponent: (id: string) => SceneComponent | null;
@@ -156,10 +213,12 @@ export interface EditorActions {
   zoomOut: () => void;
   zoomToFit: () => void;
   resetViewport: (containerWidth?: number, containerHeight?: number) => void;
+  setContainerSize: (width: number, height: number) => void;
   panTo: (x: number, y: number) => void;
 
   setActiveTool: (tool: EditorTool) => void;
   setDraggedComponentType: (type: string | null) => void;
+  setDraggedDeviceId: (deviceId: string | null) => void;
   setActiveLayer: (layerId: string | null) => void;
   setCanvasConfig: (updates: Partial<CanvasConfig>) => void;
   setCanvasSize: (width: number, height: number) => void;
@@ -192,9 +251,13 @@ const DEFAULT_VIEWPORT: ViewportState = {
   offset: { x: 0, y: 0 },
 };
 
-const ZOOM_STEP = 0.15;
+function deepClone<T>(obj: T): T {
+  return structuredClone(obj);
+}
 
 let _configHistoryTimer: ReturnType<typeof setTimeout> | null = null;
+let _transformHistoryTimer: ReturnType<typeof setTimeout> | null = null;
+const TRANSFORM_HISTORY_DELAY = 400;
 
 export type EditorStore = EditorState & EditorActions;
 
@@ -207,15 +270,16 @@ export const useEditorStore = create<EditorStore>()(
     activeTool: "select" as EditorTool,
     activeLayerId: null as string | null,
     draggedComponentType: null as string | null,
+    draggedDeviceId: null as string | null,
     canvasConfig: { ...DEFAULT_CANVAS_CONFIG },
+    containerSize: { width: 0, height: 0 },
     history: [] as HistoryEntry[],
     historyIndex: -1,
     maxHistory: 50,
     clipboard: [] as SceneComponent[],
-    isDirty: false,
     eventBindings: [] as EventBinding[],
     previewMode: false,
-    views: [{ id: "default", name: "默认视图", components: [], layers: [] }],
+    views: [{ id: "default", name: "默认视图", components: [], layers: [], canvasConfig: deepClone(DEFAULT_CANVAS_CONFIG), viewport: deepClone(DEFAULT_VIEWPORT), eventBindings: [] }],
     activeViewId: "default",
     globalComponents: [],
 
@@ -261,7 +325,7 @@ export const useEditorStore = create<EditorStore>()(
         component.zIndex = maxZ + 1;
         draft.components.push(component);
         draft.selection.selectedIds = [component.id];
-        draft.isDirty = true;
+        useDirtyStore.getState().markDirty();
       });
 
       return component;
@@ -272,7 +336,7 @@ export const useEditorStore = create<EditorStore>()(
       set((draft: EditorState) => {
         draft.components = draft.components.filter((c: SceneComponent) => c.id !== id);
         draft.selection.selectedIds = draft.selection.selectedIds.filter((sid: string) => sid !== id);
-        draft.isDirty = true;
+        useDirtyStore.getState().markDirty();
       });
     },
 
@@ -282,20 +346,24 @@ export const useEditorStore = create<EditorStore>()(
         const idx = draft.components.findIndex((c: SceneComponent) => c.id === id);
         if (idx !== -1) {
           Object.assign(draft.components[idx], updates);
-          draft.isDirty = true;
+          useDirtyStore.getState().markDirty();
         }
       });
     },
 
     updateComponentTransform: (id, transform) => {
-      get().pushHistory("update");
       set((draft: EditorState) => {
         const comp = draft.components.find((c: SceneComponent) => c.id === id);
         if (comp) {
           Object.assign(comp.transform, transform);
-          draft.isDirty = true;
+          useDirtyStore.getState().markDirty();
         }
       });
+      if (_transformHistoryTimer) clearTimeout(_transformHistoryTimer);
+      _transformHistoryTimer = setTimeout(() => {
+        get().pushHistory("update");
+        _transformHistoryTimer = null;
+      }, TRANSFORM_HISTORY_DELAY);
     },
 
     updateComponentConfig: (id, config) => {
@@ -303,7 +371,7 @@ export const useEditorStore = create<EditorStore>()(
         const comp = draft.components.find((c: SceneComponent) => c.id === id);
         if (comp) {
           comp.config = { ...comp.config, ...config };
-          draft.isDirty = true;
+          useDirtyStore.getState().markDirty();
         }
       });
       if (_configHistoryTimer) clearTimeout(_configHistoryTimer);
@@ -313,13 +381,43 @@ export const useEditorStore = create<EditorStore>()(
       }, 300);
     },
 
+    batchUpdateComponent: (id, updates) => {
+      set((draft: EditorState) => {
+        const comp = draft.components.find((c: SceneComponent) => c.id === id);
+        if (!comp) return;
+        if (updates.config) {
+          comp.config = { ...comp.config, ...updates.config };
+        }
+        if (updates.transform) {
+          Object.assign(comp.transform, updates.transform);
+        }
+        useDirtyStore.getState().markDirty();
+      });
+      if (_configHistoryTimer) clearTimeout(_configHistoryTimer);
+      _configHistoryTimer = setTimeout(() => {
+        get().pushHistory("update");
+        _configHistoryTimer = null;
+      }, 300);
+    },
+
+    // 实时数据写入：合并 config，但跳过 pushHistory / markDirty（实时馈送不是用户编辑，
+    // 否则 4K 大屏每 tick 都会污染撤销栈、抖动保存状态并触发额外重渲染 → 卡顿）。
+    applyRealtimeData: (id, data) => {
+      set((draft: EditorState) => {
+        const comp = draft.components.find((c: SceneComponent) => c.id === id);
+        if (comp) {
+          comp.config = { ...comp.config, ...data };
+        }
+      });
+    },
+
     moveComponentToLayer: (id, layerId) => {
       get().pushHistory("update");
       set((draft: EditorState) => {
         const comp = draft.components.find((c: SceneComponent) => c.id === id);
         if (comp) {
           comp.layerId = layerId;
-          draft.isDirty = true;
+          useDirtyStore.getState().markDirty();
         }
       });
     },
@@ -330,7 +428,7 @@ export const useEditorStore = create<EditorStore>()(
         const comp = draft.components.find((c: SceneComponent) => c.id === id);
         if (comp) {
           comp.zIndex = zIndex;
-          draft.isDirty = true;
+          useDirtyStore.getState().markDirty();
         }
       });
     },
@@ -356,7 +454,7 @@ export const useEditorStore = create<EditorStore>()(
       set((draft: EditorState) => {
         draft.components.push(newComp);
         draft.selection.selectedIds = [newComp.id];
-        draft.isDirty = true;
+        useDirtyStore.getState().markDirty();
       });
 
       return newComp;
@@ -387,7 +485,7 @@ export const useEditorStore = create<EditorStore>()(
             parent.children.push(layer.id);
           }
         }
-        draft.isDirty = true;
+        useDirtyStore.getState().markDirty();
       });
       return layer;
     },
@@ -407,7 +505,7 @@ export const useEditorStore = create<EditorStore>()(
             parent.children.push(layer.id);
           }
         }
-        draft.isDirty = true;
+        useDirtyStore.getState().markDirty();
       });
       return layer;
     },
@@ -435,7 +533,7 @@ export const useEditorStore = create<EditorStore>()(
           draft.activeLayerId = defaultLayer?.id || null;
         }
         
-        draft.isDirty = true;
+        useDirtyStore.getState().markDirty();
       });
     },
 
@@ -445,7 +543,7 @@ export const useEditorStore = create<EditorStore>()(
         const idx = draft.layers.findIndex((l: LayerNode) => l.id === id);
         if (idx !== -1) {
           Object.assign(draft.layers[idx], updates);
-          draft.isDirty = true;
+          useDirtyStore.getState().markDirty();
         }
       });
     },
@@ -483,7 +581,7 @@ export const useEditorStore = create<EditorStore>()(
           layer.order = siblings.length - 1;
         }
 
-        draft.isDirty = true;
+        useDirtyStore.getState().markDirty();
       });
     },
 
@@ -493,7 +591,7 @@ export const useEditorStore = create<EditorStore>()(
         const layer = draft.layers.find((l: LayerNode) => l.id === id);
         if (layer) {
           layer.order = order;
-          draft.isDirty = true;
+          useDirtyStore.getState().markDirty();
         }
       });
     },
@@ -513,7 +611,7 @@ export const useEditorStore = create<EditorStore>()(
               if (child) child.visible = newVisible;
             }
           }
-          draft.isDirty = true;
+          useDirtyStore.getState().markDirty();
         }
       });
     },
@@ -533,7 +631,7 @@ export const useEditorStore = create<EditorStore>()(
               if (child) child.locked = newLocked;
             }
           }
-          draft.isDirty = true;
+          useDirtyStore.getState().markDirty();
         }
       });
     },
@@ -565,7 +663,7 @@ export const useEditorStore = create<EditorStore>()(
       get().pushHistory("add");
       set((draft: EditorState) => {
         draft.eventBindings.push(binding);
-        draft.isDirty = true;
+        useDirtyStore.getState().markDirty();
       });
     },
 
@@ -573,7 +671,7 @@ export const useEditorStore = create<EditorStore>()(
       get().pushHistory("delete");
       set((draft: EditorState) => {
         draft.eventBindings = draft.eventBindings.filter((b: EventBinding) => b.id !== id);
-        draft.isDirty = true;
+        useDirtyStore.getState().markDirty();
       });
     },
 
@@ -583,7 +681,7 @@ export const useEditorStore = create<EditorStore>()(
         const idx = draft.eventBindings.findIndex((b: EventBinding) => b.id === id);
         if (idx !== -1) {
           Object.assign(draft.eventBindings[idx], updates);
-          draft.isDirty = true;
+          useDirtyStore.getState().markDirty();
         }
       });
     },
@@ -639,15 +737,27 @@ export const useEditorStore = create<EditorStore>()(
 
     zoomIn: () => {
       set((draft: EditorState) => {
-        const newScale = Math.min(draft.viewport.scale + ZOOM_STEP, draft.canvasConfig.viewport.maxScale);
-        draft.viewport.scale = Math.round(newScale * 100) / 100;
+        const oldScale = draft.viewport.scale;
+        const newScale = Math.min(oldScale + draft.canvasConfig.viewport.zoomStep, draft.canvasConfig.viewport.maxScale);
+        const roundedScale = Math.round(newScale * 100) / 100;
+        const centerX = (draft.canvasConfig.width * oldScale) / 2 + draft.viewport.offset.x;
+        const centerY = (draft.canvasConfig.height * oldScale) / 2 + draft.viewport.offset.y;
+        draft.viewport.offset.x = centerX - (draft.canvasConfig.width * roundedScale) / 2;
+        draft.viewport.offset.y = centerY - (draft.canvasConfig.height * roundedScale) / 2;
+        draft.viewport.scale = roundedScale;
       });
     },
 
     zoomOut: () => {
       set((draft: EditorState) => {
-        const newScale = Math.max(draft.viewport.scale - ZOOM_STEP, draft.canvasConfig.viewport.minScale);
-        draft.viewport.scale = Math.round(newScale * 100) / 100;
+        const oldScale = draft.viewport.scale;
+        const newScale = Math.max(oldScale - draft.canvasConfig.viewport.zoomStep, draft.canvasConfig.viewport.minScale);
+        const roundedScale = Math.round(newScale * 100) / 100;
+        const centerX = (draft.canvasConfig.width * oldScale) / 2 + draft.viewport.offset.x;
+        const centerY = (draft.canvasConfig.height * oldScale) / 2 + draft.viewport.offset.y;
+        draft.viewport.offset.x = centerX - (draft.canvasConfig.width * roundedScale) / 2;
+        draft.viewport.offset.y = centerY - (draft.canvasConfig.height * roundedScale) / 2;
+        draft.viewport.scale = roundedScale;
       });
     },
 
@@ -660,43 +770,25 @@ export const useEditorStore = create<EditorStore>()(
 
     resetViewport: (containerWidth?, containerHeight?) => {
       const cc = get().canvasConfig;
-      const cw = cc.width;
-      const ch = cc.height;
-      if (containerWidth && containerHeight) {
-        const padding = 80;
-        const availW = containerWidth - padding;
-        const availH = containerHeight - padding;
-
-        let scale: number;
-        switch (cc.adaptationType) {
-          case "full-x":
-            scale = availW / cw;
-            break;
-          case "full-y":
-            scale = availH / ch;
-            break;
-          case "full-screen":
-            scale = Math.max(availW / cw, availH / ch);
-            break;
-          case "none":
-            scale = 1;
-            break;
-          case "scale":
-          default:
-            scale = Math.min(availW / cw, availH / ch, 1);
-            break;
-        }
-
-        const offsetX = (containerWidth - cw * scale) / 2;
-        const offsetY = (containerHeight - ch * scale) / 2;
+      const cs = get().containerSize;
+      const cW = containerWidth || cs.width;
+      const cH = containerHeight || cs.height;
+      if (cW && cH) {
+        const vp = calculateAdaptedViewport(cW, cH, cc.width, cc.height, cc.adaptationType);
         set((draft: EditorState) => {
-          draft.viewport = { ...DEFAULT_VIEWPORT, scale, offset: { x: offsetX, y: offsetY } };
+          draft.viewport = { scale: vp.scale, offset: { x: vp.offset.x, y: vp.offset.y } };
         });
       } else {
         set((draft: EditorState) => {
           draft.viewport = { ...DEFAULT_VIEWPORT };
         });
       }
+    },
+
+    setContainerSize: (width, height) => {
+      set((draft: EditorState) => {
+        draft.containerSize = { width, height };
+      });
     },
 
     panTo: (x, y) => {
@@ -717,6 +809,12 @@ export const useEditorStore = create<EditorStore>()(
       });
     },
 
+    setDraggedDeviceId: (deviceId) => {
+      set((draft: EditorState) => {
+        draft.draggedDeviceId = deviceId;
+      });
+    },
+
     setActiveLayer: (layerId) => {
       set((draft: EditorState) => {
         draft.activeLayerId = layerId;
@@ -727,26 +825,16 @@ export const useEditorStore = create<EditorStore>()(
       get().pushHistory("update");
       set((draft: EditorState) => {
         const merged = { ...DEFAULT_CANVAS_CONFIG, ...draft.canvasConfig, ...updates };
-        if (updates.background) {
-          merged.background = { ...DEFAULT_CANVAS_CONFIG.background, ...draft.canvasConfig.background, ...updates.background };
-          if (updates.background.gradient) {
-            merged.background.gradient = { ...DEFAULT_CANVAS_CONFIG.background.gradient, ...draft.canvasConfig.background.gradient, ...updates.background.gradient };
-          }
+        merged.background = { ...DEFAULT_CANVAS_CONFIG.background, ...draft.canvasConfig.background, ...updates.background };
+        if (updates.background?.gradient || draft.canvasConfig.background?.gradient) {
+          merged.background.gradient = { ...DEFAULT_CANVAS_CONFIG.background.gradient, ...draft.canvasConfig.background.gradient, ...updates.background?.gradient };
         }
-        if (updates.grid) {
-          merged.grid = { ...DEFAULT_CANVAS_CONFIG.grid, ...draft.canvasConfig.grid, ...updates.grid };
-        }
-        if (updates.ruler) {
-          merged.ruler = { ...DEFAULT_CANVAS_CONFIG.ruler, ...draft.canvasConfig.ruler, ...updates.ruler };
-        }
-        if (updates.guide) {
-          merged.guide = { ...DEFAULT_CANVAS_CONFIG.guide, ...draft.canvasConfig.guide, ...updates.guide };
-        }
-        if (updates.viewport) {
-          merged.viewport = { ...DEFAULT_CANVAS_CONFIG.viewport, ...draft.canvasConfig.viewport, ...updates.viewport };
-        }
+        merged.grid = { ...DEFAULT_CANVAS_CONFIG.grid, ...draft.canvasConfig.grid, ...updates.grid };
+        merged.ruler = { ...DEFAULT_CANVAS_CONFIG.ruler, ...draft.canvasConfig.ruler, ...updates.ruler };
+        merged.guide = { ...DEFAULT_CANVAS_CONFIG.guide, ...draft.canvasConfig.guide, ...updates.guide };
+        merged.viewport = { ...DEFAULT_CANVAS_CONFIG.viewport, ...draft.canvasConfig.viewport, ...updates.viewport };
         draft.canvasConfig = merged;
-        draft.isDirty = true;
+        useDirtyStore.getState().markDirty();
       });
     },
 
@@ -755,6 +843,15 @@ export const useEditorStore = create<EditorStore>()(
       set((draft: EditorState) => {
         draft.canvasConfig.width = width;
         draft.canvasConfig.height = height;
+        draft.canvasConfig.orientation = width >= height ? "landscape" : "portrait";
+        const maxDim = Math.max(width, height);
+        let recommendedMaxScale = 5;
+        if (maxDim > 10000) recommendedMaxScale = 10;
+        else if (maxDim > 5000) recommendedMaxScale = 8;
+        if (draft.canvasConfig.viewport.maxScale === DEFAULT_CANVAS_CONFIG.viewport.maxScale
+            || draft.canvasConfig.viewport.maxScale < recommendedMaxScale) {
+          draft.canvasConfig.viewport.maxScale = recommendedMaxScale;
+        }
         for (const comp of draft.components) {
           const compRight = comp.transform.x + (comp.transform.width || 0);
           const compBottom = comp.transform.y + (comp.transform.height || 0);
@@ -765,7 +862,7 @@ export const useEditorStore = create<EditorStore>()(
             comp.transform.y = Math.max(0, height - (comp.transform.height || 0));
           }
         }
-        draft.isDirty = true;
+        useDirtyStore.getState().markDirty();
       });
     },
 
@@ -777,17 +874,22 @@ export const useEditorStore = create<EditorStore>()(
 
       const currentComponents = JSON.parse(JSON.stringify(state.components));
       const currentLayers = JSON.parse(JSON.stringify(state.layers)) as LayerNode[];
+      const currentCanvasConfig = JSON.parse(JSON.stringify(state.canvasConfig)) as CanvasConfig;
 
       set((draft: EditorState) => {
         draft.history[draft.historyIndex].after = currentComponents;
         draft.history[draft.historyIndex].layersAfter = currentLayers;
+        draft.history[draft.historyIndex].canvasConfigAfter = currentCanvasConfig;
 
         draft.components = JSON.parse(JSON.stringify(entry.before));
         if (entry.layersBefore) {
           draft.layers = JSON.parse(JSON.stringify(entry.layersBefore));
         }
+        if (entry.canvasConfigBefore) {
+          draft.canvasConfig = JSON.parse(JSON.stringify(entry.canvasConfigBefore));
+        }
         draft.historyIndex = draft.historyIndex - 1;
-        draft.isDirty = true;
+        useDirtyStore.getState().markDirty();
         const validIds = new Set(draft.components.map((c: SceneComponent) => c.id));
         draft.selection.selectedIds = draft.selection.selectedIds.filter((id: string) => validIds.has(id));
       });
@@ -804,8 +906,11 @@ export const useEditorStore = create<EditorStore>()(
         if (entry.layersAfter) {
           draft.layers = JSON.parse(JSON.stringify(entry.layersAfter));
         }
+        if (entry.canvasConfigAfter) {
+          draft.canvasConfig = JSON.parse(JSON.stringify(entry.canvasConfigAfter));
+        }
         draft.historyIndex = newIndex;
-        draft.isDirty = true;
+        useDirtyStore.getState().markDirty();
         const validIds = new Set(draft.components.map((c: SceneComponent) => c.id));
         draft.selection.selectedIds = draft.selection.selectedIds.filter((id: string) => validIds.has(id));
       });
@@ -819,8 +924,9 @@ export const useEditorStore = create<EditorStore>()(
 
     pushHistory: (type) => {
       const state = get();
-      const snapshot = JSON.parse(JSON.stringify(state.components));
-      const layersSnapshot = JSON.parse(JSON.stringify(state.layers)) as LayerNode[];
+      const snapshot = structuredClone(state.components);
+      const layersSnapshot = structuredClone(state.layers) as LayerNode[];
+      const canvasConfigSnapshot = structuredClone(state.canvasConfig) as CanvasConfig;
       const entry: HistoryEntry = {
         id: `hist_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
         timestamp: Date.now(),
@@ -829,6 +935,8 @@ export const useEditorStore = create<EditorStore>()(
         after: snapshot,
         layersBefore: layersSnapshot,
         layersAfter: layersSnapshot,
+        canvasConfigBefore: canvasConfigSnapshot,
+        canvasConfigAfter: canvasConfigSnapshot,
       };
       const newIndex = state.historyIndex + 1;
       const truncated = state.history.slice(0, newIndex);
@@ -870,7 +978,7 @@ export const useEditorStore = create<EditorStore>()(
       set((draft: EditorState) => {
         draft.components.push(...pasted);
         draft.selection.selectedIds = pasted.map((c: SceneComponent) => c.id);
-        draft.isDirty = true;
+        useDirtyStore.getState().markDirty();
       });
     },
 
@@ -884,9 +992,14 @@ export const useEditorStore = create<EditorStore>()(
         draft.selection = { selectedIds: [], hoveredId: null, isMultiSelect: false };
         draft.history = [];
         draft.historyIndex = -1;
-        draft.isDirty = false;
+        useDirtyStore.getState().markClean();
         draft.eventBindings = [];
-        
+        draft.canvasConfig = deepClone(DEFAULT_CANVAS_CONFIG);
+        draft.viewport = deepClone(DEFAULT_VIEWPORT);
+        draft.views = [{ id: "default", name: "默认视图", components: validComponents, layers, canvasConfig: deepClone(DEFAULT_CANVAS_CONFIG), viewport: deepClone(DEFAULT_VIEWPORT), eventBindings: [] }];
+        draft.activeViewId = "default";
+        draft.globalComponents = [];
+
         const defaultLayer = layers.find(l => l.isDefault);
         if (defaultLayer) {
           draft.activeLayerId = defaultLayer.id;
@@ -909,15 +1022,17 @@ export const useEditorStore = create<EditorStore>()(
     clearScene: () => {
       logger.warn("EditorStore", "clearScene called, clearing selection");
       set((draft: EditorState) => {
+        const defaultLayer = createDefaultLayer("默认图层", "layer", null, true);
         draft.components = [];
-        draft.layers = [];
+        draft.layers = [defaultLayer];
         draft.selection = { selectedIds: [], hoveredId: null, isMultiSelect: false };
-        draft.activeLayerId = null;
-        draft.isDirty = false;
+        draft.activeLayerId = defaultLayer.id;
+        useDirtyStore.getState().markClean();
         draft.eventBindings = [];
-        draft.canvasConfig = { ...DEFAULT_CANVAS_CONFIG };
+        draft.canvasConfig = deepClone(DEFAULT_CANVAS_CONFIG);
+        draft.viewport = deepClone(DEFAULT_VIEWPORT);
         draft.previewMode = false;
-        draft.views = [{ id: "default", name: "默认视图", components: [], layers: [] }];
+        draft.views = [{ id: "default", name: "默认视图", components: [], layers: [defaultLayer], canvasConfig: deepClone(DEFAULT_CANVAS_CONFIG), viewport: deepClone(DEFAULT_VIEWPORT), eventBindings: [] }];
         draft.activeViewId = "default";
         draft.globalComponents = [];
       });
@@ -934,6 +1049,11 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     loadSceneWithViews: (views, globalComponents, activeViewId) => {
+      logger.info("EditorStore", "loadSceneWithViews called", {
+        viewsCount: views.length,
+        globalComponentsCount: globalComponents.length,
+        activeViewId,
+      });
       set((draft: EditorState) => {
         draft.views = views;
         draft.globalComponents = globalComponents;
@@ -942,31 +1062,66 @@ export const useEditorStore = create<EditorStore>()(
         if (activeView) {
           draft.components = activeView.components;
           draft.layers = activeView.layers;
-          if (activeView.canvasConfig) {
-            draft.canvasConfig = { ...activeView.canvasConfig };
-          }
+          draft.canvasConfig = activeView.canvasConfig ? deepClone(activeView.canvasConfig) : { ...DEFAULT_CANVAS_CONFIG };
+          draft.viewport = activeView.viewport ? deepClone(activeView.viewport) : { ...DEFAULT_VIEWPORT };
+          draft.eventBindings = activeView.eventBindings ? deepClone(activeView.eventBindings) : [];
+          // 🔍 DIAGNOSTIC: 输出每个组件的类型信息
+          logger.info("EditorStore", "Active view components loaded", {
+            viewId: activeView.id,
+            viewName: activeView.name,
+            componentsCount: activeView.components.length,
+            componentTypes: activeView.components.map((c) => ({ id: c.id, type: c.type, name: c.name })),
+          });
+        } else {
+          draft.components = [];
+          draft.layers = [];
+          draft.canvasConfig = deepClone(DEFAULT_CANVAS_CONFIG);
+          draft.viewport = deepClone(DEFAULT_VIEWPORT);
+          draft.eventBindings = [];
         }
         draft.selection = { selectedIds: [], hoveredId: null, isMultiSelect: false };
         draft.history = [];
         draft.historyIndex = -1;
-        draft.isDirty = false;
-        draft.eventBindings = [];
+        useDirtyStore.getState().markClean();
         const defaultLayer = draft.layers.find((l) => l.isDefault);
         draft.activeLayerId = defaultLayer?.id || (draft.layers.length > 0 ? draft.layers[0].id : null);
       });
+      // 加载所有视图的设备摆位到 devicePlacementStore（独立 store，不进 history）
+      const placementStore = useDevicePlacementStore.getState();
+      for (const v of views) {
+        placementStore.hydrateView(v.id, v.devicePlacements ?? []);
+      }
     },
 
     exportSceneWithViews: () => {
       const state = get();
+      const placementStore = useDevicePlacementStore.getState();
       const views = state.views.map((v) => {
+        const placements = deepClone(placementStore.getPlacements(v.id));
         if (v.id === state.activeViewId) {
-          return { ...v, components: JSON.parse(JSON.stringify(state.components)), layers: JSON.parse(JSON.stringify(state.layers)), canvasConfig: { ...state.canvasConfig } };
+          return {
+            ...v,
+            components: deepClone(state.components),
+            layers: deepClone(state.layers),
+            canvasConfig: deepClone(state.canvasConfig),
+            viewport: deepClone(state.viewport),
+            eventBindings: deepClone(state.eventBindings),
+            devicePlacements: placements,
+          };
         }
-        return { ...v, components: v.components ? JSON.parse(JSON.stringify(v.components)) : [], layers: v.layers ? JSON.parse(JSON.stringify(v.layers)) : [] };
+        return {
+          ...v,
+          components: v.components ? deepClone(v.components) : [],
+          layers: v.layers ? deepClone(v.layers) : [],
+          canvasConfig: v.canvasConfig ? deepClone(v.canvasConfig) : undefined,
+          viewport: v.viewport ? deepClone(v.viewport) : undefined,
+          eventBindings: v.eventBindings ? deepClone(v.eventBindings) : [],
+          devicePlacements: placements,
+        };
       });
       return {
         views,
-        globalComponents: JSON.parse(JSON.stringify(state.globalComponents)),
+        globalComponents: deepClone(state.globalComponents),
         activeViewId: state.activeViewId,
       };
     },
@@ -977,19 +1132,26 @@ export const useEditorStore = create<EditorStore>()(
         if (currentView) {
           currentView.components = draft.components;
           currentView.layers = draft.layers;
-          currentView.canvasConfig = { ...draft.canvasConfig };
+          currentView.canvasConfig = draft.canvasConfig;
+          currentView.viewport = draft.viewport;
+          currentView.eventBindings = draft.eventBindings;
         }
         const viewId = `view-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
         const defaultLayer = createDefaultLayer("默认图层", "layer", null, true);
-        draft.views.push({ id: viewId, name, components: [], layers: [defaultLayer] });
+        const newCanvasConfig = draft.canvasConfig;
+        const newViewport = draft.viewport;
+        draft.views.push({ id: viewId, name, components: [], layers: [defaultLayer], canvasConfig: newCanvasConfig, viewport: newViewport, eventBindings: [] });
         draft.activeViewId = viewId;
         draft.components = [];
         draft.layers = [defaultLayer];
+        draft.canvasConfig = newCanvasConfig;
+        draft.viewport = newViewport;
+        draft.eventBindings = [];
         draft.selection = { selectedIds: [], hoveredId: null, isMultiSelect: false };
         draft.history = [];
         draft.historyIndex = -1;
         draft.activeLayerId = defaultLayer.id;
-        draft.isDirty = true;
+        useDirtyStore.getState().markDirty();
       });
       return get().activeViewId;
     },
@@ -999,24 +1161,35 @@ export const useEditorStore = create<EditorStore>()(
         if (draft.views.length <= 1) return;
         const idx = draft.views.findIndex((v) => v.id === viewId);
         if (idx === -1) return;
-        draft.views.splice(idx, 1);
         if (draft.activeViewId === viewId) {
+          draft.views.splice(idx, 1);
           const nextView = draft.views[Math.min(idx, draft.views.length - 1)];
           draft.activeViewId = nextView.id;
           draft.components = nextView.components || [];
           draft.layers = nextView.layers || [];
-          if (nextView.canvasConfig) {
-            draft.canvasConfig = { ...nextView.canvasConfig };
-          }
+          draft.canvasConfig = nextView.canvasConfig ? { ...nextView.canvasConfig } : { ...DEFAULT_CANVAS_CONFIG };
+          draft.viewport = nextView.viewport ? { ...nextView.viewport, offset: { ...nextView.viewport.offset } } : { ...DEFAULT_VIEWPORT };
+          draft.eventBindings = nextView.eventBindings ? [...nextView.eventBindings] : [];
           draft.selection = { selectedIds: [], hoveredId: null, isMultiSelect: false };
           const defaultLayer = draft.layers.find((l) => l.isDefault);
           draft.activeLayerId = defaultLayer?.id || (draft.layers.length > 0 ? draft.layers[0].id : null);
+        } else {
+          const activeView = draft.views.find((v) => v.id === draft.activeViewId);
+          if (activeView) {
+            activeView.components = draft.components;
+            activeView.layers = draft.layers;
+            activeView.canvasConfig = draft.canvasConfig;
+            activeView.viewport = draft.viewport;
+            activeView.eventBindings = draft.eventBindings;
+          }
+          draft.views.splice(idx, 1);
         }
-        draft.isDirty = true;
+        useDirtyStore.getState().markDirty();
       });
     },
 
     switchView: (viewId) => {
+      const prevViewId = get().activeViewId;
       set((draft: EditorState) => {
         const currentView = draft.views.find((v) => v.id === draft.activeViewId);
         if (currentView) {
@@ -1038,6 +1211,13 @@ export const useEditorStore = create<EditorStore>()(
         const defaultLayer = draft.layers.find((l) => l.isDefault);
         draft.activeLayerId = defaultLayer?.id || (draft.layers.length > 0 ? draft.layers[0].id : null);
       });
+      logger.info("EditorStore", "switchView", {
+        from: prevViewId,
+        to: viewId,
+        newViewport: get().viewport,
+        newCanvasConfig: { width: get().canvasConfig.width, height: get().canvasConfig.height },
+        componentCount: get().components.length,
+      });
     },
 
     renameView: (viewId, name) => {
@@ -1045,7 +1225,7 @@ export const useEditorStore = create<EditorStore>()(
         const view = draft.views.find((v) => v.id === viewId);
         if (view) {
           view.name = name;
-          draft.isDirty = true;
+          useDirtyStore.getState().markDirty();
         }
       });
     },
@@ -1056,3 +1236,8 @@ export const useEditorStore = create<EditorStore>()(
     },
   }))
 );
+
+// 开发模式暴露到 window，方便 Console 调试
+if (typeof window !== "undefined") {
+  (window as any).__editorStore = useEditorStore;
+}

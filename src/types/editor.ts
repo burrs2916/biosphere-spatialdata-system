@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
 
 export type BackgroundType = "solid" | "gradient" | "image" | "video";
-export type GradientDirection = "to-right" | "to-bottom" | "to-bottom-right" | "to-bottom-left" | "radial";
+export type GradientDirection = "to-right" | "to-left" | "to-bottom" | "to-top" | "to-bottom-right" | "to-bottom-left" | "to-top-right" | "to-top-left" | "radial";
 export type ImageFit = "cover" | "contain" | "fill" | "none";
 
 export interface CanvasBackground {
@@ -71,6 +71,52 @@ export interface DataBinding {
   type: DataBindingType;
 }
 
+/** 事件触发源类型 */
+export type EventTriggerSource =
+  | 'interaction'   // 用户交互（onClick/onDblClick/onMouseEnter/onMouseLeave）
+  | 'data'          // 数据变化触发
+  | 'threshold'     // 阈值越限触发
+  | 'timer'          // 定时触发
+  | 'state';        // 状态切换触发
+
+/** 数据变化触发配置 */
+export interface DataTriggerConfig {
+  /** 监听的数据源 ID（关联 dataSourceStore） */
+  dataSourceId?: string;
+  /** 监听的组件 ID（取该组件的 config 数据） */
+  componentId?: string;
+  /** 监听的数据字段路径，如 "value" / "config.tag.value" */
+  field?: string;
+  /** 值变化时触发条件（可选，不填则任何变化都触发） */
+  condition?: string;
+}
+
+/** 阈值触发配置 */
+export interface ThresholdTriggerConfig {
+  /** 数据源 ID */
+  dataSourceId?: string;
+  /** 组件 ID */
+  componentId?: string;
+  /** 监听字段 */
+  field?: string;
+  /** 比较运算符 */
+  operator: '>' | '>=' | '<' | '<=' | '==' | '!=';
+  /** 阈值 */
+  threshold: number | string;
+  /** 触发方向：rising（上升沿越限）/ falling（下降沿恢复）/ both */
+  edge?: 'rising' | 'falling' | 'both';
+}
+
+/** 定时触发配置 */
+export interface TimerTriggerConfig {
+  /** 触发间隔（毫秒） */
+  interval: number;
+  /** 是否只触发一次 */
+  once?: boolean;
+  /** 延迟启动（毫秒） */
+  delay?: number;
+}
+
 export interface EventBinding {
   id: string;
   sourceComponentId: string;
@@ -79,6 +125,22 @@ export interface EventBinding {
   targetAction: string;
   params?: Record<string, unknown>;
   condition?: string;
+  /** ── 运行时控制 ── */
+  /** 是否启用（默认 true） */
+  enabled?: boolean;
+  /** 节流间隔（ms），同一事件在间隔内只触发一次 */
+  throttle?: number;
+  /** 防抖延迟（ms），事件停止 N ms 后才触发 */
+  debounce?: number;
+  /** ── 触发源扩展 ── */
+  /** 触发源类型（默认 'interaction'） */
+  triggerSource?: EventTriggerSource;
+  /** 数据变化触发配置（triggerSource='data' 时生效） */
+  dataTrigger?: DataTriggerConfig;
+  /** 阈值触发配置（triggerSource='threshold' 时生效） */
+  thresholdTrigger?: ThresholdTriggerConfig;
+  /** 定时触发配置（triggerSource='timer' 时生效） */
+  timerTrigger?: TimerTriggerConfig;
 }
 
 export interface DataSchema {
@@ -108,6 +170,7 @@ export interface ComponentRendererProps {
   contentInteractionActive?: boolean;
   onInteractionLockChange?: (locked: boolean) => void;
   spatialContext?: SpatialRendererContext;
+  editorSelected?: boolean;
 }
 
 export interface SpatialRendererContext {
@@ -182,6 +245,7 @@ export interface ComponentDefinition {
   category: string;
   version: string;
   defaultSize: Size;
+  minSize?: Size;
   defaultConfig: Record<string, unknown>;
   capabilities: ComponentCapabilities;
   configSchema?: ConfigField[];
@@ -192,22 +256,66 @@ export interface ComponentDefinition {
   builtIn?: boolean;
   enabled?: boolean;
   layerType?: 'spatial' | 'overlay' | 'widget';
+  /**
+   * 标记组件是"操作型"（强喷/强停/视频播放/定时控制等），
+   * 即使没有 eventBindings 也要在预览/发布模式下保持交互能力。
+   * 默认 false（纯展示型组件）。
+   */
+  requiresInteraction?: boolean;
 }
 
 export interface ConfigField {
   key: string;
   label: string;
-  type: "text" | "number" | "select" | "color" | "toggle" | "slider" | "textarea" | "json" | "file" | "group" | "mapLibrary" | "datasource" | "datafield";
+  type?: "number" | "text" | "select" | "color" | "toggle" | "slider" | "textarea" | "json" | "file" | "group" | "mapLibrary" | "datasource" | "datafield" | "deviceSelect" | "tagMultiSelect" | "dbTable" | "dbColumn" | "action" | "deviceMultiSelect" | "keyValueMapping" | "dataSourceInfo";
   defaultValue?: unknown;
+  /**
+   * deviceMultiSelect 专用：设备过滤条件
+   * productCode：只显示指定产品码的设备（如只显示集控器）
+   */
+  deviceFilter?: { productCode?: string[] };
+  /**
+   * deviceMultiSelect 专用：最大可选数量（用于实现单选限制，如 maxSelectable: 1）
+   */
+  maxSelectable?: number;
   options?: { label: string; value: unknown }[];
+  /**
+   * 字段说明文字（显示在输入框下方）
+   */
+  help?: string;
+  /**
+   * tagMultiSelect 专用：动态生成选项的回调（一般是当前设备的 ProductTag[]）
+   * 返回 [{ label, value }, ...]；返回 undefined 时该字段不渲染
+   */
+  dynamicOptions?: (config: Record<string, unknown>) => Array<{ label: string; value: string }> | undefined;
   min?: number;
   max?: number;
   step?: number;
   placeholder?: string;
   group?: string;
+  /** dbColumn 专用：过滤字段类型（time=只显示时间类型，numeric=只显示数值类型） */
+  columnFilter?: "time" | "numeric";
+  /** 适用的图表类型列表（仅折线图等支持多类型的组件使用）。未指定则全部适用 */
+  types?: string[];
   hidden?: (config: Record<string, unknown>) => boolean;
   fields?: ConfigField[];
   mapType?: "cad" | "tile" | "blueprint" | "globe" | "heatmap";
+  /** action 字段专用：动作名（注册到 actionHandlers 的 key） */
+  action?: string;
+  /** action 字段专用：按钮文案（默认=label） */
+  buttonLabel?: string;
+  /** action 字段专用：点击后是否立即写回 config（用于触发"加载设备"等副作用） */
+  writesConfig?: boolean;
+  /** keyValueMapping 字段专用：键的标签（默认"键"） */
+  keyLabel?: string;
+  /** keyValueMapping 字段专用：值的标签（默认"值"） */
+  valueLabel?: string;
+  /** keyValueMapping 字段专用：值下拉选项（不填则 value 自由输入） */
+  valueOptions?: Array<{ label: string; value: string }>;
+  /** deviceMultiSelect 字段专用：列表显示列字段（deviceId / productName / kind / online） */
+  displayColumns?: string[];
+  /** text/number 等输入字段专用：只读，不可编辑 */
+  readOnly?: boolean;
 }
 
 export interface LayerNode {
@@ -232,9 +340,11 @@ export interface LayerNode {
 export const CATEGORY_LABELS: Record<string, string> = {
   basic: "基础组件",
   chart: "图表组件",
+  "line-chart": "折线图",
   map: "地图组件",
   media: "媒体组件",
   decoration: "装饰组件",
+  "decoration-title": "标题栏",
   custom: "自定义组件",
 };
 
@@ -257,6 +367,8 @@ export interface HistoryEntry {
   after: SceneComponent[];
   layersBefore?: LayerNode[];
   layersAfter?: LayerNode[];
+  canvasConfigBefore?: import("../store/editorStore").CanvasConfig;
+  canvasConfigAfter?: import("../store/editorStore").CanvasConfig;
 }
 
 export function createDefaultTransform(override?: Partial<Transform>): Transform {
@@ -332,7 +444,12 @@ export function flattenLayerTree(layers: LayerNode[]): LayerNode[] {
     }
   };
 
-  const roots = layers.filter((l) => l.parentId === null).sort((a, b) => a.order - b.order);
+  // 根层判定：无父（null 或字段缺失 undefined）即视为根层。
+  // 修复：部分视图图层对象缺 parentId 字段（如 view_log_monitor 的 layer_log_default），
+  // 原 `=== null` 会因 undefined 将其排除，导致该层下组件从未进画布、视图整块空白。
+  const roots = layers
+    .filter((l) => l.parentId === null || l.parentId === undefined)
+    .sort((a, b) => a.order - b.order);
   for (const root of roots) {
     walk(root.id);
   }

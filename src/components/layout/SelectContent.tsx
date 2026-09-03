@@ -41,12 +41,12 @@ import UploadRoundedIcon from "@mui/icons-material/UploadRounded";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { useSceneStore } from "../../store/sceneStore";
+import { requireConfigAccess } from "../../utils/authGate";
 import { logger } from "../../utils/logger";
 import { SCENE_TEMPLATES } from "../../types/scene";
 import type { SceneDSL, SceneCategory, SceneTemplate } from "../../types/scene";
 
 const DEFAULT_CATEGORY_ID = "cat_default";
-const DEFAULT_SCENE_ID = "scene_default";
 
 const CATEGORY_COLORS = [
   "#2196F3", "#4CAF50", "#FF9800", "#9C27B0",
@@ -141,14 +141,8 @@ export default function SelectContent() {
 
   useEffect(() => {
     if (!initialized) return;
-    if (scenes.length === 0) {
-      createScene(
-        { id: DEFAULT_SCENE_ID, name: "默认场景", categoryId: DEFAULT_CATEGORY_ID },
-        "blank"
-      ).then((scene) => {
-        setActiveScene(scene.id);
-      }).catch(() => {});
-    } else if (!activeSceneId) {
+    // 默认场景（设备状态监控大屏）由 sceneStore.loadScenes 保证创建，这里只负责激活
+    if (!activeSceneId && scenes.length > 0) {
       const firstScene = scenes[0];
       if (firstScene) setActiveScene(firstScene.id);
     }
@@ -213,12 +207,20 @@ export default function SelectContent() {
     setMenuCategory(null);
   }, []);
 
+  // 配置面动作统一走登录门禁（切换/激活场景不受限，仅管理动作需要）
+  const guarded = useCallback((action: () => void) => {
+    requireConfigAccess(action);
+  }, []);
+
   const handleRename = useCallback(() => {
     if (!menuCategory) return;
-    setRenameValue(menuCategory.name);
-    setRenameDialogOpen(true);
+    const cat = menuCategory;
     handleCatMenuClose();
-  }, [menuCategory, handleCatMenuClose]);
+    guarded(() => {
+      setRenameValue(cat.name);
+      setRenameDialogOpen(true);
+    });
+  }, [menuCategory, handleCatMenuClose, guarded]);
 
   const handleRenameSubmit = useCallback(async () => {
     if (!menuCategory || !renameValue.trim()) return;
@@ -229,16 +231,21 @@ export default function SelectContent() {
 
   const handleDeleteCategory = useCallback(async () => {
     if (!menuCategory) return;
-    await deleteCategory(menuCategory.id);
+    const cat = menuCategory;
     handleCatMenuClose();
-  }, [menuCategory, deleteCategory, handleCatMenuClose]);
+    guarded(() => {
+      void deleteCategory(cat.id);
+    });
+  }, [menuCategory, deleteCategory, handleCatMenuClose, guarded]);
 
   const handleNewCategory = useCallback(() => {
     setGroupMenuAnchor(null);
-    setNewCategoryName("");
-    setNewCategoryColor(CATEGORY_COLORS[Math.floor(Math.random() * CATEGORY_COLORS.length)]);
-    setNewCategoryDialogOpen(true);
-  }, []);
+    guarded(() => {
+      setNewCategoryName("");
+      setNewCategoryColor(CATEGORY_COLORS[Math.floor(Math.random() * CATEGORY_COLORS.length)]);
+      setNewCategoryDialogOpen(true);
+    });
+  }, [guarded]);
 
   const handleNewCategorySubmit = useCallback(async () => {
     if (!newCategoryName.trim()) return;
@@ -248,10 +255,12 @@ export default function SelectContent() {
   }, [newCategoryName, newCategoryColor, createCategory]);
 
   const handleOpenCreateScene = useCallback(() => {
-    setNewSceneName("");
-    setSelectedTemplate("blank");
-    setCreateSceneDialogOpen(true);
-  }, []);
+    guarded(() => {
+      setNewSceneName("");
+      setSelectedTemplate("blank");
+      setCreateSceneDialogOpen(true);
+    });
+  }, [guarded]);
 
   const handleCreateScene = useCallback(async () => {
     if (!newSceneName.trim()) return;
@@ -272,27 +281,31 @@ export default function SelectContent() {
   }, [newSceneName, selectedGroupId, selectedTemplate, createScene, setActiveScene]);
 
   const handleOpenEditScene = useCallback(
-    async (e: React.MouseEvent, scene: SceneDSL) => {
+    (e: React.MouseEvent, scene: SceneDSL) => {
       e.stopPropagation();
-      logger.info("Scene", "Opening edit dialog", { sceneId: scene.id, name: scene.name, thumbnail: scene.thumbnail });
-      setEditSceneId(scene.id);
-      setEditSceneName(scene.name);
-      setEditSceneDesc(scene.description || "");
-      const isGradient = isGradientCover(scene.thumbnail);
-      if (!isGradient && scene.thumbnail && (scene.thumbnail.startsWith("/") || scene.thumbnail.startsWith("file://"))) {
-        try {
-          const dataUrl = await invoke<string>("read_file_as_data_url", { filePath: scene.thumbnail });
-          setEditSceneCover(dataUrl);
-        } catch {
-          setEditSceneCover(scene.thumbnail);
-        }
-      } else {
-        setEditSceneCover(scene.thumbnail || getSceneGradient(scene.id));
-      }
-      setEditSceneCoverType(isGradient || !scene.thumbnail ? "gradient" : "custom");
-      setEditSceneDialogOpen(true);
+      guarded(() => {
+        void (async () => {
+          logger.info("Scene", "Opening edit dialog", { sceneId: scene.id, name: scene.name, thumbnail: scene.thumbnail });
+          setEditSceneId(scene.id);
+          setEditSceneName(scene.name);
+          setEditSceneDesc(scene.description || "");
+          const isGradient = isGradientCover(scene.thumbnail);
+          if (!isGradient && scene.thumbnail && (scene.thumbnail.startsWith("/") || scene.thumbnail.startsWith("file://"))) {
+            try {
+              const dataUrl = await invoke<string>("read_file_as_data_url", { filePath: scene.thumbnail });
+              setEditSceneCover(dataUrl);
+            } catch {
+              setEditSceneCover(scene.thumbnail);
+            }
+          } else {
+            setEditSceneCover(scene.thumbnail || getSceneGradient(scene.id));
+          }
+          setEditSceneCoverType(isGradient || !scene.thumbnail ? "gradient" : "custom");
+          setEditSceneDialogOpen(true);
+        })();
+      });
     },
-    []
+    [guarded]
   );
 
   const handleSelectCustomCover = useCallback(async () => {
@@ -341,11 +354,13 @@ export default function SelectContent() {
   const handleOpenDeleteConfirm = useCallback(
     (e: React.MouseEvent, scene: SceneDSL) => {
       e.stopPropagation();
-      setDeleteSceneId(scene.id);
-      setDeleteSceneName(scene.name);
-      setDeleteConfirmOpen(true);
+      guarded(() => {
+        setDeleteSceneId(scene.id);
+        setDeleteSceneName(scene.name);
+        setDeleteConfirmOpen(true);
+      });
     },
-    []
+    [guarded]
   );
 
   const handleDeleteScene = useCallback(async () => {
@@ -431,7 +446,7 @@ export default function SelectContent() {
           <>
             <FolderRoundedIcon sx={{ fontSize: "1.1rem", color: "text.disabled" }} />
             <Typography variant="body2" color="text.secondary" sx={{ flex: 1 }}>
-              默认场景
+              无场景
             </Typography>
           </>
         )}

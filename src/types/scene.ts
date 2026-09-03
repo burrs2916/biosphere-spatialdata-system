@@ -22,6 +22,10 @@ export interface SceneView {
   components: SceneComponent[];
   layers: LayerNode[];
   canvasConfig?: import("../store/editorStore").CanvasConfig;
+  viewport?: import("../types/editor").ViewportState;
+  eventBindings?: import("../types/editor").EventBinding[];
+  /** 该视图中的设备摆位（V1 组态联动） */
+  devicePlacements?: import("./devicePlacement").DevicePlacement[];
 }
 
 export interface SceneDSL {
@@ -239,6 +243,108 @@ export const SCENE_TEMPLATES: SceneTemplate[] = [
         bearing: 0,
         pitch: 0,
       },
+    },
+  },
+  {
+    id: "device-status",
+    name: "设备状态监控大屏",
+    description: "专用于展示全矿设备在线/离线/故障/告警状态的监控大屏，开箱即用",
+    icon: "monitoring",
+    defaults: {
+      coordinateSystem: "EPSG:3857",
+      layers: [],
+      camera: { center: { x: 0, y: 0 }, zoom: 1, bearing: 0, pitch: 0 },
+      tags: ["设备", "监控", "状态"],
+      // 预置一个主视图 + 设备状态组件骨架
+      views: [
+        {
+          id: "view_default",
+          name: "设备状态总览",
+          layers: [
+            {
+              id: "layer_default",
+              name: "默认图层",
+              type: "layer",
+              visible: true,
+              locked: false,
+              opacity: 1,
+              blendMode: "normal",
+              parentId: null,
+              children: [],
+              order: 0,
+              expanded: true,
+              isDefault: true,
+            },
+          ],
+          viewport: { scale: 0.426, offset: { x: 40, y: 181 } },
+          eventBindings: [],
+          devicePlacements: [],
+          canvasConfig: {
+            width: 3840,
+            height: 2160,
+            orientation: "landscape",
+            adaptationType: "scale",
+            lockAspectRatio: false,
+            background: {
+              type: "gradient",
+              color: "#1a2a4a",
+              gradient: { direction: "radial", colors: ["#1e3a6b", "#0a1525"] },
+              imageUrl: "",
+              imageFit: "cover",
+              videoUrl: "",
+              videoAutoplay: true,
+              videoMuted: true,
+              videoLoop: true,
+            },
+            grid: {
+              visible: true,
+              size: 40,
+              snapToGrid: false,
+              dragStep: 1,
+              resizeStep: 1,
+              minorColor: "rgba(79,195,247,0.08)",
+              majorColor: "rgba(79,195,247,0.18)",
+              opacity: 0.6,
+              brightness: 1,
+            },
+            ruler: { visible: true },
+            guide: {
+              visible: true,
+              color: "#ff3b30",
+              opacity: 0.6,
+              lineWidth: 1,
+              lineStyle: "dashed",
+              preset: "center",
+              customVertical: [],
+              customHorizontal: [],
+              snapToGuide: true,
+              snapToElement: true,
+              snapThreshold: 5,
+              draggable: false,
+              showLabel: false,
+            },
+            viewport: { minScale: 0.1, maxScale: 5, zoomStep: 0.15 },
+          },
+          components: [
+            {
+              id: "comp_ds_tree",
+              type: "industrial-device-tree",
+              name: "设备拓扑树",
+              transform: { x: 0, y: 0, width: 3840, height: 2160, rotation: 0, scale: { x: 1, y: 1 } },
+              layerId: "layer_default",
+              zIndex: 2,
+              locked: false,
+              visible: true,
+              config: {
+                deviceScope: "all",
+                selectedDeviceIds: [],
+                accentColor: "#4fc3f7",
+                showLabels: true,
+              },
+            },
+          ],
+        },
+      ],
     },
   },
 ];

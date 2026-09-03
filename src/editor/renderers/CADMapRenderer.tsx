@@ -6,6 +6,7 @@ import { CadViewerEngine } from "../cad/CadViewerEngine";
 import type { ComponentRendererProps } from "../../types/editor";
 import type { MapLibrary } from "../../types/mapLibrary";
 import { logger } from "../../utils/logger";
+import { useSceneEditorCore } from "../context/SceneEditorContext";
 import { useViewportDelegate } from "../hooks/useViewportDelegate";
 import type { ViewportDelegate } from "../layers/ComponentLayerAdapter";
 
@@ -278,6 +279,7 @@ function CadViewer({
   const containerRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<CadViewerEngine | null>(null);
+  const editorCore = useSceneEditorCore();
   const setViewportDelegate = useViewportDelegate(componentId);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -525,6 +527,9 @@ function CadViewer({
         const engine = new CadViewerEngine();
         engineRef.current = engine;
 
+        // 注册 renderer getter，供 PerformanceMonitor 读取 drawCall
+        editorCore?.registerRendererGetter(() => engineRef.current?.renderer?.glRenderer ?? null);
+
         await engine.initialize({
           container: el,
           autoResize: true,
@@ -580,6 +585,7 @@ function CadViewer({
           if (state) onConfigChangeRef.current?.("cameraState", state);
         }
         engineRef.current = null;
+        editorCore?.registerRendererGetter(null);
         eng.destroy();
       }
       onInteractionLockChange?.(false);

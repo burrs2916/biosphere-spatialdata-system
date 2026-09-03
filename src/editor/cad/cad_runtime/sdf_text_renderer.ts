@@ -29,6 +29,9 @@ export class SdfTextRenderer {
     this._batchedText.font = this._fontUrl;
     this._batchedText.depthTest = false;
     this._batchedText.renderOrder = 1;
+    // 标记为持久对象：SceneManager.clearScene() 不会移除它，
+    // 避免文档重载时 BatchedText 脱离场景导致文字不可见。
+    this._batchedText.userData.__persistent = true;
   }
 
   addToScene(scene: THREE.Scene): void {

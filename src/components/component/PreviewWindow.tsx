@@ -21,7 +21,10 @@ export function PreviewWindow({ plugin, definition, onClose }: PreviewWindowProp
     openComponentPreviewWindow({
       pluginType: plugin.type,
       pluginName: plugin.name,
+      pluginDescription: plugin.description ?? "",
+      pluginIcon: plugin.iconOverride ?? "",
       defaultConfig,
+      defaultSize: null,
     }).then(() => {
       console.log("[PreviewWindow] Window opened, closing current dialog");
       onClose();

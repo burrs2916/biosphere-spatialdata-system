@@ -111,26 +111,34 @@ export const rendererCache = new RendererCacheImpl();
 
 class PluginLoaderImpl {
   private initialized = false;
+  private initializing: Promise<void> | null = null;
   private dbPlugins: ComponentDefinition[] = [];
 
   async initialize(): Promise<void> {
     if (this.initialized) return;
+    if (this.initializing) return this.initializing;
 
-    await this.loadBuiltinPlugins();
+    this.initializing = (async () => {
+      await this.loadBuiltinPlugins();
 
-    try {
-      await this.syncBuiltinPluginsToDatabase();
-    } catch (err) {
-      console.warn("[PluginLoader] Failed to sync built-in plugins to database:", err);
-    }
+      try {
+        await this.syncBuiltinPluginsToDatabase();
+      } catch (err) {
+        console.warn("[PluginLoader] Failed to sync built-in plugins to database:", err);
+      }
 
-    try {
-      await this.loadDatabasePlugins();
-    } catch (err) {
-      console.warn("[PluginLoader] Failed to load database plugins:", err);
-    }
+      try {
+        await this.loadDatabasePlugins();
+      } catch (err) {
+        console.warn("[PluginLoader] Failed to load database plugins:", err);
+      }
 
-    this.initialized = true;
+      this.initialized = true;
+    })().finally(() => {
+      this.initializing = null;
+    });
+
+    return this.initializing;
   }
 
   private async loadBuiltinPlugins(): Promise<void> {
@@ -143,45 +151,64 @@ class PluginLoaderImpl {
     try {
       const { invoke } = await import("@tauri-apps/api/core");
       const existing = await invoke<any[]>("get_all_component_plugins");
-      const existingTypes = new Set(existing.map((p: any) => p.type));
+      const existingMap = new Map<string, any>(existing.map((p: any) => [p.type ?? p.pluginType, p]));
 
       const allDefs = componentRegistry.getAll();
       let synced = 0;
+      let updated = 0;
       for (const def of allDefs) {
         if (!def.builtIn) continue;
-        if (existingTypes.has(def.type)) continue;
 
-        const payload = {
-          pluginType: def.type,
-          name: def.name,
-          version: def.version || "1.0.0",
-          description: def.description,
-          icon: typeof def.icon === "string" ? def.icon : "widgets",
-          category: def.category.startsWith("ccat_") ? def.category : `ccat_${def.category}`,
-          defaultSize: JSON.stringify(def.defaultSize),
-          defaultConfig: JSON.stringify(def.defaultConfig),
-          capabilities: JSON.stringify(def.capabilities),
-          configSchema: def.configSchema ? JSON.stringify(def.configSchema) : "[]",
-          events: def.events ? JSON.stringify(def.events) : "[]",
-          actions: def.actions ? JSON.stringify(def.actions) : "[]",
-          dataSchema: def.dataSchema ? JSON.stringify(def.dataSchema) : undefined,
-          rendererEntry: undefined,
-          rendererFormat: "builtin",
-          dependencies: "[]",
-          permissions: "[]",
-          builtIn: true,
-        };
+        const existingRecord = existingMap.get(def.type);
 
-        try {
-          await invoke("create_component_plugin", { payload });
-          synced++;
-        } catch (err) {
-          console.warn(`[PluginLoader] Failed to sync built-in plugin "${def.type}":`, err);
+        if (!existingRecord) {
+          // 不存在：创建新记录
+          const payload = {
+            pluginType: def.type,
+            name: def.name,
+            version: def.version || "1.0.0",
+            description: def.description,
+            icon: typeof def.icon === "string" ? `material:${def.icon}` : "material:widgets",
+            category: def.category.startsWith("ccat_") ? def.category : `ccat_${def.category}`,
+            defaultSize: JSON.stringify(def.defaultSize),
+            defaultConfig: JSON.stringify(def.defaultConfig),
+            capabilities: JSON.stringify(def.capabilities),
+            configSchema: def.configSchema ? JSON.stringify(def.configSchema) : "[]",
+            events: def.events ? JSON.stringify(def.events) : "[]",
+            actions: def.actions ? JSON.stringify(def.actions) : "[]",
+            dataSchema: def.dataSchema ? JSON.stringify(def.dataSchema) : undefined,
+            rendererEntry: undefined,
+            rendererFormat: "builtin",
+            dependencies: "[]",
+            permissions: "[]",
+            builtIn: true,
+          };
+
+          try {
+            await invoke("create_component_plugin", { payload });
+            synced++;
+          } catch (err) {
+            console.warn(`[PluginLoader] Failed to sync built-in plugin "${def.type}":`, err);
+          }
+        } else {
+          // 已存在：修复名称为 pluginType 或脏数据模式（如 "DataV边框1"）的记录
+          const dbName = existingRecord.name;
+          const isDirtyName = dbName === def.type || /^(DataV边框|DataV装饰)\d+$/.test(dbName);
+          if (isDirtyName) {
+            try {
+              await invoke("update_component_plugin", {
+                payload: { id: existingRecord.id, name: def.name },
+              });
+              updated++;
+            } catch (err) {
+              console.warn(`[PluginLoader] Failed to fix name for built-in plugin "${def.type}":`, err);
+            }
+          }
         }
       }
 
-      if (synced > 0) {
-        console.log(`[PluginLoader] Synced ${synced} built-in plugins to database`);
+      if (synced > 0 || updated > 0) {
+        console.log(`[PluginLoader] Synced ${synced} new, fixed ${updated} names for built-in plugins`);
       }
     } catch (err) {
       console.warn("[PluginLoader] Built-in plugin sync skipped:", err);
@@ -349,7 +376,12 @@ class PluginLoaderImpl {
   async uninstallPlugin(pluginId: string): Promise<boolean> {
     try {
       const { invoke } = await import("@tauri-apps/api/core");
-      await invoke("delete_component_plugin", { id: pluginId });
+
+      // pluginId 可能是 type（如 "echart"），需要先查找 DB 记录获取正确的 id
+      const existing = await invoke<{ id: string } | null>("get_component_plugin_by_type", { pluginType: pluginId });
+      const dbId = existing?.id ?? pluginId; // fallback 到原始值
+
+      await invoke("delete_component_plugin", { id: dbId });
 
       const idx = this.dbPlugins.findIndex((d) => d.type === pluginId);
       if (idx >= 0) {
@@ -369,7 +401,27 @@ class PluginLoaderImpl {
   async togglePlugin(pluginId: string, enabled: boolean): Promise<boolean> {
     try {
       const { invoke } = await import("@tauri-apps/api/core");
-      await invoke("toggle_component_plugin", { id: pluginId, enabled });
+
+      // 查找 DB 记录获取正确的 id
+      const existing = await invoke<{ id: string } | null>("get_component_plugin_by_type", { pluginType: pluginId });
+
+      if (existing) {
+        await invoke("update_component_plugin", {
+          payload: { id: existing.id, enabled },
+        });
+      } else {
+        // 记录不存在，创建一条
+        const def = componentRegistry.get(pluginId);
+        await invoke("create_component_plugin", {
+          payload: {
+            pluginType: pluginId,
+            name: def?.name ?? pluginId,
+            category: def?.category,
+            enabled,
+            builtIn: def?.builtIn ?? false,
+          },
+        });
+      }
 
       const def = componentRegistry.get(pluginId);
       if (def) {

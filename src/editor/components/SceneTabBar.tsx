@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, startTransition } from "react";
 import Box from "@mui/material/Box";
 import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
@@ -31,7 +31,9 @@ export function SceneTabBar() {
 
   const handleSwitch = useCallback(
     (_: React.SyntheticEvent, value: string) => {
-      switchView(value);
+      startTransition(() => {
+        switchView(value);
+      });
     },
     [switchView]
   );
@@ -85,10 +87,14 @@ export function SceneTabBar() {
       const currentIdx = views.findIndex((v) => v.id === activeViewId);
       if (e.key === "ArrowLeft" && currentIdx > 0) {
         e.preventDefault();
-        switchView(views[currentIdx - 1].id);
+        startTransition(() => {
+          switchView(views[currentIdx - 1].id);
+        });
       } else if (e.key === "ArrowRight" && currentIdx < views.length - 1) {
         e.preventDefault();
-        switchView(views[currentIdx + 1].id);
+        startTransition(() => {
+          switchView(views[currentIdx + 1].id);
+        });
       }
     };
 
@@ -124,7 +130,7 @@ export function SceneTabBar() {
             theme.palette.mode === "dark"
               ? "rgba(255,255,255,0.08)"
               : "rgba(0,0,0,0.06)",
-          opacity: 0.4,
+          opacity: 1,
           transition: "opacity 0.2s",
           "&:hover": { opacity: 1 },
           userSelect: "none",
@@ -232,6 +238,7 @@ export function SceneTabBar() {
               </>
             )}
           </Box>
+          <Box sx={{ flex: 1 }} />
           <Tooltip title="添加视图">
             <IconButton size="small" onClick={handleAdd} sx={{ mx: 0.5 }}>
               <AddIcon sx={{ fontSize: 16 }} />

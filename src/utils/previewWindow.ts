@@ -7,7 +7,10 @@ const COMPONENT_PREVIEW_STORAGE_KEY = "component_preview_config";
 export interface ComponentPreviewConfig {
   pluginType: string;
   pluginName: string;
+  pluginDescription: string;
+  pluginIcon: string;
   defaultConfig: Record<string, any>;
+  defaultSize: { width: number; height: number } | null;
 }
 
 export function saveComponentPreviewConfig(config: ComponentPreviewConfig) {

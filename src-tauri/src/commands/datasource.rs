@@ -483,6 +483,7 @@ async fn test_mysql_connection(
 
 async fn execute_mysql_query(conn_str: &str, query: &str) -> Result<serde_json::Value, String> {
     use sqlx::mysql::MySqlPoolOptions;
+    use sqlx::{Row, Column, TypeInfo};
 
     let pool = MySqlPoolOptions::new()
         .max_connections(1)
@@ -491,15 +492,61 @@ async fn execute_mysql_query(conn_str: &str, query: &str) -> Result<serde_json::
         .await
         .map_err(|e| format!("{}", e))?;
 
-    let result = sqlx::query(query)
-        .execute(&pool)
+    // 使用 fetch_all 获取行数据（而非 execute 只拿 rows_affected）
+    let rows = sqlx::query(query)
+        .fetch_all(&pool)
         .await
         .map_err(|e| format!("{}", e))?;
 
     pool.close().await;
 
+    // 提取列名和行数据
+    let mut result_rows: Vec<serde_json::Value> = Vec::new();
+    let mut columns: Vec<String> = Vec::new();
+
+    for (row_idx, row) in rows.iter().enumerate() {
+        let columns_data = row.columns();
+        if row_idx == 0 {
+            columns = columns_data.iter().map(|c| c.name().to_string()).collect();
+        }
+        let mut row_obj = serde_json::Map::new();
+        for col in columns_data {
+            let col_name = col.name();
+            let value: serde_json::Value = match col.type_info().name() {
+                "INT" | "BIGINT" | "TINYINT" | "SMALLINT" | "MEDIUMINT" => {
+                    match row.try_get::<Option<i64>, _>(col_name) {
+                        Ok(Some(v)) => serde_json::json!(v),
+                        _ => serde_json::json!(null),
+                    }
+                }
+                "FLOAT" | "DOUBLE" | "DECIMAL" => {
+                    match row.try_get::<Option<f64>, _>(col_name) {
+                        Ok(Some(v)) => serde_json::json!(v),
+                        _ => serde_json::json!(null),
+                    }
+                }
+                _ => {
+                    match row.try_get::<Option<String>, _>(col_name) {
+                        Ok(Some(v)) => serde_json::json!(v),
+                        _ => {
+                            // 尝试作为字节
+                            match row.try_get::<Option<Vec<u8>>, _>(col_name) {
+                                Ok(Some(v)) => serde_json::json!(String::from_utf8_lossy(&v).to_string()),
+                                _ => serde_json::json!(null),
+                            }
+                        }
+                    }
+                }
+            };
+            row_obj.insert(col_name.to_string(), value);
+        }
+        result_rows.push(serde_json::Value::Object(row_obj));
+    }
+
     Ok(serde_json::json!({
-        "rowsAffected": result.rows_affected(),
+        "rows": result_rows,
+        "columns": columns,
+        "rowsAffected": result_rows.len(),
         "engine": "mysql"
     }))
 }

@@ -19,7 +19,7 @@ export function useViewport() {
       e.preventDefault();
 
       if (e.ctrlKey || e.metaKey) {
-        const delta = e.deltaY > 0 ? -0.08 : 0.08;
+        const delta = e.deltaY > 0 ? -canvasConfig.viewport.zoomStep : canvasConfig.viewport.zoomStep;
         const newScale = Math.min(
           Math.max(viewport.scale + delta, canvasConfig.viewport.minScale),
           canvasConfig.viewport.maxScale

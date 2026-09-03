@@ -15,6 +15,7 @@ import PublicRoundedIcon from "@mui/icons-material/PublicRounded";
 import UnpublishedRoundedIcon from "@mui/icons-material/UnpublishedRounded";
 import { useSceneStore } from "../store/sceneStore";
 import { openLiveWindow } from "../utils/previewWindow";
+import { requireConfigAccess } from "../utils/authGate";
 import type { SceneDSL } from "../types/scene";
 
 const SCENE_COVER_GRADIENTS = [
@@ -62,9 +63,13 @@ export default function PublishedScenesPage() {
     openLiveWindow(scene.id, scene.name);
   }, []);
 
-  const handleUnpublish = useCallback(async (scene: SceneDSL) => {
-    await unpublishScene(scene.id);
-    setSnackbar({ open: true, message: `场景「${scene.name}」已取消发布`, severity: "info" });
+  const handleUnpublish = useCallback((scene: SceneDSL) => {
+    requireConfigAccess(() => {
+      void (async () => {
+        await unpublishScene(scene.id);
+        setSnackbar({ open: true, message: `场景「${scene.name}」已取消发布`, severity: "info" });
+      })();
+    });
   }, [unpublishScene]);
 
   return (

@@ -88,6 +88,7 @@ pub struct Scene {
     pub global_components: Option<String>,
     pub views: Option<String>,
     pub active_view_id: Option<String>,
+    pub viewport_sync_rules: Option<String>,
 
     pub category_id: Option<String>,
     pub tags: String,
@@ -124,6 +125,7 @@ impl Default for Scene {
             global_components: None,
             views: None,
             active_view_id: None,
+            viewport_sync_rules: None,
             category_id: None,
             tags: "[]".to_string(),
             thumbnail: None,

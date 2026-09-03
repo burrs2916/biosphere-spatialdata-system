@@ -1,0 +1,20 @@
+{
+	"folders": [
+		{
+			"path": "../../../../.."
+		},
+		{
+			"path": "../../../../../../IdeaProjects/dfy-boot-base"
+		},
+		{
+			"path": "../../../../../../linmaProjects/dfy-ui-admin-vue3-master"
+		},
+		{
+			"path": "../../../../../../rustpro/gateway-console"
+		},
+		{
+			"path": "../../../../../../rustpro/edge-conductor"
+		}
+	],
+	"settings": {}
+}

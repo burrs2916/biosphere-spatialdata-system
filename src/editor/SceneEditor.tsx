@@ -15,20 +15,24 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import LayersIcon from "@mui/icons-material/Layers";
 import SettingsIcon from "@mui/icons-material/Settings";
 import WidgetsIcon from "@mui/icons-material/Widgets";
+import BoltIcon from "@mui/icons-material/Bolt";
 import { useCallback, useEffect, useState, useRef } from "react";
 import { EditorCanvas } from "./canvas/EditorCanvas";
 import { EditorLayerPanelContent } from "./panels/EditorLayerPanel";
 import { EditorPropertyPanelContent } from "./panels/EditorPropertyPanel";
 import { EditorCanvasPanel } from "./panels/EditorCanvasPanel";
+import { EventBindingPanel } from "./panels/EventBindingPanel";
 import { SceneTabBar } from "./components/SceneTabBar";
 import logger from "../utils/logger";
 import { openPreviewWindow } from "../utils/previewWindow";
 import { ComponentCenterPanel } from "./panels/ComponentCenterPanel";
+import { PerformanceMonitor } from "./monitors/PerformanceMonitor";
 import { useEditorStore } from "../store/editorStore";
 import { createDefaultLayer } from "../types/editor";
 import { useSceneStore } from "../store/sceneStore";
 import { useEditorShortcuts } from "./hooks/useEditorShortcuts";
 import { SceneEditorProvider } from "./context/SceneEditorContext";
+import { useDirtyStore } from "../store/editorStore";
 
 export function SceneEditor() {
   useEditorShortcuts();
@@ -36,8 +40,7 @@ export function SceneEditor() {
   const canRedo = useEditorStore((s) => s.canRedo);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
-  const isDirty = useEditorStore((s) => s.isDirty);
-  const exportScene = useEditorStore((s) => s.exportScene);
+  const isDirty = useDirtyStore((s) => s.isDirty);
   const selectedIds = useEditorStore((s) => s.selection.selectedIds);
 
   const activeSceneId = useSceneStore((s) => s.activeSceneId);
@@ -49,7 +52,7 @@ export function SceneEditor() {
 
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
-  const [rightPanelTab, setRightPanelTab] = useState<"property" | "layer" | "canvas">("property");
+  const [rightPanelTab, setRightPanelTab] = useState<"property" | "layer" | "canvas" | "events">("property");
 
   useEffect(() => {
     if (selectedIds.length > 0) {
@@ -61,21 +64,23 @@ export function SceneEditor() {
   const prevSceneIdRef = useRef<string | null>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     if (!activeSceneId) return;
-    const { components, layers } = exportScene();
     const { views, globalComponents, activeViewId } = useEditorStore.getState().exportSceneWithViews();
-    const canvasConfig = useEditorStore.getState().canvasConfig;
-    updateScene(activeSceneId, {
-      editorComponents: components,
-      editorLayers: layers,
-      canvasConfig,
-      views,
-      globalComponents,
-      activeViewId,
-    });
-    useEditorStore.setState({ isDirty: false });
-  }, [activeSceneId, exportScene, updateScene]);
+    const activeView = views.find((v) => v.id === activeViewId);
+    const canvasConfig = activeView?.canvasConfig;
+    try {
+      await updateScene(activeSceneId, {
+        canvasConfig,
+        views,
+        globalComponents,
+        activeViewId,
+      });
+      useDirtyStore.getState().markClean();
+    } catch (err) {
+      logger.error("SceneEditor", "Auto-save failed, keeping isDirty", { sceneId: activeSceneId, error: err });
+    }
+  }, [activeSceneId, updateScene]);
 
   const handleSaveRef = useRef(handleSave);
   handleSaveRef.current = handleSave;
@@ -96,6 +101,35 @@ export function SceneEditor() {
     };
   }, [isDirty, activeSceneId]);
 
+  // 编辑器打开时：主动触发设备/产品数据加载（确保画布上的设备组件能拿到真实状态）
+  // - ensureDevicesLoaded() 是单次锁；SceneEditor 必须在 DevicePalettePanel 之前调一次
+  // - 否则首次进入场景时 deviceStore 还是 defaultProvider，画布上所有设备都显示为"离线"
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { useDeviceStore, ensureDevicesLoaded } = await import("../store/deviceStore");
+        if (cancelled) return;
+        // 触发全局单次自动加载（内部 _autoLoaded 锁保护，多个 caller 安全）
+        await ensureDevicesLoaded();
+        if (cancelled) return;
+        const ds = useDeviceStore.getState();
+        const productCount = Object.keys(ds.products || {}).length;
+        const deviceCount = Object.keys(ds.devices || {}).length;
+        logger.info("SceneEditor", "Device store ready on open", {
+          productCount, deviceCount,
+          lastLoadedAt: ds.lastLoadedAt,
+        });
+        if (productCount === 0 && deviceCount === 0) {
+          logger.warn("SceneEditor", "No products / devices loaded — please configure a data source in the device panel", {});
+        }
+      } catch (err) {
+        logger.error("SceneEditor", "Device store init failed", { error: err });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [activeSceneId]);
+
   useEffect(() => {
     if (!activeSceneId) return;
 
@@ -103,20 +137,22 @@ export function SceneEditor() {
     if (!currentScene) return;
 
     if (prevSceneIdRef.current && prevSceneIdRef.current !== activeSceneId) {
-      const prevScene = useSceneStore.getState().scenes.find((s) => s.id === prevSceneIdRef.current);
-      if (prevScene && useEditorStore.getState().isDirty) {
-        const { components, layers } = useEditorStore.getState().exportScene();
+      const prevSceneId = prevSceneIdRef.current;
+      const prevScene = useSceneStore.getState().scenes.find((s) => s.id === prevSceneId);
+      if (prevScene && useDirtyStore.getState().isDirty) {
         const { views, globalComponents, activeViewId } = useEditorStore.getState().exportSceneWithViews();
-        const canvasConfig = useEditorStore.getState().canvasConfig;
-        useSceneStore.getState().updateScene(prevSceneIdRef.current, {
-          editorComponents: components,
-          editorLayers: layers,
+        const activeView = views.find((v) => v.id === activeViewId);
+        const canvasConfig = activeView?.canvasConfig;
+        useSceneStore.getState().updateScene(prevSceneId, {
           canvasConfig,
           views,
           globalComponents,
           activeViewId,
+        }).then(() => {
+          useDirtyStore.getState().markClean();
+        }).catch((err) => {
+          logger.error("SceneEditor", "Failed to save previous scene during switch", { sceneId: prevSceneId, error: err });
         });
-        useEditorStore.setState({ isDirty: false });
       }
     }
 
@@ -125,9 +161,15 @@ export function SceneEditor() {
     const state = useEditorStore.getState();
     state.clearScene();
 
-    if (currentScene.canvasConfig) {
-      state.setCanvasConfig(currentScene.canvasConfig);
-    }
+    // 调试日志：打印场景加载详情
+    console.log("[SceneEditor] 🔍 Loading scene:", {
+      sceneId: activeSceneId,
+      hasViews: currentScene.views && currentScene.views.length > 0,
+      viewCount: currentScene.views?.length || 0,
+      hasComponents: currentScene.editorComponents && currentScene.editorComponents.length > 0,
+      componentCount: currentScene.editorComponents?.length || 0,
+      firstViewComponents: currentScene.views?.[0]?.components?.length || 0,
+    });
 
     const hasViews = currentScene.views && currentScene.views.length > 0;
     const hasComponents = currentScene.editorComponents && currentScene.editorComponents.length > 0;
@@ -137,20 +179,26 @@ export function SceneEditor() {
       logger.info("SceneEditor", "Loading scene with views", { sceneId: activeSceneId, viewCount: currentScene.views!.length, activeViewId: currentScene.activeViewId });
       const activeVId = currentScene.activeViewId || currentScene.views![0].id;
       state.loadSceneWithViews(currentScene.views!, currentScene.globalComponents || [], activeVId);
+      
+      // 调试：打印加载后的组件数量
+      console.log("[SceneEditor] 🔍 After loadSceneWithViews:", {
+        activeViewId: activeVId,
+        loadedComponents: state.components.length,
+        loadedLayers: state.layers.length,
+        canvasConfig: state.canvasConfig,
+      });
     } else if (hasComponents || hasLayers) {
       logger.info("SceneEditor", "Migrating legacy scene to views", { sceneId: activeSceneId, components: currentScene.editorComponents?.length || 0, layers: currentScene.editorLayers?.length || 0 });
-      const defaultLayer = hasLayers ? currentScene.editorLayers! : (() => {
-        const l = state.addLayer("默认图层");
-        state.updateLayer(l.id, { isDefault: true });
-        return state.layers;
-      })();
-      const views = [{ id: "default", name: "默认视图", components: currentScene.editorComponents || [], layers: defaultLayer }];
+      const defaultLayer = hasLayers ? currentScene.editorLayers! : [createDefaultLayer("默认图层", "layer", null, true)];
+      const canvasConfig = currentScene.canvasConfig ? { ...currentScene.canvasConfig } : undefined;
+      const views = [{ id: "default", name: currentScene.name || "主监控大屏", components: currentScene.editorComponents || [], layers: defaultLayer, canvasConfig }];
       state.loadSceneWithViews(views, [], "default");
       state.setActiveLayer(defaultLayer.find((l: any) => l.isDefault)?.id || defaultLayer[0]?.id);
     } else {
       logger.info("SceneEditor", "Creating default scene", { sceneId: activeSceneId });
       const defaultLayer = createDefaultLayer("默认图层", "layer", null, true);
-      const views = [{ id: "default", name: "默认视图", components: [], layers: [defaultLayer] }];
+      const canvasConfig = currentScene.canvasConfig ? { ...currentScene.canvasConfig } : undefined;
+      const views = [{ id: "default", name: currentScene.name || "主监控大屏", components: [], layers: [defaultLayer], canvasConfig }];
       state.loadSceneWithViews(views, [], "default");
     }
   }, [activeSceneId]);
@@ -225,8 +273,11 @@ export function SceneEditor() {
           <Tooltip title="预览">
             <IconButton
               size="small"
-              onClick={() => {
+              onClick={async () => {
                 if (activeScene) {
+                  if (isDirty) {
+                    await handleSaveRef.current();
+                  }
                   openPreviewWindow(activeScene.id, activeScene.name);
                 }
               }}
@@ -238,7 +289,10 @@ export function SceneEditor() {
             <Tooltip title={activeScene.status === "published" ? "取消发布" : "发布场景"}>
               <IconButton
                 size="small"
-                onClick={() => {
+                onClick={async () => {
+                  if (isDirty) {
+                    await handleSaveRef.current();
+                  }
                   if (activeScene.status === "published") {
                     unpublishScene(activeScene.id);
                   } else {
@@ -428,6 +482,36 @@ export function SceneEditor() {
               >
                 画布
               </Box>
+              {selectedIds.length > 0 && (
+                <Box
+                  onClick={() => setRightPanelTab("events")}
+                  sx={{
+                    flex: 1,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 0.5,
+                    py: 0.75,
+                    cursor: "pointer",
+                    fontSize: 12,
+                    fontWeight: rightPanelTab === "events" ? 600 : 400,
+                    color: rightPanelTab === "events" ? "primary.main" : "text.secondary",
+                    borderBottom: rightPanelTab === "events" ? 2 : 0,
+                    borderColor: "primary.main",
+                    transition: "all 0.15s",
+                    "&:hover": {
+                      color: "primary.main",
+                      backgroundColor: (theme: any) =>
+                        theme.palette.mode === "dark"
+                          ? "rgba(255,255,255,0.04)"
+                          : "rgba(0,0,0,0.02)",
+                    },
+                  }}
+                >
+                  <BoltIcon sx={{ fontSize: 14 }} />
+                  事件
+                </Box>
+              )}
             </Box>
 
             <Box sx={{ flex: 1, overflow: "auto", minHeight: 0 }}>
@@ -435,6 +519,12 @@ export function SceneEditor() {
                 <EditorPropertyPanelContent />
               ) : rightPanelTab === "layer" ? (
                 <EditorLayerPanelContent />
+              ) : rightPanelTab === "events" ? (
+                selectedIds.length > 0 ? (
+                  <EventBindingPanel componentId={selectedIds[0]} />
+                ) : (
+                  <EditorPropertyPanelContent />
+                )
               ) : (
                 <EditorCanvasPanel />
               )}
@@ -473,6 +563,7 @@ export function SceneEditor() {
         </Box>
       </Box>
     </Box>
+    <PerformanceMonitor />
     </SceneEditorProvider>
   );
 }

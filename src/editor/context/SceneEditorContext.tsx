@@ -18,6 +18,7 @@ import { injectGlobalCoordinateEngine, injectGlobalLayerRegistry, injectGlobalCl
 import type { CRSType } from "../../types/spatial";
 import type { ViewportProvider } from "../spatial/ViewportSyncService";
 import { useEditorStore } from "../../store/editorStore";
+import type * as THREE from "three";
 
 export interface SceneEditorCore {
   layerRegistry: SpatialLayerRegistry;
@@ -28,6 +29,10 @@ export interface SceneEditorCore {
   toolRegistry: ToolRegistry;
   dataOrchestrator: DataOrchestrator;
   clock: typeof globalClock;
+  /** 注册 Three.js WebGLRenderer 获取器（由 CADMapRenderer 等组件调用） */
+  registerRendererGetter(getter: (() => THREE.WebGLRenderer | null) | null): void;
+  /** 获取当前 WebGLRenderer（供 PerformanceMonitor 使用） */
+  getRenderer(): THREE.WebGLRenderer | null;
 }
 
 const SceneEditorContext = createContext<SceneEditorCore | null>(null);
@@ -172,7 +177,8 @@ function createSceneToolContext(
   };
 }
 
-export function SceneEditorProvider({ children, crs }: { children: ReactNode; crs?: CRSType }) {
+export function SceneEditorProvider({ children, crs, mode = 'edit' }: { children: ReactNode; crs?: CRSType; mode?: 'edit' | 'preview' }) {
+  const isEditMode = mode === 'edit';
   const coreRef = useRef<SceneEditorCore | null>(null);
   const initializedRef = useRef(false);
 
@@ -211,18 +217,26 @@ export function SceneEditorProvider({ children, crs }: { children: ReactNode; cr
             dataOrchestrator.getBridge().updateComponent(targetComponentId, String(params.property), params.value);
           }
           break;
+        case 'navigateToScene':
+          // 延迟导入避免循环依赖
+          import("../runtime/NavigationExecutor").then(({ NavigationExecutor }) => {
+            NavigationExecutor.execute(params as any);
+          });
+          break;
         default:
           dataOrchestrator.getBridge().updateComponent(targetComponentId, action, params ?? true);
           break;
       }
     });
 
-    toolRegistry.register(new SelectTool());
-    toolRegistry.register(new PanTool());
-    toolRegistry.register(new ZoomTool());
+    if (isEditMode) {
+      toolRegistry.register(new SelectTool());
+      toolRegistry.register(new PanTool());
+      toolRegistry.register(new ZoomTool());
 
-    toolRegistry.setContext(createSceneToolContext(layerRegistry, coordinateEngine, crs || "EPSG:3857", eventDispatcher, viewportSyncService));
-    eventDispatcher.setToolRegistry(toolRegistry);
+      toolRegistry.setContext(createSceneToolContext(layerRegistry, coordinateEngine, crs || "EPSG:3857", eventDispatcher, viewportSyncService));
+      eventDispatcher.setToolRegistry(toolRegistry);
+    }
 
     injectGlobalCoordinateEngine(coordinateEngine);
     injectGlobalLayerRegistry(layerRegistry);
@@ -230,6 +244,9 @@ export function SceneEditorProvider({ children, crs }: { children: ReactNode; cr
     injectGlobalViewportSyncService(viewportSyncService);
     injectGlobalDataOrchestrator(dataOrchestrator);
     injectGlobalEventDispatcher(eventDispatcher);
+
+    // renderer 获取器（由 CADMapRenderer 注册）
+    let _rendererGetter: (() => THREE.WebGLRenderer | null) | null = null;
 
     coreRef.current = {
       layerRegistry,
@@ -240,6 +257,8 @@ export function SceneEditorProvider({ children, crs }: { children: ReactNode; cr
       toolRegistry,
       dataOrchestrator,
       clock: globalClock,
+      registerRendererGetter(getter) { _rendererGetter = getter; },
+      getRenderer() { return _rendererGetter?.() ?? null; },
     };
   }
 
@@ -290,7 +309,7 @@ export function SceneEditorProvider({ children, crs }: { children: ReactNode; cr
           core.toolRegistry.setContext(createSceneToolContext(
             core.layerRegistry,
             core.coordinateEngine,
-            coreRef.current?.clock ? (crs || "EPSG:3857") : "EPSG:3857",
+            crs || "EPSG:3857",
             core.eventDispatcher,
             core.viewportSyncService,
           ));

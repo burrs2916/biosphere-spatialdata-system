@@ -5,10 +5,12 @@ export interface ComponentPluginItem {
   version: string;
   description?: string;
   icon?: string;
+  iconOverride?: string;
   category: string;
   builtIn: boolean;
   enabled: boolean;
   author?: string;
+  source?: "registry" | "db" | "merged";
 }
 
 export interface ComponentCategory {
@@ -36,6 +38,18 @@ export interface ComponentCategoryNode {
 }
 
 export const DEFAULT_COMPONENT_CATEGORY_ID = "ccat_custom";
+
+/** 内置分组 ID 集合，不可删除 */
+export const BUILTIN_CATEGORY_IDS = new Set([
+  "ccat_basic",
+  "ccat_chart",
+  "ccat_map",
+  "ccat_media",
+  "ccat_decoration",
+  "ccat_decoration_title",
+  "ccat_datav",
+  "ccat_device",
+]);
 
 export const DEFAULT_COMPONENT_CATEGORY: ComponentCategory = {
   id: DEFAULT_COMPONENT_CATEGORY_ID,

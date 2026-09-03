@@ -1,4 +1,7 @@
 import * as THREE from 'three';
+import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 
 interface BatchKey {
   layerName: string;
@@ -19,7 +22,8 @@ interface BatchGroup {
   positions: Float32Array;
   positionsLength: number;
   entries: EntityBatchEntry[];
-  lineSegments: THREE.LineSegments | null;
+  /** 批次渲染对象：升级为 LineSegments2 以支持像素宽度（worldUnits=false） */
+  lineSegments: LineSegments2 | null;
   needsRebuild: boolean;
   hasDeletedEntries: boolean;
 }
@@ -30,16 +34,21 @@ export class BatchedLayerBuilder {
   private _entityEntryIndex: Map<string, EntityBatchEntry> = new Map();
   private _layerEntityIndex: Map<string, Set<string>> = new Map();
   private _needsCullingRebuild: boolean = false;
+  /** 当前画布分辨率（物理像素），用于 LineMaterial.resolution */
+  private _resolution: THREE.Vector2;
   private static readonly COMPACT_THRESHOLD = 0.15;
   private static readonly INITIAL_POSITION_CAPACITY = 65536;
 
-  constructor(_resolution: THREE.Vector2) {
+  constructor(resolution: THREE.Vector2, _dpr?: number) {
+    this._resolution = resolution.clone();
   }
 
-  setResolution(_resolution: THREE.Vector2): void {
+  setResolution(resolution: THREE.Vector2, _dpr?: number): void {
+    this._resolution.copy(resolution);
     for (const batch of this._batches.values()) {
       if (batch.lineSegments) {
-        const mat = batch.lineSegments.material as THREE.LineBasicMaterial;
+        const mat = batch.lineSegments.material as LineMaterial;
+        mat.resolution.copy(resolution);
         mat.needsUpdate = true;
       }
     }
@@ -126,7 +135,7 @@ export class BatchedLayerBuilder {
       scene.remove(batch.lineSegments);
     }
     batch.lineSegments.geometry.dispose();
-    (batch.lineSegments.material as THREE.LineBasicMaterial).dispose();
+    (batch.lineSegments.material as LineMaterial).dispose();
     batch.lineSegments = null;
   }
 
@@ -278,32 +287,29 @@ export class BatchedLayerBuilder {
       }
 
       if (batch.lineSegments) {
-        const attr = batch.lineSegments.geometry.getAttribute('position') as THREE.BufferAttribute;
-        if (attr.array.length === positionArray.length) {
-          attr.array.set(positionArray);
-          attr.needsUpdate = true;
-          batch.lineSegments.geometry.setDrawRange(0, positionArray.length / 3);
-          batch.lineSegments.geometry.computeBoundingSphere();
-        } else {
-          scene.remove(batch.lineSegments);
-          batch.lineSegments.geometry.dispose();
-          const geometry = new THREE.BufferGeometry();
-          geometry.setAttribute('position', new THREE.BufferAttribute(positionArray, 3));
-          batch.lineSegments.geometry = geometry;
-          scene.add(batch.lineSegments);
-        }
+        // 重新写入位置数据。LineSegmentsGeometry 内部需要按 quad 展开，
+        // 必须通过 setPositions 重建。
+        const geom = batch.lineSegments.geometry;
+        geom.setPositions(positionArray);
+        geom.computeBoundingSphere();
+        // 更新分辨率（容器变化场景下确保线宽正确）
+        const mat = batch.lineSegments.material as LineMaterial;
+        mat.resolution.copy(this._resolution);
       } else {
-        const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute('position', new THREE.BufferAttribute(positionArray, 3));
+        const geometry = new LineSegmentsGeometry();
+        geometry.setPositions(positionArray);
 
-        const material = new THREE.LineBasicMaterial({
+        const material = new LineMaterial({
           color: batch.key.colorHex,
           linewidth: batch.key.lineWidth,
+          worldUnits: false,
+          resolution: this._resolution.clone(),
         });
 
-        const lineSegments = new THREE.LineSegments(geometry, material);
+        const lineSegments = new LineSegments2(geometry, material);
         lineSegments.name = `__batch_${batch.key.layerName}_${batch.key.colorHex}`;
         lineSegments.frustumCulled = false;
+        lineSegments.computeLineDistances();
         scene.add(lineSegments);
         batch.lineSegments = lineSegments;
       }
@@ -326,16 +332,16 @@ export class BatchedLayerBuilder {
    * (can happen when the last entity is extracted and the batch map entry is deleted).
    */
   pruneOrphanedLineSegments(scene: THREE.Scene): void {
-    const active = new Set<THREE.LineSegments>();
+    const active = new Set<LineSegments2>();
     for (const batch of this._batches.values()) {
       if (batch.lineSegments) {
         active.add(batch.lineSegments);
       }
     }
 
-    const orphans: THREE.LineSegments[] = [];
+    const orphans: LineSegments2[] = [];
     for (const child of scene.children) {
-      if (!(child instanceof THREE.LineSegments)) continue;
+      if (!(child instanceof LineSegments2)) continue;
       if (!child.name.startsWith('__batch_')) continue;
       if (!active.has(child)) {
         orphans.push(child);
@@ -345,12 +351,7 @@ export class BatchedLayerBuilder {
     for (const orphan of orphans) {
       scene.remove(orphan);
       orphan.geometry.dispose();
-      const mat = orphan.material;
-      if (Array.isArray(mat)) {
-        for (const m of mat) m.dispose();
-      } else {
-        (mat as THREE.LineBasicMaterial).dispose();
-      }
+      (orphan.material as LineMaterial).dispose();
     }
   }
 
@@ -421,18 +422,10 @@ export class BatchedLayerBuilder {
         continue;
       }
 
-      const attr = batch.lineSegments.geometry.getAttribute('position') as THREE.BufferAttribute;
-      if (attr.array.length >= positionArray.length) {
-        attr.array.set(positionArray);
-        attr.needsUpdate = true;
-        batch.lineSegments.geometry.setDrawRange(0, positionArray.length / 3);
-        batch.lineSegments.geometry.computeBoundingSphere();
-      } else {
-        batch.lineSegments.geometry.dispose();
-        const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute('position', new THREE.BufferAttribute(positionArray, 3));
-        batch.lineSegments.geometry = geometry;
-      }
+      // LineSegmentsGeometry 没有简单的"复用 attribute" 路径——
+      // 必须用 setPositions 完整重建（内部按 quad 展开为 instanceStart/instanceEnd）。
+      batch.lineSegments.geometry.setPositions(positionArray);
+      batch.lineSegments.geometry.computeBoundingSphere();
     }
   }
 

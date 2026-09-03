@@ -5,14 +5,23 @@ import CircularProgress from "@mui/material/CircularProgress";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AppTheme } from "./theme";
 import { SideMenu, AppNavbar, AppFooter, SettingsDrawer } from "./components/layout";
-import { DashboardPage, SceneEditorPage, DataSourcePage, PublishedScenesPage, ScenePreviewPage, ComponentManagementPage, ComponentPreviewPage, MapLibraryPage } from "./pages";
+import { DashboardPage, SceneEditorPage, DataSourcePage, PublishedScenesPage, ScenePreviewPage, ComponentManagementPage, ComponentPreviewPage, MapLibraryPage, MapsPage, MapPreviewPage, AlertCenterPage, LogsPage, HistoryPage, AboutPage, HelpPage } from "./pages";
 import { useLayoutStore } from "./store/layoutStore";
 import { useAuthStore } from "./store/authStore";
 import { useDataSourceStore } from "./store/datasourceStore";
+import { useDeviceAdapterStore } from "./store/deviceAdapterStore";
 import { useThemeStore } from "./store/themeStore";
 import { useAppearanceStore } from "./store/appearanceStore";
+import { subscribeLogMonitorToScene } from "./store/logMonitorStore";
+import { ensureDevicesLoaded } from "./store/deviceStore";
+import { useSceneStore } from "./store/sceneStore";
 import type { ThemeMode } from "./store/themeStore";
 import { useEffect, useMemo, useState, lazy, Suspense } from "react";
+import Button from "@mui/material/Button";
+import LockRoundedIcon from "@mui/icons-material/LockRounded";
+import Typography from "@mui/material/Typography";
+import ToastHost from "./utils/ToastHost";
+import { showToast } from "./utils/toastStore";
 
 const MapEditorPage = lazy(() => import("./pages/MapEditorPage"));
 
@@ -29,10 +38,50 @@ function resolveMode(mode: ThemeMode): "light" | "dark" {
 }
 
 const FULLSCREEN_ROUTES = ["/scene"];
-const STANDALONE_ROUTES = ["/preview", "/component-preview", "/map-editor"];
+const STANDALONE_ROUTES = ["/preview", "/component-preview", "/map-editor", "/map-preview"];
 
 function isStandaloneRoute(pathname: string): boolean {
   return STANDALONE_ROUTES.some((r) => pathname.startsWith(r));
+}
+
+/**
+ * 配置面路由守卫（复用项目已有的 authStore 配置驱动登录）。
+ * - authStore.enabled === false：不拦截，直接渲染。
+ * - enabled 且已登录：渲染。
+ * - enabled 且未登录：显示「需要登录」占位，按钮唤起已配置的 webhook 登录。
+ */
+function ConfigGate({ children }: { children: React.ReactNode }) {
+  const enabled = useAuthStore((s) => s.enabled);
+  const currentUser = useAuthStore((s) => s.currentUser);
+
+  if (!enabled || currentUser) {
+    return <>{children}</>;
+  }
+
+  return (
+    <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", py: 10, gap: 1 }}>
+      <LockRoundedIcon sx={{ fontSize: 44, color: "text.disabled", mb: 0.5 }} />
+      <Typography variant="h6" sx={{ fontWeight: 600 }}>
+        该页面需要登录
+      </Typography>
+      <Typography variant="body2" color="text.secondary">
+        配置功能仅对管理员开放，请先登录
+      </Typography>
+      <Button
+        variant="contained"
+        sx={{ mt: 1.5 }}
+        onClick={() => {
+          void useAuthStore.getState().performLogin().catch((err) => {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.error("[ConfigGate] 登录失败:", msg);
+            showToast(`登录失败：${msg}`, "error");
+          });
+        }}
+      >
+        登录
+      </Button>
+    </Box>
+  );
 }
 
 function AppLayout({ setSettingsOpen }: { setSettingsOpen: (v: boolean) => void }) {
@@ -49,7 +98,8 @@ function AppLayout({ setSettingsOpen }: { setSettingsOpen: (v: boolean) => void 
       <Routes>
         <Route path="/preview/:sceneId" element={<ScenePreviewPage />} />
         <Route path="/component-preview/:componentType" element={<ComponentPreviewPage />} />
-        <Route path="/map-editor/:libraryId" element={<Suspense fallback={<Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}><CircularProgress /></Box>}><MapEditorPage /></Suspense>} />
+        <Route path="/map-editor/:libraryId" element={<Suspense fallback={<Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}><CircularProgress /></Box>}><ConfigGate><MapEditorPage /></ConfigGate></Suspense>} />
+        <Route path="/map-preview/:id" element={<MapPreviewPage />} />
       </Routes>
     );
   }
@@ -81,7 +131,7 @@ function AppLayout({ setSettingsOpen }: { setSettingsOpen: (v: boolean) => void 
           {isFullscreen ? (
             <Box sx={{ flex: 1, minHeight: 0 }}>
               <Routes>
-                <Route path="/scene" element={<SceneEditorPage />} />
+                <Route path="/scene" element={<ConfigGate><SceneEditorPage /></ConfigGate>} />
               </Routes>
             </Box>
           ) : (
@@ -97,10 +147,16 @@ function AppLayout({ setSettingsOpen }: { setSettingsOpen: (v: boolean) => void 
             >
               <Routes>
                 <Route path="/" element={<DashboardPage />} />
-                <Route path="/datasource" element={<DataSourcePage />} />
+                <Route path="/datasource" element={<ConfigGate><DataSourcePage /></ConfigGate>} />
                 <Route path="/published" element={<PublishedScenesPage />} />
-                <Route path="/components" element={<ComponentManagementPage />} />
-                <Route path="/map-library" element={<MapLibraryPage />} />
+                <Route path="/components" element={<ConfigGate><ComponentManagementPage /></ConfigGate>} />
+                <Route path="/map-library" element={<ConfigGate><MapLibraryPage /></ConfigGate>} />
+                <Route path="/maps" element={<MapsPage />} />
+                <Route path="/alerts" element={<AlertCenterPage />} />
+                <Route path="/logs" element={<LogsPage />} />
+                <Route path="/history" element={<HistoryPage />} />
+                <Route path="/about" element={<AboutPage />} />
+                <Route path="/help" element={<HelpPage />} />
               </Routes>
             </Box>
           )}
@@ -116,6 +172,7 @@ export default function App() {
   const init = useAuthStore((state) => state.init);
   const initialized = useAuthStore((state) => state.initialized);
   const loadFromBackend = useDataSourceStore((state) => state.loadFromBackend);
+  const loadAdapters = useDeviceAdapterStore((state) => state.loadFromBackend);
 
   const themeConfig = useThemeStore((state) => state.config);
   const themeInit = useThemeStore((state) => state.init);
@@ -135,11 +192,27 @@ export default function App() {
     themeInit();
     appearanceInit();
     loadFromBackend();
+    loadAdapters();
+    // 常驻订阅：日志监控设备池实时跟随主场景喷雾控制工具栏绑定的集控器。
+    // 提到 App 启动而非仅 LogFilterPanel 挂载，保证"主场景改完集控器、日志监控未打开"时
+    // sceneDeviceIds 也已同步，打开日志监控即最新、改完即时联动（避免只在视图开着时才联动）。
+    subscribeLogMonitorToScene();
+    // 主页首启数据初始化：设备加载 + 报警订阅 + 实时轮询、场景列表。
+    // 竞态修复：ensureDevicesLoaded 内部对适配器/数据源做同步快照，若不等
+    // loadFromBackend/loadAdapters 完成就调用，会读到空列表早退，且内部
+    // _autoLoaded 防重入会永久拦截重试（在线设备恒 0）。故必须 await 就绪后再触发。
+    void (async () => {
+      try {
+        await Promise.all([loadFromBackend(), loadAdapters()]);
+        await ensureDevicesLoaded();
+      } catch { /* 启动初始化失败不阻塞 UI */ }
+    })();
+    void useSceneStore.getState().loadScenes();
 
     return () => {
       abortController.abort();
     };
-  }, [init, layoutInit, themeInit, appearanceInit, loadFromBackend]);
+  }, [init, layoutInit, themeInit, appearanceInit, loadFromBackend, loadAdapters]);
 
   useEffect(() => {
     if (themeConfig.mode === "system" && typeof window !== "undefined" && window.matchMedia) {
@@ -177,6 +250,7 @@ export default function App() {
         <CssBaseline enableColorScheme />
         <AppLayout setSettingsOpen={setSettingsOpen} />
         <SettingsDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+        <ToastHost />
       </AppTheme>
     </BrowserRouter>
   );

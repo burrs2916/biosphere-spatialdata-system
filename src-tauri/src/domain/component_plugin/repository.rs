@@ -396,6 +396,12 @@ impl ComponentPluginRepository {
             params![id],
         )
         .map_err(|e| AppError::Database(e.to_string()))?;
+        // 记录已删除的 id，防止 seed 时重新插入
+        conn.execute(
+            "INSERT OR IGNORE INTO deleted_category_ids (id) VALUES (?1)",
+            params![id],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
         Ok(())
     }
 

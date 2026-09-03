@@ -13,16 +13,58 @@ function resolveLayerType(componentType: string): 'spatial' | 'overlay' | 'widge
   return 'overlay';
 }
 
+interface ComponentFingerprint {
+  id: string;
+  type: string;
+  visible: boolean;
+  zIndex: number;
+  locked: boolean;
+  configHash: string;
+}
+
+function computeFingerprints(components: EditorState["components"]): ComponentFingerprint[] {
+  return components.map((c) => ({
+    id: c.id,
+    type: c.type,
+    visible: c.visible,
+    zIndex: c.zIndex,
+    locked: c.locked,
+    configHash: "",
+  }));
+}
+
+function fingerprintsEqual(a: ComponentFingerprint[], b: ComponentFingerprint[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const fa = a[i];
+    const fb = b[i];
+    if (fa.id !== fb.id || fa.type !== fb.type || fa.visible !== fb.visible || fa.zIndex !== fb.zIndex || fa.locked !== fb.locked) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export function useComponentLayerSync() {
   const layerRegistry = useLayerRegistry();
   const viewportSyncService = useViewportSyncService();
   const registeredRef = useRef<Map<string, ComponentLayerAdapter>>(new Map());
+  const prevFingerprintsRef = useRef<ComponentFingerprint[]>([]);
 
   useEffect(() => {
     if (!layerRegistry) return;
 
     const unsub = useEditorStore.subscribe((state: EditorState, prevState: EditorState) => {
       if (state.components === prevState.components) return;
+
+      const newFingerprints = computeFingerprints(state.components);
+      const oldFingerprints = prevFingerprintsRef.current;
+
+      if (fingerprintsEqual(newFingerprints, oldFingerprints)) {
+        prevFingerprintsRef.current = newFingerprints;
+        return;
+      }
+      prevFingerprintsRef.current = newFingerprints;
 
       const registered = registeredRef.current;
       const components = state.components;
@@ -90,6 +132,7 @@ export function useComponentLayerSync() {
         registered.set(comp.id, adapter);
       }
     }
+    prevFingerprintsRef.current = computeFingerprints(components);
 
     return () => {
       unsub();

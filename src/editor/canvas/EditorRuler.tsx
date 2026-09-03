@@ -11,13 +11,15 @@ interface EditorRulerProps {
   rulerVisible?: boolean;
 }
 
+const RULER_SIZE = 20;
+
 const EditorRuler: React.FC<EditorRulerProps> = memo(({ children, canvasWidth: _canvasWidth, canvasHeight: _canvasHeight, rulerVisible = true }) => {
   const rulerXRef = useRef<Ruler | null>(null);
   const rulerYRef = useRef<Ruler | null>(null);
   const viewport = useEditorStore((s) => s.viewport);
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
-  const offset = rulerVisible ? 20 : 0;
+  const offset = rulerVisible ? RULER_SIZE : 0;
 
   useEffect(() => {
     if (rulerXRef.current && rulerYRef.current) {

@@ -6,6 +6,7 @@ import Avatar from "@mui/material/Avatar";
 import Typography from "@mui/material/Typography";
 import Tooltip from "@mui/material/Tooltip";
 import PersonRoundedIcon from "@mui/icons-material/PersonRounded";
+import type { KeyboardEvent } from "react";
 import SelectContent from "./SelectContent";
 import MenuContent from "./MenuContent";
 import CardAlert from "./CardAlert";
@@ -50,6 +51,19 @@ export default function SideMenu() {
   const isAuthenticated = !!currentUser;
   const isAuthRequired = AUTH_PRESETS.includes(preset);
 
+  const performLogin = useAuthStore((state) => state.performLogin);
+
+  // 未登录时点击身份区 = 触发登录（与「点击登录」文案一致）；已登录恢复普通装饰态
+  const handleLogin = () => {
+    if (!isAuthenticated) void performLogin();
+  };
+  const handleLoginKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      handleLogin();
+    }
+  };
+
   const getDisplayValue = (type: string): string => {
     const config = userDisplayConfig.find((c) => c.displayType === type);
     if (config) {
@@ -69,16 +83,14 @@ export default function SideMenu() {
   const emailFromCache = getDisplayValue("email");
   const tenantFromCache = getDisplayValue("tenant");
   const roleFromCache = getDisplayValue("role");
-  
-  const displayName = nameFromCache || currentUser?.displayName || currentUser?.username || (isAuthenticated && !hasDisplayConfig ? "用户" : (!isAuthenticated ? "未登录" : ""));
-  const displayEmail = emailFromCache || currentUser?.email || (isAuthenticated && !hasDisplayConfig ? "" : (!isAuthenticated ? "点击登录" : ""));
-  const avatarValue = getDisplayValue("avatar");
-  
+
+  // currentUser 为身份单一事实源（performLogin 已按展示配置的 name/email/avatar 映射解析），
+  // 展示配置只用于补充租户/角色/自定义等 currentUser 没有的字段。
+  const displayName = currentUser?.displayName || currentUser?.username || nameFromCache || (isAuthenticated && !hasDisplayConfig ? "用户" : (!isAuthenticated ? "未登录" : ""));
+  const displayEmail = currentUser?.email || emailFromCache || (isAuthenticated && !hasDisplayConfig ? "" : (!isAuthenticated ? "点击登录" : ""));
+  const avatarValue = getDisplayValue("avatar") || currentUser?.avatar || "";
+
   const isAvatarUrl = avatarValue && (avatarValue.startsWith("http://") || avatarValue.startsWith("https://") || avatarValue.startsWith("data:"));
-  
-  const avatarLetter = isAuthenticated
-    ? (nameFromCache || currentUser?.displayName || currentUser?.username || "U")[0].toUpperCase()
-    : "?";
 
   const displayItems = [
     { key: "name", label: "名称", value: nameFromCache || currentUser?.displayName || currentUser?.username },
@@ -126,7 +138,6 @@ export default function SideMenu() {
         <Box
           sx={{
             p: sidebarCollapsed ? 1 : 2,
-            gap: sidebarCollapsed ? 0 : 1.5,
             display: "flex",
             alignItems: "center",
             borderTop: "1px solid",
@@ -138,90 +149,107 @@ export default function SideMenu() {
             },
           }}
         >
-          <Tooltip title={sidebarCollapsed ? displayName : ""} placement="right">
-            <Box
-              sx={{
-                position: "relative",
-                "&:hover": {
-                  transform: "scale(1.05)",
-                  transition: "transform 0.2s ease-in-out",
-                },
-              }}
-            >
-              {isAvatarUrl ? (
-                <Avatar
-                  sx={{
-                    width: sidebarCollapsed ? 40 : 44,
-                    height: sidebarCollapsed ? 40 : 44,
-                    border: "2px solid",
-                    borderColor: (theme) =>
-                      theme.palette.mode === "dark"
-                        ? "rgba(255,255,255,0.1)"
-                        : "rgba(0,0,0,0.08)",
-                  }}
-                  src={avatarValue}
-                  alt={displayName}
-                />
-              ) : isAuthenticated ? (
-                <Avatar
-                  sx={{
-                    width: sidebarCollapsed ? 40 : 44,
-                    height: sidebarCollapsed ? 40 : 44,
-                    bgcolor: (theme) =>
-                      theme.palette.mode === "dark"
-                        ? "primary.dark"
-                        : "primary.light",
-                    color: (theme) =>
-                      theme.palette.mode === "dark"
-                        ? "primary.contrastText"
-                        : "primary.dark",
-                    border: "2px solid",
-                    borderColor: (theme) =>
-                      theme.palette.mode === "dark"
-                        ? "rgba(255,255,255,0.1)"
-                        : "rgba(0,0,0,0.08)",
-                  }}
-                >
-                  <PersonRoundedIcon sx={{ fontSize: sidebarCollapsed ? "1.25rem" : "1.4rem" }} />
-                </Avatar>
-              ) : (
-                <Avatar
-                  sx={{
-                    width: sidebarCollapsed ? 40 : 44,
-                    height: sidebarCollapsed ? 40 : 44,
-                    bgcolor: "grey.400",
-                    fontSize: sidebarCollapsed ? "1.25rem" : "1.35rem",
-                    fontWeight: 600,
-                    border: "2px solid",
-                    borderColor: (theme) =>
-                      theme.palette.mode === "dark"
-                        ? "rgba(255,255,255,0.1)"
-                        : "rgba(0,0,0,0.08)",
-                  }}
-                >
-                  {avatarLetter}
-                </Avatar>
-              )}
-              {isAuthenticated && (
-                <Box
-                  sx={{
-                    position: "absolute",
-                    bottom: 2,
-                    right: 2,
-                    width: 10,
-                    height: 10,
-                    borderRadius: "50%",
-                    bgcolor: "success.main",
-                    border: "2px solid",
-                    borderColor: "background.paper",
-                  }}
-                />
-              )}
-            </Box>
-          </Tooltip>
-          {!sidebarCollapsed && (
-            <>
-              <Box sx={{ mr: "auto", minWidth: 0, flex: 1 }}>
+          <Box
+            onClick={isAuthenticated ? undefined : handleLogin}
+            role={isAuthenticated ? undefined : "button"}
+            tabIndex={isAuthenticated ? undefined : 0}
+            onKeyDown={isAuthenticated ? undefined : handleLoginKeyDown}
+            aria-label={isAuthenticated ? undefined : "点击登录"}
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: sidebarCollapsed ? 0 : 1.5,
+              flex: 1,
+              minWidth: 0,
+              cursor: isAuthenticated ? "default" : "pointer",
+              borderRadius: 1,
+              "&:focus-visible": {
+                outline: (theme) => `2px solid ${theme.palette.primary.main}`,
+                outlineOffset: 2,
+              },
+            }}
+          >
+            <Tooltip title={sidebarCollapsed ? displayName : ""} placement="right">
+              <Box
+                sx={{
+                  position: "relative",
+                  "&:hover": {
+                    transform: "scale(1.05)",
+                    transition: "transform 0.2s ease-in-out",
+                  },
+                }}
+              >
+                {isAvatarUrl ? (
+                  <Avatar
+                    sx={{
+                      width: sidebarCollapsed ? 40 : 44,
+                      height: sidebarCollapsed ? 40 : 44,
+                      border: "2px solid",
+                      borderColor: (theme) =>
+                        theme.palette.mode === "dark"
+                          ? "rgba(255,255,255,0.1)"
+                          : "rgba(0,0,0,0.08)",
+                    }}
+                    src={avatarValue}
+                    alt={displayName}
+                  />
+                ) : isAuthenticated ? (
+                  <Avatar
+                    sx={{
+                      width: sidebarCollapsed ? 40 : 44,
+                      height: sidebarCollapsed ? 40 : 44,
+                      bgcolor: (theme) =>
+                        theme.palette.mode === "dark"
+                          ? "primary.dark"
+                          : "primary.light",
+                      color: (theme) =>
+                        theme.palette.mode === "dark"
+                          ? "primary.contrastText"
+                          : "primary.dark",
+                      border: "2px solid",
+                      borderColor: (theme) =>
+                        theme.palette.mode === "dark"
+                          ? "rgba(255,255,255,0.1)"
+                          : "rgba(0,0,0,0.08)",
+                    }}
+                  >
+                    <PersonRoundedIcon sx={{ fontSize: sidebarCollapsed ? "1.25rem" : "1.4rem" }} />
+                  </Avatar>
+                ) : (
+                  <Avatar
+                    sx={{
+                      width: sidebarCollapsed ? 40 : 44,
+                      height: sidebarCollapsed ? 40 : 44,
+                      bgcolor: "grey.400",
+                      border: "2px solid",
+                      borderColor: (theme) =>
+                        theme.palette.mode === "dark"
+                          ? "rgba(255,255,255,0.1)"
+                          : "rgba(0,0,0,0.08)",
+                    }}
+                  >
+                    <PersonRoundedIcon sx={{ fontSize: sidebarCollapsed ? "1.25rem" : "1.4rem", color: "common.white" }} />
+                  </Avatar>
+                )}
+                {isAuthenticated && (
+                  <Box
+                    sx={{
+                      position: "absolute",
+                      bottom: 2,
+                      right: 2,
+                      width: 10,
+                      height: 10,
+                      borderRadius: "50%",
+                      bgcolor: "success.main",
+                      border: "2px solid",
+                      borderColor: "background.paper",
+                    }}
+                  />
+                )}
+              </Box>
+            </Tooltip>
+            {!sidebarCollapsed && (
+              <Box sx={{ minWidth: 0, flex: 1 }}>
                 {!hasDisplayConfig ? (
                   <>
                     <Typography
@@ -301,9 +329,9 @@ export default function SideMenu() {
                   </Box>
                 )}
               </Box>
-              <OptionsMenu />
-            </>
-          )}
+            )}
+          </Box>
+          {!sidebarCollapsed && <OptionsMenu />}
         </Box>
       )}
     </Drawer>

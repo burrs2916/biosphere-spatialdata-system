@@ -265,7 +265,13 @@ export class DataOrchestrator implements BindingActionExecutor {
   }
 
   navigate(_targetId: string, _property: string, value: any): void {
-    if (typeof window !== 'undefined' && typeof value === 'string') {
+    // 支持内部场景导航：value 为 NavigateToSceneParams 对象时走内部导航
+    if (typeof value === 'object' && value !== null && value.sceneId) {
+      import("../../editor/runtime/NavigationExecutor").then(({ NavigationExecutor }) => {
+        NavigationExecutor.execute(value);
+      });
+    } else if (typeof window !== 'undefined' && typeof value === 'string') {
+      // 外部 URL 导航
       window.open(value, '_blank', 'noopener,noreferrer');
     }
   }

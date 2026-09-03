@@ -4,6 +4,7 @@ mod commands;
 mod domain;
 mod error;
 mod infrastructure;
+mod plugins;
 
 use application::MqttService;
 use application::{
@@ -18,11 +19,14 @@ use commands::{
     init_logger_state, AuthState, ComponentPluginState, DatasourceState, IconsState,
     MapLibraryState, MqttState, SceneState, SettingsState,
 };
+use commands::ai_agent::AiAgentState;
 use infrastructure::database::{init_tables, migrate};
 use infrastructure::{
     Database, SqliteAuthRepository, SqliteDatasourceRepository, SqliteIconRepository,
     SqliteMapLibraryRepository, SqliteSceneRepository, SqliteSettingsRepository,
 };
+use plugins::ai_agent::engine::RunRegistry;
+use plugins::ai_agent::store::AiStore;
 use std::sync::Arc;
 use tauri::Manager;
 
@@ -31,6 +35,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             let db = Database::new(app.handle()).expect("Failed to initialize database");
 
@@ -95,6 +100,19 @@ pub fn run() {
 
             let logger_state = init_logger_state();
 
+            // AI 助手（独立 SQLite：ai_agent.db，不影响现有数据库）
+            let ai_store = AiStore::new(
+                &app.path()
+                    .app_data_dir()
+                    .expect("Failed to resolve app data dir")
+                    .join("ai_agent.db"),
+            )
+            .expect("Failed to initialize ai_agent store");
+            let ai_agent_state = AiAgentState {
+                store: Arc::new(ai_store),
+                registry: Arc::new(RunRegistry::new()),
+            };
+
             app.manage(auth_state);
             app.manage(settings_state);
             app.manage(icons_state);
@@ -104,6 +122,7 @@ pub fn run() {
             app.manage(component_plugin_state);
             app.manage(map_library_state);
             app.manage(logger_state);
+            app.manage(ai_agent_state);
 
             let window = app.get_webview_window("main").unwrap();
             window.set_title("SpatialData System")?;
@@ -122,6 +141,7 @@ pub fn run() {
             commands::get_all_groups,
             commands::get_group,
             commands::save_group,
+            commands::save_text_to_path,
             commands::delete_group,
             commands::get_all_icons,
             commands::get_icons_by_group,
@@ -215,6 +235,30 @@ pub fn run() {
             commands::create_cadbin_layer,
             commands::delete_cadbin_layer,
             commands::rename_cadbin_layer,
+            commands::save_thumbnail,
+            commands::check_thumbnails_exist,
+            commands::ai_save_provider,
+            commands::ai_list_providers,
+            commands::ai_delete_provider,
+            commands::ai_save_endpoint,
+            commands::ai_list_endpoints,
+            commands::ai_delete_endpoint,
+            commands::ai_save_model,
+            commands::ai_list_models,
+            commands::ai_delete_model,
+            commands::ai_create_conversation,
+            commands::ai_list_conversations,
+            commands::ai_delete_conversation,
+            commands::ai_clear_messages,
+            commands::ai_list_messages,
+            commands::ai_run_agent,
+            commands::ai_stop_agent,
+            commands::ai_test_endpoint_connection,
+            commands::ai_test_model_chat,
+            commands::ai_list_remote_models,
+            commands::ai_save_agent,
+            commands::ai_list_agents,
+            commands::ai_delete_agent,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

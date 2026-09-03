@@ -4,19 +4,48 @@ import Tooltip from "@mui/material/Tooltip";
 import DoneIcon from "@mui/icons-material/Done";
 import PanToolAltIcon from "@mui/icons-material/PanToolAlt";
 import { fitTextToBox, measureTextSize } from "../../utils/fitText";
-import { useCallback, useRef, useState, useEffect, useMemo } from "react";
+import { useCallback, useRef, useState, useEffect, memo, useMemo } from "react";
 import Moveable from "react-moveable";
-import type { SceneComponent, ComponentRendererProps } from "../../types/editor";
+import type { SceneComponent, ComponentRendererProps, EventBinding } from "../../types/editor";
+import { resolveInteractivity } from "../utils/resolveInteractivity";
 import { useEditorStore } from "../../store/editorStore";
 import logger from "../../utils/logger";
 import { componentRegistry } from "../registry";
-import { rendererCache } from "../plugins";
-import { FallbackRenderer } from "../renderers";
+import { rendererCache } from "../plugins/PluginLoader";
+import { FallbackRenderer } from "../renderers/FallbackRenderer";
+import { DeviceComponentRenderer } from "../renderers/deviceVariants/DeviceComponentRenderer";
+import { ComponentFrame } from "../renderers/ComponentFrame";
+
+// 组件级边框覆盖层排除清单：
+// - region-frame（36/37/38/40 等结构性外框，自身即边框）
+// - top-glow-title-frame（标题栏自带原生边框）
+// - cad-enhancer（CAD 地图装饰角标，避免双重装饰）
+// - datav-border / datav-decoration / decoration-*（纯装饰组件，自行绘制）
+// - *_12_frame（旧独立底部数据边框，迁移中删除；残留时也排除）
+const FRAME_EXCLUDED_TYPES = new Set<string>([
+  "region-frame",
+  "top-glow-title-frame",
+  "cad-enhancer",
+]);
+function isFrameExcluded(t: string): boolean {
+  if (FRAME_EXCLUDED_TYPES.has(t)) return true;
+  if (
+    t.startsWith("datav-border") ||
+    t.startsWith("datav-decoration") ||
+    t.startsWith("decoration-") ||
+    t.endsWith("_12_frame")
+  ) {
+    return true;
+  }
+  return false;
+}
 import { EditorContextMenu } from "../components/EditorContextMenu";
 import { useComponentDataBinding } from "../hooks/useComponentDataBinding";
 import { useSpatialRendererContext } from "../hooks/useSpatialRendererContext";
 import { useDataSourceStore } from "../../store/datasourceStore";
 import { dataSourceEventBus } from "../../datasource/events";
+import { getGuidePositions } from "./CanvasGuideLines";
+import { useEventDispatcher } from "../context/SceneEditorContext";
 
 interface EditorCanvasComponentProps {
   component: SceneComponent;
@@ -25,27 +54,43 @@ interface EditorCanvasComponentProps {
   layerLocked: boolean;
   isCanvasDragOver: boolean;
   previewMode: boolean;
+  eventBindings?: EventBinding[];
   onSelect: (id: string, multi?: boolean) => void;
   onHover: (id: string | null) => void;
 }
 
-export function EditorCanvasComponent({
+export const EditorCanvasComponent = memo(function EditorCanvasComponent({
   component,
   isSelected,
   isHovered,
   layerLocked,
   isCanvasDragOver,
   previewMode,
+  eventBindings,
   onSelect,
   onHover,
 }: EditorCanvasComponentProps) {
   const updateComponentTransform = useEditorStore((s) => s.updateComponentTransform);
   const updateComponentConfig = useEditorStore((s) => s.updateComponentConfig);
   const allComponents = useEditorStore((s) => s.components);
+  const canvasConfig = useEditorStore((s) => s.canvasConfig);
 
   useComponentDataBinding(component.id);
 
-  const dataSourceId = component.config.dataSourceId as string | undefined;
+  // 组件定义（提前读取，下方多处使用）
+  const definition = componentRegistry.get(component.type);
+
+  // 预览模式下检测组件是否应启用交互
+  //   isInteractive：基于 eventBindings 决定（默认装饰型组件无绑定时为 false）
+  //   requiresInteraction：组件 definition 显式声明自己是"操作型"（强喷/强停/视频播放/定时控制等），
+  //     即使没有 eventBindings 也要在预览/发布模式下保持交互能力。
+  const { isInteractive } = useMemo(
+    () => resolveInteractivity(component.id, eventBindings ?? []),
+    [component.id, eventBindings],
+  );
+  const effectiveInteractive = isInteractive || !!definition?.requiresInteraction;
+
+  const dataSourceId = component?.config?.dataSourceId as string | undefined;
 
   useEffect(() => {
     if (!dataSourceId) return;
@@ -74,7 +119,7 @@ export function EditorCanvasComponent({
         } else {
           for (const [k, v] of Object.entries(data)) {
             if (k !== "sourceId" && k !== "timestamp" && typeof v !== "function") {
-              boundData[k] = Array.isArray(v) ? v[0] : v;
+              boundData[k] = v;
             }
           }
         }
@@ -91,7 +136,7 @@ export function EditorCanvasComponent({
     if (cache && typeof cache === "object") {
       const boundData: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(cache)) {
-        boundData[k] = Array.isArray(v) ? v[0] : v;
+        boundData[k] = v;
       }
       if (Object.keys(boundData).length > 0) {
         useEditorStore.getState().updateComponentConfig(component.id, { data: boundData });
@@ -103,14 +148,20 @@ export function EditorCanvasComponent({
 
   const spatialContext = useSpatialRendererContext(component.config.crs as import("../../types/spatial").CRSType | undefined);
 
+  const batchUpdateComponent = useEditorStore((s) => s.batchUpdateComponent);
+
   const handleConfigChange = useCallback(
     (key: string, value: unknown) => {
       if (key === "_autoFitSize" && value && typeof value === "object") {
-        const size = value as { width: number; height: number };
-        updateComponentTransform(component.id, { width: size.width, height: size.height });
+        const size = value as { width?: number; height?: number };
+        const updates: Record<string, number> = {};
+        if (size.width != null && size.width > 0) updates.width = size.width;
+        if (size.height != null && size.height > 0) updates.height = size.height;
+        if (Object.keys(updates).length > 0) {
+          updateComponentTransform(component.id, updates);
+        }
         return;
       }
-      updateComponentConfig(component.id, { [key]: value });
 
       if (component.type === "text") {
         const cfg = component.config;
@@ -123,16 +174,18 @@ export function EditorCanvasComponent({
         const borderWidth = borderEnabled ? ((cfg.borderWidth as number) || 1) : 0;
 
         if (key === "fontSize" && typeof value === "number") {
-          if (cfg.autoFit) {
-            updateComponentConfig(component.id, { autoFit: false });
-          }
+          const configUpdate: Record<string, unknown> = { [key]: value };
+          if (cfg.autoFit) configUpdate.autoFit = false;
           const availW = component.transform.width - padding * 2 - borderWidth * 2;
           const textSize = measureTextSize({ text, fontFamily, fontSize: value, lineHeight, letterSpacing, containerWidth: availW > 0 ? availW : undefined });
           const newW = textSize.width + padding * 2 + borderWidth * 2;
           const newH = textSize.height + padding * 2 + borderWidth * 2;
           if (newW >= 20 && newH >= 20) {
-            updateComponentTransform(component.id, { width: Math.ceil(newW), height: Math.ceil(newH) });
+            batchUpdateComponent(component.id, { config: configUpdate, transform: { width: Math.ceil(newW), height: Math.ceil(newH) } });
+          } else {
+            updateComponentConfig(component.id, configUpdate);
           }
+          return;
         }
 
         const layoutKeys = new Set(["padding", "borderEnabled", "borderWidth", "lineHeight", "letterSpacing", "fontFamily", "content"]);
@@ -157,14 +210,19 @@ export function EditorCanvasComponent({
               letterSpacing: newLetterSpacing,
             });
             const oldFontSize = (cfg.fontSize as number) || 16;
-            if (newFontSize !== oldFontSize) {
-              updateComponentConfig(component.id, { fontSize: newFontSize });
-            }
+            const configUpdate: Record<string, unknown> = { [key]: value };
+            if (newFontSize !== oldFontSize) configUpdate.fontSize = newFontSize;
+            updateComponentConfig(component.id, configUpdate);
+          } else {
+            updateComponentConfig(component.id, { [key]: value });
           }
+          return;
         }
       }
+
+      updateComponentConfig(component.id, { [key]: value });
     },
-    [component.id, component.type, component.config, component.transform.width, component.transform.height, updateComponentConfig, updateComponentTransform],
+    [component.id, component.type, component.config, component.transform, updateComponentConfig, updateComponentTransform, batchUpdateComponent],
   );
   const targetRef = useRef<HTMLDivElement>(null);
   const moveableRef = useRef<Moveable>(null);
@@ -180,7 +238,13 @@ export function EditorCanvasComponent({
 
   const { transform, locked, type, config, zIndex } = component;
   const { x, y, width, height, rotation } = transform;
-  const definition = componentRegistry.get(type);
+
+  // 调试日志：仅在组件定义找不到时输出
+  if (!definition && type.startsWith("device:")) {
+    console.warn("[EditorCanvasComponent] Device component definition not found:", type);
+    console.log("[EditorCanvasComponent] All registered device types:", componentRegistry.getByCategory("device").map(d => d.type));
+    console.log("[EditorCanvasComponent] All registered types:", componentRegistry.getAll().map(d => d.type));
+  }
   const showBorder = isSelected || isHovered;
   const isCustomFitMode = type === "map-cad" && config.fitMode === "custom";
   const isCadViewAdjusting = isCustomFitMode && isRendererInteractionLocked;
@@ -216,6 +280,38 @@ export function EditorCanvasComponent({
       onSelect(component.id, e.shiftKey);
     },
     [component.id, onSelect]
+  );
+
+  const eventDispatcher = useEventDispatcher();
+
+  const handlePreviewClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (eventDispatcher) {
+        eventDispatcher.emitComponentEvent(component.id, "onClick", {
+          componentId: component.id,
+          type: "click",
+          screenX: e.clientX,
+          screenY: e.clientY,
+        });
+      }
+    },
+    [component.id, eventDispatcher]
+  );
+
+  const handlePreviewDblClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (eventDispatcher) {
+        eventDispatcher.emitComponentEvent(component.id, "onDblClick", {
+          componentId: component.id,
+          type: "dblclick",
+          screenX: e.clientX,
+          screenY: e.clientY,
+        });
+      }
+    },
+    [component.id, eventDispatcher]
   );
 
   const handleContextMenu = useCallback(
@@ -261,14 +357,21 @@ export function EditorCanvasComponent({
       target.style.transform = `translate(${newX}px, ${newY}px)`;
       setFrame((prev) => ({ ...prev, translate: [newX, newY] }));
     },
-    []
+    [width, height],
   );
 
   const handleDragEnd = useCallback(() => {
     logger.info("EditorCanvasComponent", "Moveable dragEnd", { componentId: component.id });
     setIsDragging(false);
-    updateComponentTransform(component.id, { x: frame.translate[0], y: frame.translate[1] });
-  }, [component.id, frame.translate, updateComponentTransform]);
+    const newX = frame.translate[0];
+    const newY = frame.translate[1];
+
+    updateComponentTransform(component.id, { x: newX, y: newY });
+  }, [
+    component.id,
+    frame.translate,
+    updateComponentTransform,
+  ]);
 
   const handleResizeStart = useCallback(
     ({ setOrigin, dragStart }: any) => {
@@ -285,8 +388,10 @@ export function EditorCanvasComponent({
       const beforeTranslate = drag.beforeTranslate;
       const newX = beforeTranslate[0];
       const newY = beforeTranslate[1];
-      const newW = Math.max(width, 20);
-      const newH = Math.max(height, 20);
+      const minW = definition?.minSize?.width ?? 20;
+      const minH = definition?.minSize?.height ?? 20;
+      const newW = Math.max(width, minW);
+      const newH = Math.max(height, minH);
       target.style.width = `${newW}px`;
       target.style.height = `${newH}px`;
       target.style.transform = `translate(${newX}px, ${newY}px)`;
@@ -312,42 +417,123 @@ export function EditorCanvasComponent({
         }
       }
     },
-    [component.id, component.type, component.config, updateComponentConfig]
+    [component.id, component.type, component.config, updateComponentConfig, definition?.minSize],
   );
 
   const handleResizeEnd = useCallback(() => {
     setIsResizing(false);
-    const newW = Math.max(frame.size[0], 20);
-    const newH = Math.max(frame.size[1], 20);
-    updateComponentTransform(component.id, {
-      x: frame.translate[0],
-      y: frame.translate[1],
-      width: newW,
-      height: newH,
-    });
+    const minW = definition?.minSize?.width ?? 20;
+    const minH = definition?.minSize?.height ?? 20;
+    const newW = Math.max(frame.size[0], minW);
+    const newH = Math.max(frame.size[1], minH);
     if (component.type === "text") {
-      const latestConfig = useEditorStore.getState().components.find(c => c.id === component.id)?.config;
-      if (latestConfig?.autoFit) {
-        updateComponentConfig(component.id, { autoFit: false });
-      }
+      const latestConfig = useEditorStore.getState().components.find((c) => c.id === component.id)?.config;
+      const configUpdate: Record<string, unknown> = {};
+      if (latestConfig?.autoFit) configUpdate.autoFit = false;
+      batchUpdateComponent(component.id, {
+        transform: { x: frame.translate[0], y: frame.translate[1], width: newW, height: newH },
+        config: Object.keys(configUpdate).length > 0 ? configUpdate : undefined,
+      });
+    } else {
+      updateComponentTransform(component.id, {
+        x: frame.translate[0],
+        y: frame.translate[1],
+        width: newW,
+        height: newH,
+      });
     }
-  }, [component.id, component.type, frame.translate, frame.size, updateComponentTransform, updateComponentConfig]);
+  }, [
+    component.id,
+    component.type,
+    frame.translate,
+    frame.size,
+    updateComponentTransform,
+    batchUpdateComponent,
+    definition?.minSize,
+  ]);
+
+  const guidePositions = useMemo(() => {
+    if (!canvasConfig.guide.visible || !canvasConfig.guide.snapToGuide) {
+      return { vertical: [], horizontal: [] };
+    }
+    return getGuidePositions(canvasConfig.guide.preset, canvasConfig.width, canvasConfig.height, canvasConfig.guide.customVertical, canvasConfig.guide.customHorizontal);
+  }, [canvasConfig.guide.visible, canvasConfig.guide.snapToGuide, canvasConfig.guide.preset, canvasConfig.width, canvasConfig.height, canvasConfig.guide.customVertical, canvasConfig.guide.customHorizontal]);
+
+  const moveableSnappable = isInteractable && (canvasConfig.guide.snapToGuide || canvasConfig.guide.snapToElement || canvasConfig.grid.snapToGrid);
+  const moveableSnapThreshold = canvasConfig.guide.snapToGuide ? canvasConfig.guide.snapThreshold : (canvasConfig.grid.snapToGrid ? canvasConfig.grid.size : 5);
 
   const [Renderer, setRenderer] = useState<React.ComponentType<ComponentRendererProps> | null>(
-    () => rendererCache.get(type) || definition?.renderer.cached || null
+    () => {
+      const cached = rendererCache.get(type) || definition?.renderer.cached || null;
+      console.log("[EditorCanvasComponent] 🔍 Initial renderer for", type, ":", cached ? "FOUND" : "NULL");
+      return cached;
+    }
   );
 
   useEffect(() => {
     const cached = rendererCache.get(type);
     if (cached) {
+      console.log("[EditorCanvasComponent] 🔍 Using cached renderer for", type);
       setRenderer(() => cached);
       return;
     }
-    if (definition?.renderer.loader) {
+    // 关键：重新从 componentRegistry 查 definition，避免闭包过期问题
+    // 如果组件刚被注册（或延迟加载），这里能拿到最新的 definition
+    const currentDefinition = componentRegistry.get(type);
+    // 🔍 DIAGNOSTIC: 详细日志输出到日志文件
+    logger.info("EditorCanvasComponent", "Component render attempt", {
+      componentId: component.id,
+      type,
+      hasCached: !!cached,
+      hasDefinition: !!currentDefinition,
+      hasLoader: !!currentDefinition?.renderer.loader,
+      allRegisteredTypes: componentRegistry.getAll().map((d) => d.type),
+      registeredCount: componentRegistry.getAll().length,
+    });
+    if (currentDefinition?.renderer.loader) {
+      console.log("[EditorCanvasComponent] 🔍 Loading renderer for", type, "...");
       rendererCache.load(type).then((loaded) => {
+        console.log("[EditorCanvasComponent] 🔍 Renderer loaded for", type, ":", loaded ? "SUCCESS" : "FAILED");
+        logger.info("EditorCanvasComponent", "Renderer loaded", {
+          componentId: component.id,
+          type,
+          success: !!loaded,
+        });
         setRenderer(() => loaded || FallbackRenderer);
       });
+      return;
     }
+    // 修复：对于 device:* 类型但 componentRegistry 中没有定义的情况，
+    // 直接使用 DeviceComponentRenderer（通用设备组件渲染器）。
+    // 这是因为真实设备的产品码（如 EC-18）不一定在静态产品定义中，
+    // 但只要 deviceStore.products 里有对应 productCode 的元数据，
+    // 渲染器就能从 metadata 中推断 category 并正常渲染。
+    if (type.startsWith("device:")) {
+      logger.info("EditorCanvasComponent", "Using DeviceComponentRenderer", {
+        componentId: component.id,
+        type,
+      });
+      setRenderer(() => DeviceComponentRenderer as unknown as React.ComponentType<ComponentRendererProps>);
+      return;
+    }
+    // #region debug-point comp-tunnel-render-error
+    // 修复：definition 为 undefined 且不是 device:* 时，主动 setRenderer 为 FallbackRenderer，
+    // 避免 Renderer 永远为 null 导致 FallbackRenderer 通过 componentId 显示"未知组件"。
+    logger.warn("EditorCanvasComponent", "Component type NOT registered - using FallbackRenderer", {
+      componentId: component.id,
+      type,
+      hasDefinition: !!currentDefinition,
+      hasLoader: !!currentDefinition?.renderer.loader,
+      allRegisteredTypes: componentRegistry.getAll().map((d) => d.type),
+    });
+    console.warn("[EditorCanvasComponent] ❌ Component type not registered:", {
+      type,
+      hasDefinition: !!currentDefinition,
+      hasLoader: !!currentDefinition?.renderer.loader,
+      allRegisteredTypes: componentRegistry.getAll().map((d) => d.type),
+    });
+    setRenderer(() => FallbackRenderer);
+    // #endregion debug-point comp-tunnel-render-error
   }, [type, definition?.type]);
 
   return (
@@ -363,7 +549,9 @@ export function EditorCanvasComponent({
           height,
           zIndex,
           transform: `translate(${x}px, ${y}px)`,
-          cursor: previewMode ? "default" : isCadViewAdjusting ? "grabbing" : isCustomFitMode ? "grab" : isInteractable ? (isDragging ? "grabbing" : "grab") : "default",
+          cursor: previewMode
+            ? (effectiveInteractive ? "pointer" : "default")
+            : isCadViewAdjusting ? "grabbing" : isCustomFitMode ? "grab" : isInteractable ? (isDragging ? "grabbing" : "grab") : "default",
           outline: previewMode
             ? "none"
             : showBorder
@@ -373,19 +561,34 @@ export function EditorCanvasComponent({
               : "none",
           outlineOffset: "0px",
           userSelect: "none",
-          pointerEvents: isCanvasDragOver ? "none" : "auto",
+          pointerEvents: isCanvasDragOver
+            ? "none"
+            : previewMode
+              ? (effectiveInteractive ? "auto" : "none")
+              : "auto",
           transition: isDragging || isResizing ? "none" : "outline-color 0.15s",
-          "&:hover": previewMode ? {} : {
-            outline: layerLocked || locked ? undefined : "1px dashed rgba(25,118,210,0.5)",
-          },
+          "&:hover": previewMode
+            ? (effectiveInteractive ? { filter: "brightness(1.08)", transition: "filter 0.15s" } : {})
+            : {
+                outline: layerLocked || locked ? undefined : "1px dashed rgba(25,118,210,0.5)",
+              },
         }}
-        onClick={previewMode ? undefined : handleClick}
+        onClick={
+          previewMode
+            ? (effectiveInteractive ? handlePreviewClick : undefined)
+            : handleClick
+        }
+        onDoubleClick={
+          previewMode
+            ? (effectiveInteractive ? handlePreviewDblClick : undefined)
+            : undefined
+        }
         onContextMenu={previewMode ? undefined : handleContextMenu}
         onMouseDown={previewMode ? undefined : handleMouseDown}
         onMouseEnter={previewMode ? undefined : () => onHover(component.id)}
         onMouseLeave={previewMode ? undefined : () => onHover(null)}
       >
-        <Box sx={{ position: "relative", width: "100%", height: "100%", overflow: "hidden" }}>
+        <Box sx={{ position: "relative", width: "100%", height: "100%", overflow: type.startsWith("decoration-") || type.startsWith("datav-") || type.startsWith("device:") ? "visible" : "hidden" }}>
           {Renderer ? (
             <Renderer
               config={config}
@@ -397,10 +600,28 @@ export function EditorCanvasComponent({
               contentInteractionActive={isCadViewAdjusting}
               onInteractionLockChange={setIsRendererInteractionLocked}
               spatialContext={spatialContext}
+              editorSelected={isSelected}
             />
           ) : <FallbackRenderer config={config} componentId={component.id} />}
-          {previewMode && <Box sx={{ position: "absolute", inset: 0, zIndex: 1 }} />}
         </Box>
+
+        {/* 组件级边框装饰覆盖层：每个内容组件自带边框 / 四角 / 发光 / 动画 / 流光，
+            替代被删除的独立底部数据边框（comp_*_12_frame）。pointer-events:none 不阻挡交互。 */}
+        {!isFrameExcluded(type) && (
+          <Box
+            sx={{
+              position: "absolute",
+              left: 0,
+              top: 0,
+              width: "100%",
+              height: "100%",
+              pointerEvents: "none",
+              zIndex: 2,
+            }}
+          >
+            <ComponentFrame frameConfig={config?.frame as Record<string, unknown> | undefined} componentId={component.id} width={width} height={height} />
+          </Box>
+        )}
 
         {!previewMode && isSelected && isCustomFitMode && (
           <Tooltip title={isCadViewAdjusting ? "退出图纸调整" : "调整图纸视图"}>
@@ -461,11 +682,18 @@ export function EditorCanvasComponent({
           target={targetRef.current}
           draggable={isInteractable}
           resizable={isInteractable}
-          snappable={isInteractable}
-          snapThreshold={5}
-          verticalGuidelines={[960]}
-          horizontalGuidelines={[540]}
-          elementGuidelines={elementGuidelines}
+          keepRatio={component.type === "datav-border-1" || component.type === "datav-decoration-12"}
+          throttleDrag={canvasConfig.grid.snapToGrid ? canvasConfig.grid.dragStep : 0}
+          throttleResize={canvasConfig.grid.snapToGrid ? canvasConfig.grid.resizeStep : 0}
+          minWidth={definition?.minSize?.width ?? 20}
+          minHeight={definition?.minSize?.height ?? 20}
+          snappable={moveableSnappable}
+          snapThreshold={moveableSnapThreshold}
+          snapGridWidth={canvasConfig.grid.snapToGrid ? canvasConfig.grid.size : 0}
+          snapGridHeight={canvasConfig.grid.snapToGrid ? canvasConfig.grid.size : 0}
+          verticalGuidelines={guidePositions.vertical}
+          horizontalGuidelines={guidePositions.horizontal}
+          elementGuidelines={canvasConfig.guide.snapToElement ? elementGuidelines : []}
           onDragStart={handleDragStart}
           onDrag={handleDrag}
           onDragEnd={handleDragEnd}
@@ -484,4 +712,4 @@ export function EditorCanvasComponent({
       )}
     </>
   );
-}
+});

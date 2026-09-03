@@ -135,10 +135,15 @@ pub struct UpdateComponentPluginPayload {
 pub struct CreateCategoryPayload {
     pub id: String,
     pub name: String,
+    #[serde(default)]
     pub icon: Option<String>,
+    #[serde(default)]
     pub color: Option<String>,
+    #[serde(default)]
     pub sort_order: Option<i32>,
+    #[serde(default)]
     pub parent_id: Option<String>,
+    #[serde(default)]
     pub description: Option<String>,
 }
 

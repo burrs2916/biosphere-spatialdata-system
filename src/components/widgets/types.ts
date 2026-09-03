@@ -4,6 +4,8 @@ export interface MetricWidgetProps extends BaseWidgetProps {
   value: string;
   interval: string;
   trend: "up" | "down" | "neutral";
+  /** 可选：覆盖趋势 Chip 的默认文案（默认按 trend 显示 +12.5%/-3.2%/0%）。用于接入真实数据时不显示虚假百分比。 */
+  trendLabel?: string;
   data: number[];
 }
 

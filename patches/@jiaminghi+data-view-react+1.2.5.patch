@@ -1,0 +1,164 @@
+diff --git a/node_modules/@jiaminghi/data-view-react/es/decoration12/index.js b/node_modules/@jiaminghi/data-view-react/es/decoration12/index.js
+index 50e2eeb..73ae25f 100644
+--- a/node_modules/@jiaminghi/data-view-react/es/decoration12/index.js
++++ b/node_modules/@jiaminghi/data-view-react/es/decoration12/index.js
+@@ -71,6 +71,7 @@ var BorderBox = forwardRef(function (_ref, ref) {
+ 
+   var circleR = useMemo(function () {
+     var radiusGap = (width / 2 - ringWidth / 2) / ringNum;
++    if (radiusGap <= 0) return [];
+ 
+     return new Array(ringNum).fill(0).map(function (_, i) {
+       return radiusGap * (i + 1);
+@@ -128,7 +129,7 @@ var BorderBox = forwardRef(function (_ref, ref) {
+               stroke: pathColor[i],
+               strokeWidth: width / 2,
+               fill: 'transparent',
+-              key: d,
++              key: 'path-' + i,
+               d: d
+             });
+           })
+@@ -143,9 +144,9 @@ var BorderBox = forwardRef(function (_ref, ref) {
+           React.createElement('stop', { offset: '100%', stopColor: lib_9(mergedColor[1] || defaultColor[1], 30), stopOpacity: '1' })
+         )
+       ),
+-      circleR.map(function (r) {
++      circleR.map(function (r, i) {
+         return React.createElement('circle', {
+-          key: r,
++          key: 'circle-' + i,
+           r: r,
+           cx: x,
+           cy: y,
+@@ -185,9 +186,9 @@ var BorderBox = forwardRef(function (_ref, ref) {
+        React.createElement(
+         'g',
+         null,
+-        splitLinePoints.map(function (p) {
++        splitLinePoints.map(function (p, i) {
+           return React.createElement('polyline', {
+-            key: p,
++            key: 'split-' + i,
+             points: p,
+             stroke: mergedColor[1],
+             strokeWidth: 0.5,
+@@ -195,9 +196,9 @@ var BorderBox = forwardRef(function (_ref, ref) {
+           });
+         })
+       ),
+-      arcD.map(function (d) {
++      arcD.map(function (d, i) {
+         return React.createElement('path', {
+-          key: d,
++          key: 'arc-' + i,
+           d: d,
+           stroke: mergedColor[1],
+           strokeWidth: '2',
+diff --git a/node_modules/@jiaminghi/data-view-react/lib/decoration12/index.js b/node_modules/@jiaminghi/data-view-react/lib/decoration12/index.js
+index 9acd7d3..f11e63e 100644
+--- a/node_modules/@jiaminghi/data-view-react/lib/decoration12/index.js
++++ b/node_modules/@jiaminghi/data-view-react/lib/decoration12/index.js
+@@ -76,6 +76,7 @@ var BorderBox = React.forwardRef(function (_ref, ref) {
+ 
+   var circleR = React.useMemo(function () {
+     var radiusGap = (width / 2 - ringWidth / 2) / ringNum;
++    if (radiusGap <= 0) return [];
+ 
+     return new Array(ringNum).fill(0).map(function (_, i) {
+       return radiusGap * (i + 1);
+@@ -133,7 +134,7 @@ var BorderBox = React.forwardRef(function (_ref, ref) {
+               stroke: pathColor[i],
+               strokeWidth: width / 2,
+               fill: 'transparent',
+-              key: d,
++              key: 'path-' + i,
+               d: d
+             });
+           })
+@@ -148,9 +149,9 @@ var BorderBox = React.forwardRef(function (_ref, ref) {
+           React__default.createElement('stop', { offset: '100%', stopColor: index$3.lib_9(mergedColor[1] || defaultColor[1], 30), stopOpacity: '1' })
+         )
+       ),
+-      circleR.map(function (r) {
++      circleR.map(function (r, i) {
+         return React__default.createElement('circle', {
+-          key: r,
++          key: 'circle-' + i,
+           r: r,
+           cx: x,
+           cy: y,
+@@ -190,9 +191,9 @@ var BorderBox = React.forwardRef(function (_ref, ref) {
+        React__default.createElement(
+         'g',
+         null,
+-        splitLinePoints.map(function (p) {
++        splitLinePoints.map(function (p, i) {
+           return React__default.createElement('polyline', {
+-            key: p,
++            key: 'split-' + i,
+             points: p,
+             stroke: mergedColor[1],
+             strokeWidth: 0.5,
+@@ -200,9 +201,9 @@ var BorderBox = React.forwardRef(function (_ref, ref) {
+           });
+         })
+       ),
+-      arcD.map(function (d) {
++      arcD.map(function (d, i) {
+         return React__default.createElement('path', {
+-          key: d,
++          key: 'arc-' + i,
+           d: d,
+           stroke: mergedColor[1],
+           strokeWidth: '2',
+diff --git a/node_modules/@jiaminghi/data-view-react/src/components/decoration12/index.js b/node_modules/@jiaminghi/data-view-react/src/components/decoration12/index.js
+index 8fe5c9a..4e7e8b8 100644
+--- a/node_modules/@jiaminghi/data-view-react/src/components/decoration12/index.js
++++ b/node_modules/@jiaminghi/data-view-react/src/components/decoration12/index.js
+@@ -109,18 +109,6 @@ const BorderBox = forwardRef(({ children, className, style, color = [], scanDur
+     <div className={classNames} style={style} ref={domRef}>
+       <svg width={width} height={height}>
+         <defs>
+-          <g id={idRef.current.gId}>
+-            {
+-              pathD.map((d, i) => <path
+-                stroke={pathColor[i]}
+-                strokeWidth={width / 2}
+-                fill='transparent'
+-                key={d}
+-                d={d}
+-              />)
+-            }
+-          </g>
+-
+           <radialGradient
+             id={idRef.current.gradientId}
+             cx='50%' cy='50%' r='50%'
+@@ -195,7 +183,16 @@ const BorderBox = forwardRef(({ children, className, style, color = [], scanDur
+           />)
+         }
+ 
+-        <use href={`#${idRef.current.gId}`}>
++        <g>
++          {
++            pathD.map((d, i) => <path
++              stroke={pathColor[i]}
++              strokeWidth={width / 2}
++              fill='transparent'
++              key={d}
++              d={d}
++            />)
++          }
+           <animateTransform
+             attributeName='transform'
+             type='rotate'
+@@ -203,7 +200,7 @@ const BorderBox = forwardRef(({ children, className, style, color = [], scanDur
+             dur={`${scanDur}s`}
+             repeatCount='indefinite'
+           />
+-        </use>
++        </g>
+       </svg>
+ 
+       <div className='decoration-content'>

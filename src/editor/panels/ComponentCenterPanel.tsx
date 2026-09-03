@@ -5,41 +5,79 @@ import IconButton from "@mui/material/IconButton";
 import Button from "@mui/material/Button";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect, useRef, useMemo, memo, startTransition } from "react";
 import { componentRegistry } from "../registry";
 import { useComponentStore } from "../../store/componentStore";
 import { PanelWrapper } from "../components/PanelWrapper";
 import { resolveIcon } from "../plugins";
+import { useEditorStore } from "../../store/editorStore";
 import { ComponentGridCard } from "../../components/component";
 import { CreateCategoryDialog } from "../../components/component/CreateCategoryDialog";
 import { CategoryDetailDialog } from "../../components/component/CategoryDetailDialog";
+import { EditCategoryDialog } from "../../components/component/EditCategoryDialog";
 import type { ComponentPluginItem, ComponentCategoryNode } from "../../types/component";
+import { BUILTIN_CATEGORY_IDS } from "../../types/component";
 import { collectPluginTypes } from "../../utils/componentTree";
 import WidgetsIcon from "@mui/icons-material/Widgets";
 import ExtensionIcon from "@mui/icons-material/Extension";
+import HubIcon from "@mui/icons-material/Hub";
 import SearchIcon from "@mui/icons-material/Search";
 import AddIcon from "@mui/icons-material/Add";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import ChevronRightIcon2 from "@mui/icons-material/ChevronRight";
 import InputAdornment from "@mui/material/InputAdornment";
+import { DevicePalettePanel } from "./DevicePalettePanel";
 
 interface ComponentCenterPanelProps {
   collapsed: boolean;
   onToggle: () => void;
 }
 
-function ComponentLibraryTab() {
+const ComponentLibraryTab = memo(function ComponentLibraryTab() {
   const [activeCategory, setActiveCategory] = useState<string>("");
   const [search, setSearch] = useState("");
   const categoryTree = useComponentStore((s) => s.categoryTree);
   const refresh = useComponentStore((s) => s.refresh);
+  const syncIconFromPreviewWindow = useComponentStore((s) => s.syncIconFromPreviewWindow);
+  const setDraggedComponentType = useEditorStore((s) => s.setDraggedComponentType);
   const tabScrollRef = useRef<HTMLDivElement>(null);
   const tabItemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
+  // 监听预览窗口的图标更新事件
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    let unlisten: (() => void) | null = null;
+    import("@tauri-apps/api/event").then(({ listen }) => {
+      listen<{ pluginType: string; icon: string; name?: string; description?: string | null }>("component-icon-updated", (event) => {
+        const { pluginType, icon, name, description } = event.payload;
+        syncIconFromPreviewWindow(pluginType, icon, name, description);
+      }).then((fn) => { unlisten = fn; });
+    });
+    return () => { unlisten?.(); };
+  }, [syncIconFromPreviewWindow]);
+
+  const handleDragStart = useCallback((_e: React.DragEvent, type: string) => {
+    setDraggedComponentType(type);
+  }, [setDraggedComponentType]);
+
+  useEffect(() => {
+    // 确保设备组件先注册到 componentRegistry，再 refresh 加载 plugins
+    // 否则 loadPlugins() 看不到设备组件，设备分类下会为空
+    import("../../store/deviceStore").then(({ ensureDevicesLoaded }) => {
+      ensureDevicesLoaded().finally(() => {
+        refresh();
+      });
+    });
+  }, []);
+
+  // 首次加载时自动生成缺失的缩略图
+  useEffect(() => {
+    let cancelled = false;
+    import("../utils/thumbnailGenerator").then(({ thumbnailGenerator }) => {
+      if (!cancelled) thumbnailGenerator.ensureAll();
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (categoryTree.length > 0 && !activeCategory) {
@@ -49,28 +87,33 @@ function ComponentLibraryTab() {
 
   const activeNode = categoryTree.find((n) => n.id === activeCategory);
 
+  // 只显示已启用的组件，和组件管理页保持一致
+  const enabledPlugins = useComponentStore((s) => s.enabledPlugins);
+  const enabledPluginTypes = useMemo(() => new Set(enabledPlugins.map((p) => p.type)), [enabledPlugins]);
+
   const allDefinitionsForCategory = React.useMemo(() => {
-    if (!activeNode) return componentRegistry.getByCategory(activeCategory);
+    if (!activeNode) return [];
 
     const types = collectPluginTypes(activeNode);
-    const catKey = activeCategory.replace("ccat_", "");
-    const registryDefs = componentRegistry.getByCategory(catKey);
-    for (const def of registryDefs) {
-      types.add(def.type);
-    }
+    return componentRegistry.getEnabled().filter((d) => types.has(d.type) && enabledPluginTypes.has(d.type));
+  }, [activeNode, enabledPluginTypes]);
 
-    return componentRegistry.getAll().filter((d) => types.has(d.type));
-  }, [activeNode, activeCategory]);
+  // 响应式获取 store 中的 plugins，确保用户改名后搜索能自动更新
+  const storePlugins = useComponentStore((s) => s.plugins);
 
-  const filteredDefinitions = allDefinitionsForCategory.filter((def) => {
-    if (!search) return true;
+  const filteredDefinitions = useMemo(() => {
+    if (!search) return allDefinitionsForCategory;
     const q = search.toLowerCase();
-    return (
-      def.name.toLowerCase().includes(q) ||
-      def.type.toLowerCase().includes(q) ||
-      (def.description || "").toLowerCase().includes(q)
-    );
-  });
+    return allDefinitionsForCategory.filter((def) => {
+      // 优先匹配 store 中的用户自定义名称
+      const storePlugin = storePlugins.find((p) => p.type === def.type);
+      const displayName = storePlugin?.name ?? def.name;
+      const displayDesc = storePlugin?.description ?? def.description;
+      return displayName.toLowerCase().includes(q) ||
+        def.type.toLowerCase().includes(q) ||
+        (displayDesc || "").toLowerCase().includes(q);
+    });
+  }, [allDefinitionsForCategory, search, storePlugins]);
 
   const switchToCategory = useCallback(
     (direction: "left" | "right") => {
@@ -241,7 +284,7 @@ function ComponentLibraryTab() {
             }}
           >
             {filteredDefinitions.map((def) => (
-              <ComponentGridCard key={def.type} definition={def} />
+              <ComponentGridCard key={def.type} definition={def} onDragStart={handleDragStart} />
             ))}
           </Box>
         ) : (
@@ -254,9 +297,9 @@ function ComponentLibraryTab() {
       </Box>
     </Box>
   );
-}
+});
 
-function PluginManagerTab() {
+const PluginManagerTab = memo(function PluginManagerTab() {
   const categoryTree = useComponentStore((s) => s.categoryTree);
   const plugins = useComponentStore((s) => s.plugins);
   const isLoading = useComponentStore((s) => s.isLoading);
@@ -267,6 +310,20 @@ function PluginManagerTab() {
   const [detailCategory, setDetailCategory] = useState<ComponentCategoryNode | null>(null);
   const [createCategoryOpen, setCreateCategoryOpen] = useState(false);
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; cat: ComponentCategoryNode } | null>(null);
+  const [editCategoryId, setEditCategoryId] = useState<string | null>(null);
+
+  const editCategory = useMemo(() => {
+    if (!editCategoryId) return null;
+    const findNode = (nodes: ComponentCategoryNode[]): ComponentCategoryNode | null => {
+      for (const n of nodes) {
+        if (n.id === editCategoryId) return n;
+        const found = findNode(n.children);
+        if (found) return found;
+      }
+      return null;
+    };
+    return findNode(categoryTree);
+  }, [editCategoryId, categoryTree]);
 
   useEffect(() => {
     refresh();
@@ -284,7 +341,7 @@ function PluginManagerTab() {
   };
 
   const handleMovePlugin = async (plugin: ComponentPluginItem, targetCatId: string) => {
-    await movePluginToCategory(plugin.id, targetCatId);
+    await movePluginToCategory(plugin.type, targetCatId);
   };
 
   if (isLoading) {
@@ -407,12 +464,7 @@ function PluginManagerTab() {
       >
         {ctxMenu && (() => {
           const cat = ctxMenu.cat;
-          const isBuiltIn =
-            cat.id.startsWith("ccat_basic") ||
-            cat.id.startsWith("ccat_chart") ||
-            cat.id.startsWith("ccat_map") ||
-            cat.id.startsWith("ccat_media") ||
-            cat.id.startsWith("ccat_decoration");
+          const isBuiltIn = BUILTIN_CATEGORY_IDS.has(cat.id);
           const hasPlugins = cat.plugins.length > 0;
 
           return (
@@ -425,6 +477,15 @@ function PluginManagerTab() {
                 sx={{ fontSize: 12 }}
               >
                 查看组件
+              </MenuItem>
+              <MenuItem
+                onClick={() => {
+                  setCtxMenu(null);
+                  setEditCategoryId(cat.id);
+                }}
+                sx={{ fontSize: 12 }}
+              >
+                编辑分组
               </MenuItem>
               {!isBuiltIn && !hasPlugins && (
                 <MenuItem
@@ -452,15 +513,32 @@ function PluginManagerTab() {
         onClose={() => setCreateCategoryOpen(false)}
         categoryCount={categoryTree.length}
       />
+
+      <EditCategoryDialog
+        category={editCategory}
+        open={!!editCategoryId}
+        onClose={() => setEditCategoryId(null)}
+      />
     </Box>
   );
-}
+});
 
 export function ComponentCenterPanel({
   collapsed,
   onToggle,
 }: ComponentCenterPanelProps) {
-  const [activeTab, setActiveTab] = useState<"library" | "plugins">("library");
+  const [activeTab, setActiveTab] = useState<"library" | "devices" | "plugins">("library");
+
+  const handleTabChange = useCallback((tab: "library" | "devices" | "plugins") => {
+    startTransition(() => {
+      setActiveTab(tab);
+    });
+  }, []);
+
+  // 缓存三个 Tab 的 React 元素，避免父组件重渲染时重新创建
+  const libraryTab = useMemo(() => <ComponentLibraryTab />, []);
+  const devicesTab = useMemo(() => <DevicePalettePanel />, []);
+  const pluginsTab = useMemo(() => <PluginManagerTab />, []);
 
   return (
     <PanelWrapper
@@ -485,10 +563,11 @@ export function ComponentCenterPanel({
             borderBottom: 1,
             borderColor: "divider",
             flexShrink: 0,
+            pr: 3.5,
           }}
         >
           <Box
-            onClick={() => setActiveTab("library")}
+            onClick={() => handleTabChange("library")}
             sx={{
               flex: 1,
               display: "flex",
@@ -516,7 +595,35 @@ export function ComponentCenterPanel({
             组件库
           </Box>
           <Box
-            onClick={() => setActiveTab("plugins")}
+            onClick={() => handleTabChange("devices")}
+            sx={{
+              flex: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 0.5,
+              py: 0.75,
+              cursor: "pointer",
+              fontSize: 11,
+              fontWeight: activeTab === "devices" ? 600 : 400,
+              color: activeTab === "devices" ? "primary.main" : "text.secondary",
+              borderBottom: activeTab === "devices" ? 2 : 0,
+              borderColor: "primary.main",
+              transition: "all 0.15s",
+              "&:hover": {
+                color: "primary.main",
+                backgroundColor: (theme: any) =>
+                  theme.palette.mode === "dark"
+                    ? "rgba(255,255,255,0.04)"
+                    : "rgba(0,0,0,0.02)",
+              },
+            }}
+          >
+            <HubIcon sx={{ fontSize: 13 }} />
+            设备
+          </Box>
+          <Box
+            onClick={() => handleTabChange("plugins")}
             sx={{
               flex: 1,
               display: "flex",
@@ -545,12 +652,16 @@ export function ComponentCenterPanel({
           </Box>
         </Box>
 
-        <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-          {activeTab === "library" ? (
-            <ComponentLibraryTab />
-          ) : (
-            <PluginManagerTab />
-          )}
+        <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden", position: "relative" }}>
+          <Box sx={{ display: activeTab === "library" ? "block" : "none", height: "100%" }}>
+            {libraryTab}
+          </Box>
+          <Box sx={{ display: activeTab === "devices" ? "block" : "none", height: "100%" }}>
+            {devicesTab}
+          </Box>
+          <Box sx={{ display: activeTab === "plugins" ? "block" : "none", height: "100%" }}>
+            {pluginsTab}
+          </Box>
         </Box>
       </Box>
     </PanelWrapper>

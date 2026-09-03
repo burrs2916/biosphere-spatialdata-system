@@ -20,6 +20,11 @@ import InfoRoundedIcon from "@mui/icons-material/InfoRounded";
 import HelpRoundedIcon from "@mui/icons-material/HelpRounded";
 import LibraryBooksRoundedIcon from "@mui/icons-material/LibraryBooksRounded";
 import { useLocation, useNavigate } from "react-router-dom";
+import { requireConfigAccess } from "../../utils/authGate";
+import { useAuthStore } from "../../store/authStore";
+
+/** 配置面路由：需管理员登录（与 App.tsx 的 ConfigGate 路由清单保持一致） */
+const GATED_PATHS = new Set(["/scene", "/datasource", "/components", "/map-library"]);
 
 interface MenuItemDef {
   text: string;
@@ -40,14 +45,14 @@ const menuGroups: MenuGroupDef[] = [
     items: [
       { text: "仪表盘", icon: <DashboardRoundedIcon />, path: "/" },
       { text: "场景编辑", icon: <LayersRoundedIcon />, path: "/scene" },
-      { text: "地图浏览", icon: <MapRoundedIcon />, path: "/maps" },
-      { text: "数据源", icon: <StorageRoundedIcon />, path: "/datasource" },
+      { text: "数据源管理", icon: <StorageRoundedIcon />, path: "/datasource" },
     ],
   },
   {
     id: "published",
     label: "发布管理",
     items: [
+      { text: "地图浏览", icon: <MapRoundedIcon />, path: "/maps" },
       { text: "已发布场景", icon: <PublicRoundedIcon />, path: "/published" },
     ],
   },
@@ -85,6 +90,16 @@ interface MenuContentProps {
 export default function MenuContent({ collapsed = false }: MenuContentProps) {
   const location = useLocation();
   const navigate = useNavigate();
+  const authEnabled = useAuthStore((s) => s.enabled);
+  const currentUser = useAuthStore((s) => s.currentUser);
+  // 未登录且认证已开启：配置项（场景编辑/数据源/组件/图库）直接隐藏，登录后才出现
+  const gatedHidden = authEnabled && !currentUser;
+  const visibleGroups = menuGroups
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((it) => !(gatedHidden && GATED_PATHS.has(it.path))),
+    }))
+    .filter((g) => g.items.length > 0);
 
   const renderMenuItem = (item: MenuItemDef, index: number) => {
     const isSelected = location.pathname === item.path;
@@ -92,7 +107,13 @@ export default function MenuContent({ collapsed = false }: MenuContentProps) {
       <ListItem key={`${item.path}-${index}`} disablePadding sx={{ display: "block" }}>
         <ListItemButton
           selected={isSelected}
-          onClick={() => navigate(item.path)}
+          onClick={() => {
+            if (GATED_PATHS.has(item.path)) {
+              requireConfigAccess(() => navigate(item.path));
+            } else {
+              navigate(item.path);
+            }
+          }}
           sx={{
             borderRadius: 1,
             mx: collapsed ? 0.5 : 1,
@@ -152,7 +173,7 @@ export default function MenuContent({ collapsed = false }: MenuContentProps) {
   if (collapsed) {
     return (
       <Box sx={{ flexGrow: 1, display: "flex", flexDirection: "column" }}>
-        {menuGroups.map((group, groupIndex) => (
+        {visibleGroups.map((group, groupIndex) => (
           <Box key={group.id}>
             {groupIndex > 0 && (
               <Divider sx={{ my: 0.5, mx: 1 }} />
@@ -168,7 +189,7 @@ export default function MenuContent({ collapsed = false }: MenuContentProps) {
 
   return (
     <Box sx={{ flexGrow: 1, display: "flex", flexDirection: "column" }}>
-      {menuGroups.map((group, groupIndex) => (
+      {visibleGroups.map((group, groupIndex) => (
         <List
           key={group.id}
           dense

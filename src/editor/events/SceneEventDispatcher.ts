@@ -332,6 +332,24 @@ export class SceneEventDispatcher {
     this.emitGlobalEvent(eventType, payload as SceneEvent);
   }
 
+  /**
+   * 发射组件级事件，用于预览/运行模式下的组件交互。
+   * 事件以 `${componentId}:${eventName}` 为 key 分发给 EventBindingEngine。
+   */
+  emitComponentEvent(componentId: string, eventName: string, payload?: unknown): void {
+    const eventKey = `${componentId}:${eventName}`;
+    const handlers = this.globalHandlers.get(eventKey);
+    if (handlers) {
+      for (const handler of handlers) {
+        try {
+          handler(payload as SceneEvent);
+        } catch (err) {
+          console.error(`[SceneEventDispatcher] Error in component event handler for ${eventKey}:`, err);
+        }
+      }
+    }
+  }
+
   private emitGlobalEvent(eventType: string, event: SceneEvent): void {
     const handlers = this.globalHandlers.get(eventType);
     if (!handlers) return;

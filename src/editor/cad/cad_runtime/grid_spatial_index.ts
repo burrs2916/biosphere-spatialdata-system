@@ -108,6 +108,11 @@ export class GridSpatialIndex {
     this._checkAutoResize();
   }
 
+  addEntity(entityId: string, bbox: { minX: number; minY: number; maxX: number; maxY: number }): void {
+    this._entityBboxes.set(entityId, { ...bbox });
+    this._updateGlobalBbox(bbox.minX, bbox.minY, bbox.maxX, bbox.maxY);
+  }
+
   removeEntity(entityId: string): boolean {
     const segments = this._entitySegments.get(entityId);
     if (!segments) return false;
@@ -145,7 +150,7 @@ export class GridSpatialIndex {
   }
 
   hasEntity(entityId: string): boolean {
-    return this._entitySegments.has(entityId);
+    return this._entitySegments.has(entityId) || this._entityBboxes.has(entityId);
   }
 
   queryPoint(px: number, py: number, tolerance: number): string | null {
@@ -218,6 +223,15 @@ export class GridSpatialIndex {
 
         for (const seg of cell.segments) {
           candidateEntities.add(seg.entityId);
+        }
+      }
+    }
+
+    // Also include entities added via addEntity() (bbox-only, no segments)
+    for (const [entityId, bbox] of this._entityBboxes) {
+      if (!this._entitySegments.has(entityId)) {
+        if (bbox.minX <= maxX && bbox.maxX >= minX && bbox.minY <= maxY && bbox.maxY >= minY) {
+          candidateEntities.add(entityId);
         }
       }
     }

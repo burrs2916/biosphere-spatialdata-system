@@ -5,7 +5,7 @@ import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
 import CloseIcon from "@mui/icons-material/Close";
-import { resolveIcon } from "../../editor/plugins";
+import { renderCategoryIcon } from "./categoryConstants";
 import type { ComponentPluginItem, ComponentCategoryNode } from "../../types/component";
 import { PluginCard } from "./PluginCard";
 
@@ -65,7 +65,7 @@ export function CategoryDetailDialog({
             color: category.color || "text.secondary",
           }}
         >
-          {resolveIcon(category.icon, "folder", 16)}
+          {renderCategoryIcon(category.icon, 16)}
         </Box>
         <Box sx={{ flex: 1 }}>
           <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.3 }}>

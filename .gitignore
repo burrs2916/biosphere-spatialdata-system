@@ -60,3 +60,14 @@ cad_*_analysis.md
 
 # All documentation
 docs/
+
+# Local data and debug artifacts (do NOT commit)
+config.db
+.trae/
+debug-comp-tunnel-render-error.md
+test-deco10.mjs
+test-carved.html
+test-carved-playwright.mjs
+visual-compare.mjs
+compare-orig.mjs
+pump-preview.html

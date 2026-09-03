@@ -91,17 +91,14 @@ export function PanelWrapper({
                 height: 20,
                 borderRadius: 0.5,
                 zIndex: 10,
-                opacity: 0,
-                transition: "opacity 0.15s",
+                opacity: 0.45,
+                transition: "opacity 0.2s, background-color 0.2s",
                 "&:hover": {
                   opacity: 1,
                   backgroundColor: (theme) =>
                     theme.palette.mode === "dark"
-                      ? "rgba(255,255,255,0.08)"
-                      : "rgba(0,0,0,0.06)",
-                },
-                ".MuiBox-root:hover &": {
-                  opacity: 0.6,
+                      ? "rgba(255,255,255,0.12)"
+                      : "rgba(0,0,0,0.08)",
                 },
               }}
             >

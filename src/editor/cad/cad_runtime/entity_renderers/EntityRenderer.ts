@@ -7,7 +7,6 @@ export interface EntityRenderContext {
   viewport: { width: number; height: number };
   zoom: number;
   frameTime: number;
-  layerManager?: import("../layer_manager").LayerManager;
 }
 
 export interface EntityRenderResult {

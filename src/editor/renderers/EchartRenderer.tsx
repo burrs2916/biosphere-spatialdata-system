@@ -1,31 +1,30 @@
 import Box from "@mui/material/Box";
 import ReactEChartsCore from "echarts-for-react/lib/core";
-import * as echarts from "echarts/core";
-import { BarChart, LineChart, PieChart, ScatterChart, RadarChart, GaugeChart } from "echarts/charts";
-import {
-  GridComponent,
-  TooltipComponent,
-  TitleComponent,
-  LegendComponent,
-  DataZoomComponent,
-} from "echarts/components";
-import { CanvasRenderer } from "echarts/renderers";
+import { echarts, CHART_BOX_SX } from "./echarts/echartsCore";
 import type { ComponentRendererProps } from "../../types/editor";
 
-echarts.use([
-  BarChart,
-  LineChart,
-  PieChart,
-  ScatterChart,
-  RadarChart,
-  GaugeChart,
-  GridComponent,
-  TooltipComponent,
-  TitleComponent,
-  LegendComponent,
-  DataZoomComponent,
-  CanvasRenderer,
-]);
+/**
+ * 通用 ECharts 渲染器（向后兼容）
+ * 推荐使用专用图表组件：echart-bar, echart-line, echart-pie 等
+ */
+export function EchartRenderer({ config }: ComponentRendererProps) {
+  const option = (config.option as object | undefined);
+  const theme = (config.theme as string) || "default";
+  const chartOption = option && Object.keys(option).length > 0 ? option : getDemoOption();
+
+  return (
+    <Box sx={CHART_BOX_SX}>
+      <ReactEChartsCore
+        echarts={echarts}
+        option={chartOption}
+        theme={theme === "dark" ? "dark" : undefined}
+        style={{ width: "100%", height: "100%" }}
+        notMerge
+        lazyUpdate
+      />
+    </Box>
+  );
+}
 
 const DEMO_OPTIONS: Record<string, object> = {
   bar: {
@@ -70,34 +69,4 @@ const DEMO_OPTIONS: Record<string, object> = {
 function getDemoOption(): object {
   const keys = Object.keys(DEMO_OPTIONS);
   return DEMO_OPTIONS[keys[Math.floor(Math.random() * keys.length)]];
-}
-
-export function EchartRenderer({ config }: ComponentRendererProps) {
-  const option = (config.option as object | undefined);
-  const theme = (config.theme as string) || "default";
-  const chartOption = option && Object.keys(option).length > 0 ? option : getDemoOption();
-
-  return (
-    <Box
-      sx={{
-        width: "100%",
-        height: "100%",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: "rgba(0,0,0,0.15)",
-        borderRadius: 1,
-        overflow: "hidden",
-      }}
-    >
-      <ReactEChartsCore
-        echarts={echarts}
-        option={chartOption}
-        theme={theme === "dark" ? "dark" : undefined}
-        style={{ width: "100%", height: "100%" }}
-        notMerge
-        lazyUpdate
-      />
-    </Box>
-  );
 }

@@ -15,6 +15,8 @@ let flushTimer: ReturnType<typeof setTimeout> | null = null;
 const FLUSH_INTERVAL = 1000;
 const MAX_QUEUE_SIZE = 20;
 
+const isProduction = import.meta.env.PROD;
+
 function scheduleFlush() {
   if (flushTimer) return;
   flushTimer = setTimeout(async () => {
@@ -58,12 +60,14 @@ function createEntry(level: LogLevel, module: string, message: string, data?: Re
 
 export const logger = {
   debug(module: string, message: string, data?: Record<string, unknown>) {
+    if (isProduction) return;
     const entry = createEntry("debug", module, message, data);
     enqueue(entry);
     console.debug(`[${module}] ${message}`, data ?? "");
   },
 
   info(module: string, message: string, data?: Record<string, unknown>) {
+    if (isProduction) return;
     const entry = createEntry("info", module, message, data);
     enqueue(entry);
     console.info(`[${module}] ${message}`, data ?? "");

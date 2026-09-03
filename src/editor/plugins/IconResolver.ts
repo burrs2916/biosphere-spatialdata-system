@@ -55,6 +55,46 @@ import WaterfallChartIcon from "@mui/icons-material/WaterfallChart";
 import ArchitectureIcon from "@mui/icons-material/Architecture";
 import WhatshotIcon from "@mui/icons-material/Whatshot";
 import WallpaperIcon from "@mui/icons-material/Wallpaper";
+import CircleIcon from "@mui/icons-material/Circle";
+import HorizontalRuleIcon from "@mui/icons-material/HorizontalRule";
+import PanoramaFishEyeIcon from "@mui/icons-material/PanoramaFishEye";
+import ChangeHistoryIcon from "@mui/icons-material/ChangeHistory";
+import HexagonIcon from "@mui/icons-material/Hexagon";
+import TripOriginIcon from "@mui/icons-material/TripOrigin";
+import DiamondIcon from "@mui/icons-material/Diamond";
+import RemoveIcon from "@mui/icons-material/Remove";
+import WavesIcon from "@mui/icons-material/Waves";
+import CheckBoxOutlineBlankIcon from "@mui/icons-material/CheckBoxOutlineBlank";
+import GradientIcon from "@mui/icons-material/Gradient";
+import CropFreeIcon from "@mui/icons-material/CropFree";
+import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
+import LineStyleIcon from "@mui/icons-material/LineStyle";
+import BlurOnIcon from "@mui/icons-material/BlurOn";
+import TitleIcon from "@mui/icons-material/Title";
+import FormatListNumberedIcon from "@mui/icons-material/FormatListNumbered";
+import LabelIcon from "@mui/icons-material/Label";
+import LinearScaleIcon from "@mui/icons-material/LinearScale";
+import FlareIcon from "@mui/icons-material/Flare";
+import ViewStreamIcon from "@mui/icons-material/ViewStream";
+import RadioButtonCheckedIcon from "@mui/icons-material/RadioButtonChecked";
+import PlaceIcon from "@mui/icons-material/Place";
+import TrendingFlatIcon from "@mui/icons-material/TrendingFlat";
+import BookmarkIcon from "@mui/icons-material/Bookmark";
+import FormatAlignLeftIcon from "@mui/icons-material/FormatAlignLeft";
+import FlightIcon from "@mui/icons-material/Flight";
+import WbSunnyIcon from "@mui/icons-material/WbSunny";
+import SensorsIcon from "@mui/icons-material/Sensors";
+import WaterDropIcon from "@mui/icons-material/WaterDrop";
+import SettingsInputAntennaIcon from "@mui/icons-material/SettingsInputAntenna";
+import ThermostatIcon from "@mui/icons-material/Thermostat";
+import GrainIcon from "@mui/icons-material/Grain";
+import AirIcon from "@mui/icons-material/Air";
+import Inventory2Icon from "@mui/icons-material/Inventory2";
+import NotificationImportantIcon from "@mui/icons-material/NotificationImportant";
+import DeviceHubIcon from "@mui/icons-material/DeviceHub";
+import HelpOutlineIcon from "@mui/icons-material/HelpOutlineOutlined";
+import DevicesIcon from "@mui/icons-material/Devices";
+import DataObjectIcon from "@mui/icons-material/DataObject";
 
 const LIGATURE_MAP: Record<string, React.ComponentType<any>> = {
   palette: PaletteIcon,
@@ -110,9 +150,50 @@ const LIGATURE_MAP: Record<string, React.ComponentType<any>> = {
   architecture: ArchitectureIcon,
   whatshot: WhatshotIcon,
   wallpaper: WallpaperIcon,
+  circle: CircleIcon,
+  horizontal_rule: HorizontalRuleIcon,
+  panorama_fish_eye: PanoramaFishEyeIcon,
+  change_history: ChangeHistoryIcon,
+  hexagon: HexagonIcon,
+  trip_origin: TripOriginIcon,
+  diamond: DiamondIcon,
+  remove: RemoveIcon,
+  waves: WavesIcon,
+  check_box_outline_blank: CheckBoxOutlineBlankIcon,
+  gradient: GradientIcon,
+  crop_free: CropFreeIcon,
+  fiber_manual_record: FiberManualRecordIcon,
+  line_style: LineStyleIcon,
+  blur_on: BlurOnIcon,
+  title: TitleIcon,
+  format_list_numbered: FormatListNumberedIcon,
+  label: LabelIcon,
+  linear_scale: LinearScaleIcon,
+  flare: FlareIcon,
+  view_stream: ViewStreamIcon,
+  radio_button_checked: RadioButtonCheckedIcon,
+  place: PlaceIcon,
+  trending_flat: TrendingFlatIcon,
+  bookmark: BookmarkIcon,
+  format_align_left: FormatAlignLeftIcon,
+  flight: FlightIcon,
+  wb_sunny: WbSunnyIcon,
+  // 设备组件图标
+  sensors: SensorsIcon,
+  water_drop: WaterDropIcon,
+  settings_input_antenna: SettingsInputAntennaIcon,
+  thermostat: ThermostatIcon,
+  grain: GrainIcon,
+  air: AirIcon,
+  inventory_2: Inventory2Icon,
+  notification_important: NotificationImportantIcon,
+  device_hub: DeviceHubIcon,
+  help_outline: HelpOutlineIcon,
+  devices: DevicesIcon,
+  data_object: DataObjectIcon,
 };
 
-export type IconType = "material" | "svg" | "url";
+export type IconType = "material" | "svg" | "url" | "emoji";
 
 export interface IconDescriptor {
   type: IconType;
@@ -123,12 +204,40 @@ export interface IconDescriptor {
 
 const iconCache = new Map<string, React.ReactElement>();
 
-function parseIconString(iconStr: string): IconDescriptor {
+function parseIconString(iconStr: string, typeForThumbnail?: string): IconDescriptor {
+  // 支持 iconSource.ts 定义的前缀格式
+  if (iconStr.startsWith("material:")) {
+    return { type: "material", value: iconStr.slice(9) };
+  }
+  if (iconStr.startsWith("thumbnail:") || iconStr === "thumbnail") {
+    // thumbnail 类型通过缩略图组件渲染，构造 /thumbnails/{type}.png URL
+    // 注意：type 中的冒号需要 sanitize 为 __，与后端 save_thumbnail 保持一致
+    if (typeForThumbnail) {
+      const safeType = typeForThumbnail.replace(/:/g, "__");
+      return { type: "url", value: `/thumbnails/${safeType}.png` };
+    }
+    return { type: "url", value: "" };
+  }
+  if (iconStr.startsWith("text:")) {
+    const content = iconStr.slice(5);
+    // 单个 emoji
+    if (/^\p{Emoji}/u.test(content) && content.length <= 2) {
+      return { type: "emoji", value: content };
+    }
+    return { type: "emoji", value: content };
+  }
+  if (iconStr.startsWith("color:")) {
+    // 纯色块类型：通常走缩略图渲染，这里作为 fallback 返回 palette 图标
+    return { type: "material", value: "palette" };
+  }
   if (iconStr.startsWith("data:") || iconStr.startsWith("http://") || iconStr.startsWith("https://")) {
     return { type: "url", value: iconStr };
   }
   if (iconStr.startsWith("<svg") || iconStr.startsWith("<?xml")) {
     return { type: "svg", value: iconStr };
+  }
+  if (/^\p{Emoji}/u.test(iconStr) && iconStr.length <= 2) {
+    return { type: "emoji", value: iconStr };
   }
   return { type: "material", value: iconStr };
 }
@@ -136,13 +245,15 @@ function parseIconString(iconStr: string): IconDescriptor {
 export function resolveIcon(
   icon: string | IconDescriptor | undefined,
   fallback: string = "widgets",
-  fontSize: number = 16
+  fontSize: number = 16,
+  // 当 icon 是 thumbnail 类型时需要组件 type 来构造 /thumbnails/{type}.png URL
+  typeForThumbnail?: string
 ): React.ReactElement {
   if (!icon) {
     return renderMaterialIcon(fallback, fontSize);
   }
 
-  const descriptor: IconDescriptor = typeof icon === "string" ? parseIconString(icon) : icon;
+  const descriptor: IconDescriptor = typeof icon === "string" ? parseIconString(icon, typeForThumbnail) : icon;
   const cacheKey = `${descriptor.type}:${descriptor.value}:${fontSize}`;
 
   const cached = iconCache.get(cacheKey);
@@ -159,6 +270,9 @@ export function resolveIcon(
       break;
     case "url":
       element = renderUrlIcon(descriptor.value, fontSize);
+      break;
+    case "emoji":
+      element = renderEmojiIcon(descriptor.value, fontSize);
       break;
     default:
       element = renderMaterialIcon(fallback, fontSize);
@@ -208,6 +322,19 @@ function renderUrlIcon(url: string, fontSize: number): React.ReactElement {
       height: fontSize,
       objectFit: "contain",
     },
+  });
+}
+
+function renderEmojiIcon(emoji: string, fontSize: number): React.ReactElement {
+  return React.createElement(Box, {
+    sx: {
+      fontSize,
+      lineHeight: 1,
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    children: emoji,
   });
 }
 

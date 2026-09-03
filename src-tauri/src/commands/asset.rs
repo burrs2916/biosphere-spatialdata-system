@@ -272,3 +272,56 @@ pub fn rename_asset(file_path: String, new_name: String) -> Result<String, Strin
 
     Ok(new_path.to_string_lossy().to_string())
 }
+
+fn get_thumbnails_dir() -> Result<PathBuf, String> {
+    let exe_dir = std::env::current_exe().map_err(|e| format!("Failed to get exe path: {}", e))?;
+    let mut dir = exe_dir.parent().ok_or("Failed to get exe directory")?;
+
+    while dir.parent().is_some() {
+        if dir.join("package.json").exists() {
+            let thumb_dir = dir.join("public").join("thumbnails");
+            fs::create_dir_all(&thumb_dir).map_err(|e| format!("Failed to create thumbnails dir: {}", e))?;
+            return Ok(thumb_dir);
+        }
+        dir = dir.parent().unwrap();
+    }
+
+    let project_root = get_project_root()?;
+    let dir = project_root.join("public").join("thumbnails");
+    fs::create_dir_all(&dir).map_err(|e| format!("Failed to create thumbnails dir: {}", e))?;
+    Ok(dir)
+}
+
+#[tauri::command]
+pub fn save_thumbnail(component_type: String, data_url: String) -> Result<String, String> {
+    let data_url = data_url.trim();
+
+    let b64_data = if let Some(idx) = data_url.find(",") {
+        &data_url[idx + 1..]
+    } else {
+        return Err("Invalid data URL format".to_string());
+    };
+
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(b64_data)
+        .map_err(|e| format!("Failed to decode base64: {}", e))?;
+
+    let dir = get_thumbnails_dir()?;
+    let safe_type = component_type.replace(":", "__");
+    let file_name = format!("{}.png", safe_type);
+    let file_path = dir.join(&file_name);
+
+    fs::write(&file_path, &bytes).map_err(|e| format!("Failed to write thumbnail: {}", e))?;
+
+    Ok(file_path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn check_thumbnails_exist(types: Vec<String>) -> Result<Vec<bool>, String> {
+    let dir = get_thumbnails_dir()?;
+    let results: Vec<bool> = types
+        .iter()
+        .map(|t| dir.join(format!("{}.png", t.replace(":", "__"))).exists())
+        .collect();
+    Ok(results)
+}
