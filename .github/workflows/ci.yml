@@ -139,10 +139,6 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Workaround: DuckDB's bundled fmt uses stdext::checked_array_iterator,
-          # which newer MSVC (14.5x / VS 17.13+) no longer declares implicitly under
-          # /permissive-. Force-including <iterator> makes the stdext namespace visible.
-          CXXFLAGS: ${{ matrix.platform == 'Windows' && '/FIiterator' || '' }}
         with:
           tagName: app-v__VERSION__
           releaseName: 'SpatialData System v__VERSION__'
