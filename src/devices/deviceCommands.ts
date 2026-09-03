@@ -4,7 +4,7 @@
  * 对齐 edge-conductor 结构化命令 API：POST /api/devices/:id/command
  * 契约来源：
  *   - edge-conductor/api/src/handlers/http/device/command.rs（命令分发）
- *   - docs/协议相关/命令码映射.json（协议字段定义）
+ *   - src/devices/commandCodeMapping.json（协议字段定义）
  *
  * 前端下发命令时以此表为唯一命令码来源，避免硬编码散落各处。
  */
@@ -275,12 +275,12 @@ export function isSupportedCommand(code: string): boolean {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// 协议文档 schema 源（命令码映射.json）
+// 协议 schema 源（src/devices/commandCodeMapping.json）
 // 作为唯一协议契约源，与 DEVICE_COMMAND_DEFS 交叉验证。
 // 后端协议调整时更新 JSON，前端启动时自动检测不一致。
 // ═══════════════════════════════════════════════════════════════
 
-import protocolSchema from "../../docs/协议相关/命令码映射.json";
+import protocolSchema from "./commandCodeMapping.json";
 
 interface ProtocolField {
   name: string;
